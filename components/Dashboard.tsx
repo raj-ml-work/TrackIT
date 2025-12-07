@@ -1,0 +1,204 @@
+import React, { useEffect, useState } from 'react';
+import { Asset, AssetStatus, AssetType } from '../types';
+import GlassCard from './GlassCard';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { Sparkles, TrendingUp, AlertCircle, Package, DollarSign } from 'lucide-react';
+import { generateInventoryInsight } from '../services/geminiService';
+import { motion } from 'framer-motion';
+
+interface DashboardProps {
+  assets: Asset[];
+}
+
+const COLORS = ['#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#f59e0b'];
+
+const Dashboard: React.FC<DashboardProps> = ({ assets }) => {
+  const [insight, setInsight] = useState<string>("");
+  const [loadingInsight, setLoadingInsight] = useState(false);
+
+  const totalValue = assets.reduce((acc, curr) => acc + curr.cost, 0);
+  const inUseCount = assets.filter(a => a.status === AssetStatus.IN_USE).length;
+  const utilizationRate = assets.length > 0 ? Math.round((inUseCount / assets.length) * 100) : 0;
+  
+  // Calculate expiring warranties (next 90 days)
+  const expiringCount = assets.filter(a => {
+    const today = new Date();
+    const expiry = new Date(a.warrantyExpiry);
+    const diffTime = expiry.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 && diffDays <= 90;
+  }).length;
+
+  const typeData = Object.values(AssetType).map(type => ({
+    name: type,
+    value: assets.filter(a => a.type === type).length
+  })).filter(d => d.value > 0);
+
+  const statusData = Object.values(AssetStatus).map(status => ({
+    name: status,
+    count: assets.filter(a => a.status === status).length
+  }));
+
+  useEffect(() => {
+    // Initial insight generation if API key is present
+    if (process.env.API_KEY && assets.length > 0 && !insight) {
+      handleGenerateInsight();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assets]); // Only re-run if assets change drastically or on mount
+
+  const handleGenerateInsight = async () => {
+    setLoadingInsight(true);
+    const result = await generateInventoryInsight(assets);
+    setInsight(result);
+    setLoadingInsight(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <GlassCard hoverEffect>
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-full bg-blue-100 text-blue-600">
+              <Package size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Total Assets</p>
+              <h3 className="text-2xl font-bold text-gray-800">{assets.length}</h3>
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard hoverEffect>
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-full bg-emerald-100 text-emerald-600">
+              <DollarSign size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Total Value</p>
+              <h3 className="text-2xl font-bold text-gray-800">${totalValue.toLocaleString()}</h3>
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard hoverEffect>
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-full bg-violet-100 text-violet-600">
+              <TrendingUp size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Utilization</p>
+              <h3 className="text-2xl font-bold text-gray-800">{utilizationRate}%</h3>
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard hoverEffect>
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-full bg-rose-100 text-rose-600">
+              <AlertCircle size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Warranty Alerts</p>
+              <h3 className="text-2xl font-bold text-gray-800">{expiringCount}</h3>
+            </div>
+          </div>
+        </GlassCard>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <GlassCard className="lg:col-span-2">
+           <div className="flex justify-between items-center mb-6">
+             <h3 className="text-lg font-bold text-gray-800">Asset Distribution</h3>
+           </div>
+           <div className="h-64 w-full">
+             <ResponsiveContainer width="100%" height="100%">
+               <BarChart data={typeData}>
+                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                 <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                 <Tooltip 
+                    cursor={{fill: 'transparent'}}
+                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} 
+                 />
+                 <Bar dataKey="value" fill="#0ea5e9" radius={[8, 8, 0, 0]} barSize={40} />
+               </BarChart>
+             </ResponsiveContainer>
+           </div>
+        </GlassCard>
+
+        <GlassCard>
+          <h3 className="text-lg font-bold text-gray-800 mb-6">Status Breakdown</h3>
+          <div className="h-64 w-full relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={statusData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="count"
+                >
+                  {statusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: '12px', border: 'none' }} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+               <div className="text-center">
+                 <span className="block text-2xl font-bold text-gray-800">{assets.length}</span>
+                 <span className="text-xs text-gray-500 uppercase tracking-wider">Total</span>
+               </div>
+            </div>
+          </div>
+        </GlassCard>
+      </div>
+
+      <GlassCard className="relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-4 opacity-10">
+          <Sparkles size={100} />
+        </div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-3">
+             <Sparkles className="text-violet-500" size={20} />
+             <h3 className="text-lg font-bold text-gray-800">Auralis Insights</h3>
+          </div>
+          
+          <div className="min-h-[60px]">
+            {loadingInsight ? (
+               <div className="flex items-center space-x-2 text-gray-500 animate-pulse">
+                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                 <span>Analyzing inventory patterns...</span>
+               </div>
+            ) : (
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-gray-600 leading-relaxed max-w-4xl"
+              >
+                {insight || "Connect your API key and add assets to receive AI-powered optimization summaries."}
+              </motion.p>
+            )}
+          </div>
+          
+          <div className="mt-4">
+             <button 
+                onClick={handleGenerateInsight}
+                disabled={loadingInsight}
+                className="text-sm font-medium text-violet-600 hover:text-violet-800 transition-colors flex items-center gap-1"
+             >
+               Refresh Analysis
+             </button>
+          </div>
+        </div>
+      </GlassCard>
+    </div>
+  );
+};
+
+export default Dashboard;
