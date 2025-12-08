@@ -9,6 +9,7 @@ interface AssetManagerProps {
   onAdd: (asset: Omit<Asset, 'id'>) => void;
   onUpdate: (asset: Asset) => void;
   onDelete: (id: string) => void;
+  canDelete?: boolean;
 }
 
 const initialSpecs: AssetSpecs = {
@@ -46,7 +47,7 @@ const getIcon = (type: AssetType) => {
   }
 };
 
-const AssetManager: React.FC<AssetManagerProps> = ({ assets, onAdd, onUpdate, onDelete }) => {
+const AssetManager: React.FC<AssetManagerProps> = ({ assets, onAdd, onUpdate, onDelete, canDelete = true }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<AssetType | 'All'>('All');
   
@@ -378,12 +379,14 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, onAdd, onUpdate, on
                     >
                       <Edit2 size={18} />
                     </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); onDelete(asset.id); }} 
-                      className="p-2 hover:bg-white/50 rounded-lg text-gray-600 hover:text-red-600"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                    {canDelete && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onDelete(asset.id); }} 
+                        className="p-2 hover:bg-white/50 rounded-lg text-gray-600 hover:text-red-600"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </GlassCard>
@@ -426,17 +429,19 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, onAdd, onUpdate, on
                       <button onClick={() => openEdit(selectedAsset)} className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors">
                         <Edit2 size={20} />
                       </button>
-                      <button 
-                        onClick={() => { 
-                          if(confirm('Delete this asset?')) { 
-                            onDelete(selectedAsset.id); 
-                            setSelectedAsset(null); 
-                          }
-                        }} 
-                        className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={20} />
-                      </button>
+                      {canDelete && (
+                        <button 
+                          onClick={() => { 
+                            if(confirm('Delete this asset?')) { 
+                              onDelete(selectedAsset.id); 
+                              setSelectedAsset(null); 
+                            }
+                          }} 
+                          className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      )}
                    </div>
                 </div>
 

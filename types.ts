@@ -47,3 +47,22 @@ export interface DashboardStats {
   assignedRate: number;
   expiringWarranties: number;
 }
+
+export enum UserRole {
+  ADMIN = 'Admin',
+  USER = 'User'
+}
+
+export enum UserStatus {
+  ACTIVE = 'Active',
+  INACTIVE = 'Inactive'
+}
+
+export interface UserAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  lastLogin: string;
+}

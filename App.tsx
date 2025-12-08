@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Asset, AssetType, AssetStatus } from './types';
+import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus } from './types';
 import Dashboard from './components/Dashboard';
 import AssetManager from './components/AssetManager';
 import Settings from './components/Settings';
-import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X } from 'lucide-react';
+import UserManagement from './components/UserManagement';
+import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Mock Data
@@ -120,16 +121,53 @@ const MOCK_ASSETS: Asset[] = [
   }
 ];
 
+const MOCK_USERS: UserAccount[] = [
+  {
+    id: 'u-1001',
+    name: 'Alicia Vega',
+    email: 'alicia@auralis.inc',
+    role: UserRole.ADMIN,
+    status: UserStatus.ACTIVE,
+    lastLogin: '2h ago'
+  },
+  {
+    id: 'u-1002',
+    name: 'Liam Chen',
+    email: 'liam@auralis.inc',
+    role: UserRole.USER,
+    status: UserStatus.ACTIVE,
+    lastLogin: '1d ago'
+  },
+  {
+    id: 'u-1003',
+    name: 'Priya Patel',
+    email: 'priya@auralis.inc',
+    role: UserRole.USER,
+    status: UserStatus.INACTIVE,
+    lastLogin: '7d ago'
+  }
+];
+
 enum View {
   DASHBOARD = 'Dashboard',
   INVENTORY = 'Inventory',
+  USERS = 'Users',
   SETTINGS = 'Settings'
 }
 
 const App: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>(MOCK_ASSETS);
+  const [users, setUsers] = useState<UserAccount[]>(MOCK_USERS);
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.ADMIN);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const isAdmin = currentUserRole === UserRole.ADMIN;
+
+  useEffect(() => {
+    if (!isAdmin && (currentView === View.USERS || currentView === View.SETTINGS)) {
+      setCurrentView(View.DASHBOARD);
+    }
+  }, [isAdmin, currentView]);
 
   const handleAddAsset = (newAsset: Omit<Asset, 'id'>) => {
     const asset: Asset = { ...newAsset, id: Math.random().toString(36).substr(2, 9) };
@@ -144,6 +182,23 @@ const App: React.FC = () => {
     if (confirm('Are you sure you want to delete this asset?')) {
       setAssets(prev => prev.filter(a => a.id !== id));
     }
+  };
+
+  const handleAddUser = (user: Omit<UserAccount, 'id' | 'lastLogin'>) => {
+    const newUser: UserAccount = {
+      ...user,
+      id: Math.random().toString(36).substr(2, 9),
+      lastLogin: '—'
+    };
+    setUsers(prev => [newUser, ...prev]);
+  };
+
+  const handleUpdateUser = (updated: UserAccount) => {
+    setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+  };
+
+  const handleToggleUserStatus = (id: string) => {
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: u.status === UserStatus.ACTIVE ? UserStatus.INACTIVE : UserStatus.ACTIVE } : u));
   };
 
   const NavItem = ({ view, icon: Icon }: { view: View, icon: any }) => (
@@ -174,7 +229,8 @@ const App: React.FC = () => {
         <nav className="space-y-2 flex-1">
           <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
           <NavItem view={View.INVENTORY} icon={Box} />
-          <NavItem view={View.SETTINGS} icon={SettingsIcon} />
+          {isAdmin && <NavItem view={View.USERS} icon={Users} />}
+          {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
         </nav>
 
         <div className="mt-auto px-6 py-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
@@ -204,9 +260,10 @@ const App: React.FC = () => {
             className="fixed top-20 left-0 w-full z-20 bg-white/95 backdrop-blur-xl p-6 shadow-xl border-b border-gray-100 lg:hidden"
           >
              <nav className="space-y-2">
-              <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
+             <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
               <NavItem view={View.INVENTORY} icon={Box} />
-              <NavItem view={View.SETTINGS} icon={SettingsIcon} />
+              {isAdmin && <NavItem view={View.USERS} icon={Users} />}
+              {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
             </nav>
           </motion.div>
         )}
@@ -215,14 +272,29 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 lg:ml-72 p-6 lg:p-10 pt-24 lg:pt-10 overflow-y-auto min-h-screen">
         <div className="max-w-7xl mx-auto">
-          <header className="mb-8 flex justify-between items-end">
+          <header className="mb-8 flex justify-between items-end gap-4 flex-wrap">
             <div>
               <h2 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">{currentView}</h2>
               <p className="text-gray-500 font-medium">
                 {currentView === View.DASHBOARD && `Overview of ${assets.length} managed assets.`}
                 {currentView === View.INVENTORY && "Manage and track your corporate equipment."}
+                {currentView === View.USERS && "Admin-only control of teammates, roles, and status."}
                 {currentView === View.SETTINGS && "Configure your workspace."}
               </p>
+            </div>
+            <div className="flex items-center gap-3 bg-white/70 border border-white/60 rounded-2xl px-4 py-2 shadow-sm">
+              <div className="text-left">
+                <p className="text-xs text-gray-400 uppercase">Session Role</p>
+                <p className="text-sm font-semibold text-gray-800">{isAdmin ? 'Admin' : 'Normal User'}</p>
+              </div>
+              <select
+                value={currentUserRole}
+                onChange={(e) => setCurrentUserRole(e.target.value as UserRole)}
+                className="text-sm bg-gray-100 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none"
+              >
+                <option value={UserRole.ADMIN}>Admin</option>
+                <option value={UserRole.USER}>Normal User</option>
+              </select>
             </div>
           </header>
 
@@ -235,8 +307,24 @@ const App: React.FC = () => {
               transition={{ duration: 0.3 }}
             >
               {currentView === View.DASHBOARD && <Dashboard assets={assets} />}
-              {currentView === View.INVENTORY && <AssetManager assets={assets} onAdd={handleAddAsset} onUpdate={handleUpdateAsset} onDelete={handleDeleteAsset} />}
-              {currentView === View.SETTINGS && <Settings />}
+              {currentView === View.INVENTORY && (
+                <AssetManager 
+                  assets={assets} 
+                  onAdd={handleAddAsset} 
+                  onUpdate={handleUpdateAsset} 
+                  onDelete={handleDeleteAsset} 
+                  canDelete={isAdmin}
+                />
+              )}
+              {currentView === View.USERS && isAdmin && (
+                <UserManagement 
+                  users={users} 
+                  onAdd={handleAddUser} 
+                  onUpdate={handleUpdateUser} 
+                  onToggleStatus={handleToggleUserStatus} 
+                />
+              )}
+              {currentView === View.SETTINGS && isAdmin && <Settings />}
             </motion.div>
           </AnimatePresence>
         </div>
