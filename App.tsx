@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials } from './types';
+import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials, AssetComment, AssetCommentType } from './types';
 import Dashboard from './components/Dashboard';
 import AssetManager from './components/AssetManager';
 import Settings from './components/Settings';
@@ -23,7 +23,8 @@ const MOCK_ASSETS: Asset[] = [
     cost: 2499, 
     location: 'HQ - Design', 
     assignedTo: 'Sarah J.',
-    specs: { brand: 'Apple', model: 'MacBook Pro', cpu: 'M2 Max', ram: '32GB', storage: '1TB SSD' }
+    specs: { brand: 'Apple', model: 'MacBook Pro', cpu: 'M2 Max', ram: '32GB', storage: '1TB SSD' },
+    comments: []
   },
   { 
     id: '2', 
@@ -36,7 +37,8 @@ const MOCK_ASSETS: Asset[] = [
     cost: 1899, 
     location: 'HQ - IT', 
     notes: 'Reimaged',
-    specs: { brand: 'Dell', model: 'XPS 9520', cpu: 'Core i7-12700H', ram: '16GB', storage: '512GB SSD' }
+    specs: { brand: 'Dell', model: 'XPS 9520', cpu: 'Core i7-12700H', ram: '16GB', storage: '512GB SSD' },
+    comments: []
   },
   { 
     id: '3', 
@@ -48,7 +50,8 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2026-03-10', 
     cost: 1299, 
     location: 'HQ - Design',
-    specs: { brand: 'LG', model: '27MD5KL-B', screenSize: '27 inch' }
+    specs: { brand: 'LG', model: '27MD5KL-B', screenSize: '27 inch' },
+    comments: []
   },
   { 
     id: '4', 
@@ -60,7 +63,8 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2024-06-01', 
     cost: 199, 
     location: 'Remote',
-    specs: { brand: 'Keychron', model: 'Q1 Pro' }
+    specs: { brand: 'Keychron', model: 'Q1 Pro' },
+    comments: []
   },
   { 
     id: '5', 
@@ -72,7 +76,8 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2024-05-15', 
     cost: 1400, 
     location: 'HQ - Repair',
-    specs: { brand: 'Lenovo', model: 'Gen 9', cpu: 'Core i5', ram: '8GB', storage: '256GB' }
+    specs: { brand: 'Lenovo', model: 'Gen 9', cpu: 'Core i5', ram: '8GB', storage: '256GB' },
+    comments: []
   },
   { 
     id: '6', 
@@ -84,7 +89,8 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2034-01-01', 
     cost: 1400, 
     location: 'HQ - Exec',
-    specs: { brand: 'Herman Miller', model: 'Aeron B' }
+    specs: { brand: 'Herman Miller', model: 'Aeron B' },
+    comments: []
   },
   {
     id: '7',
@@ -96,7 +102,8 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2025-01-01',
     cost: 899,
     location: 'Conf Room A',
-    specs: { brand: 'Epson', model: 'VS260' }
+    specs: { brand: 'Epson', model: 'VS260' },
+    comments: []
   },
   {
     id: '8',
@@ -108,7 +115,8 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2025-02-15',
     cost: 600,
     location: 'Lobby',
-    specs: { brand: 'Samsung', model: 'Crystal UHD', screenSize: '55 inch' }
+    specs: { brand: 'Samsung', model: 'Crystal UHD', screenSize: '55 inch' },
+    comments: []
   },
   {
     id: '9',
@@ -120,7 +128,8 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2024-06-01',
     cost: 350,
     location: 'Admin Desk',
-    specs: { brand: 'HP', model: 'LaserJet Pro', printerType: 'Monochrome' }
+    specs: { brand: 'HP', model: 'LaserJet Pro', printerType: 'Monochrome' },
+    comments: []
   }
 ];
 
@@ -201,12 +210,96 @@ const App: React.FC = () => {
 
   // Asset handlers
   const handleAddAsset = (newAsset: Omit<Asset, 'id'>) => {
-    const asset: Asset = { ...newAsset, id: Math.random().toString(36).substr(2, 9) };
+    const assetId = Math.random().toString(36).substr(2, 9);
+    const creationComment: AssetComment = {
+      id: Math.random().toString(36).substr(2, 9),
+      assetId,
+      authorName: session?.user.name || 'System',
+      authorId: session?.user.id,
+      message: `Asset created by ${session?.user.name || 'System'}`,
+      type: AssetCommentType.SYSTEM,
+      createdAt: new Date().toISOString()
+    };
+    
+    const asset: Asset = { 
+      ...newAsset, 
+      id: assetId,
+      comments: [creationComment]
+    };
     setAssets(prev => [asset, ...prev]);
   };
 
   const handleUpdateAsset = (updatedAsset: Asset) => {
-    setAssets(prev => prev.map(a => a.id === updatedAsset.id ? updatedAsset : a));
+    setAssets(prev => prev.map(a => {
+      if (a.id === updatedAsset.id) {
+        // Generate audit trail for changes
+        const auditComments: AssetComment[] = [];
+        const now = new Date().toISOString();
+        
+        if (a.status !== updatedAsset.status) {
+          auditComments.push({
+            id: Math.random().toString(36).substr(2, 9),
+            assetId: a.id,
+            authorName: session?.user.name || 'System',
+            authorId: session?.user.id,
+            message: `Status changed from "${a.status}" to "${updatedAsset.status}"`,
+            type: AssetCommentType.SYSTEM,
+            createdAt: now
+          });
+        }
+        
+        if (a.assignedTo !== updatedAsset.assignedTo) {
+          auditComments.push({
+            id: Math.random().toString(36).substr(2, 9),
+            assetId: a.id,
+            authorName: session?.user.name || 'System',
+            authorId: session?.user.id,
+            message: `Assigned to changed from "${a.assignedTo || 'Unassigned'}" to "${updatedAsset.assignedTo || 'Unassigned'}"`,
+            type: AssetCommentType.SYSTEM,
+            createdAt: now
+          });
+        }
+        
+        if (a.location !== updatedAsset.location) {
+          auditComments.push({
+            id: Math.random().toString(36).substr(2, 9),
+            assetId: a.id,
+            authorName: session?.user.name || 'System',
+            authorId: session?.user.id,
+            message: `Location changed from "${a.location}" to "${updatedAsset.location}"`,
+            type: AssetCommentType.SYSTEM,
+            createdAt: now
+          });
+        }
+        
+        // Merge existing comments with new audit comments
+        const allComments = [...(updatedAsset.comments || []), ...auditComments];
+        return { ...updatedAsset, comments: allComments };
+      }
+      return a;
+    }));
+  };
+
+  const handleAddComment = (assetId: string, message: string) => {
+    const newComment: AssetComment = {
+      id: Math.random().toString(36).substr(2, 9),
+      assetId,
+      authorName: session?.user.name || 'Unknown',
+      authorId: session?.user.id,
+      message,
+      type: AssetCommentType.NOTE,
+      createdAt: new Date().toISOString()
+    };
+    
+    setAssets(prev => prev.map(a => {
+      if (a.id === assetId) {
+        return {
+          ...a,
+          comments: [...(a.comments || []), newComment]
+        };
+      }
+      return a;
+    }));
   };
 
   const handleDeleteAsset = (id: string) => {
@@ -358,7 +451,8 @@ const App: React.FC = () => {
                   assets={assets} 
                   onAdd={handleAddAsset} 
                   onUpdate={handleUpdateAsset} 
-                  onDelete={handleDeleteAsset} 
+                  onDelete={handleDeleteAsset}
+                  onAddComment={handleAddComment}
                   canDelete={isAdmin}
                 />
               )}

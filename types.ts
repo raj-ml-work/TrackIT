@@ -26,6 +26,21 @@ export interface AssetSpecs {
   printerType?: 'Color' | 'Monochrome'; // Printer
 }
 
+export enum AssetCommentType {
+  NOTE = 'Note',
+  SYSTEM = 'System'
+}
+
+export interface AssetComment {
+  id: string;
+  assetId: string;
+  authorName: string;
+  authorId?: string;
+  message: string;
+  type: AssetCommentType;
+  createdAt: string;
+}
+
 export interface Asset {
   id: string;
   name: string;
@@ -39,6 +54,7 @@ export interface Asset {
   location: string;
   notes?: string;
   specs?: AssetSpecs;
+  comments?: AssetComment[];
 }
 
 export interface DashboardStats {

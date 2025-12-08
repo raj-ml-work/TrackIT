@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Asset, AssetStatus, AssetType, AssetSpecs } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType } from '../types';
 import GlassCard from './GlassCard';
-import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, DollarSign, MapPin, Hash, User, FileText, Cpu, Layers } from 'lucide-react';
+import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, DollarSign, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AssetManagerProps {
@@ -9,6 +9,7 @@ interface AssetManagerProps {
   onAdd: (asset: Omit<Asset, 'id'>) => void;
   onUpdate: (asset: Asset) => void;
   onDelete: (id: string) => void;
+  onAddComment: (assetId: string, message: string) => void;
   canDelete?: boolean;
 }
 
@@ -47,7 +48,7 @@ const getIcon = (type: AssetType) => {
   }
 };
 
-const AssetManager: React.FC<AssetManagerProps> = ({ assets, onAdd, onUpdate, onDelete, canDelete = true }) => {
+const AssetManager: React.FC<AssetManagerProps> = ({ assets, onAdd, onUpdate, onDelete, onAddComment, canDelete = true }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<AssetType | 'All'>('All');
   
@@ -59,6 +60,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, onAdd, onUpdate, on
 
   // Details Drawer State
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  
+  // Comment State
+  const [commentText, setCommentText] = useState('');
 
   const filteredAssets = assets.filter(asset => {
     const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -68,6 +72,16 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, onAdd, onUpdate, on
     const matchesFilter = filterType === 'All' || asset.type === filterType;
     return matchesSearch && matchesFilter;
   });
+
+  // Update selected asset when assets change (e.g., when a comment is added)
+  useEffect(() => {
+    if (selectedAsset) {
+      const updated = assets.find(a => a.id === selectedAsset.id);
+      if (updated) {
+        setSelectedAsset(updated);
+      }
+    }
+  }, [assets, selectedAsset?.id]);
 
   const hasExtraSpecs = (type: AssetType) => {
     return [
@@ -128,6 +142,29 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, onAdd, onUpdate, on
         [field]: value
       }
     }));
+  };
+
+  const handleSubmitComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAsset || !commentText.trim()) return;
+    
+    onAddComment(selectedAsset.id, commentText.trim());
+    setCommentText('');
+  };
+
+  const getRelativeTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
   };
 
   const renderStep1 = () => (
@@ -577,6 +614,93 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, onAdd, onUpdate, on
                      </div>
                   </div>
                 )}
+
+                {/* Comments & Activity */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="text-gray-500" size={18} />
+                    <h3 className="text-sm font-bold text-gray-700">Comments & Activity</h3>
+                    <span className="text-xs text-gray-400 ml-auto">
+                      {selectedAsset.comments?.length || 0} {selectedAsset.comments?.length === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </div>
+
+                  {/* Comments List */}
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    {selectedAsset.comments && selectedAsset.comments.length > 0 ? (
+                      selectedAsset.comments
+                        .slice()
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                        .map((comment) => (
+                          <motion.div
+                            key={comment.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`p-4 rounded-xl border ${
+                              comment.type === AssetCommentType.SYSTEM
+                                ? 'bg-blue-50/50 border-blue-100'
+                                : 'bg-white border-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold ${
+                                  comment.type === AssetCommentType.SYSTEM
+                                    ? 'bg-blue-200 text-blue-700'
+                                    : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+                                }`}>
+                                  {comment.type === AssetCommentType.SYSTEM ? 'S' : comment.authorName.substring(0, 1)}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-900">{comment.authorName}</p>
+                                  <p className="text-xs text-gray-500">{getRelativeTime(comment.createdAt)}</p>
+                                </div>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                comment.type === AssetCommentType.SYSTEM
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {comment.type}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-700 leading-relaxed">{comment.message}</p>
+                          </motion.div>
+                        ))
+                    ) : (
+                      <div className="text-center py-8 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+                        <MessageSquare size={32} className="mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No comments yet</p>
+                        <p className="text-xs">Start a conversation about this asset</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add Comment Form */}
+                  <form onSubmit={handleSubmitComment} className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="space-y-3">
+                      <textarea
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        placeholder="Add a note about this asset..."
+                        rows={3}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 outline-none transition-all text-sm resize-none"
+                      />
+                      <div className="flex justify-end">
+                        <motion.button
+                          type="submit"
+                          disabled={!commentText.trim()}
+                          whileHover={commentText.trim() ? { scale: 1.02 } : {}}
+                          whileTap={commentText.trim() ? { scale: 0.98 } : {}}
+                          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                          <Send size={16} />
+                          Add Comment
+                        </motion.button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
               </div>
             </motion.div>
           </>
