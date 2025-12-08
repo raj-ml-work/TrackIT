@@ -43,13 +43,11 @@ export interface AssetComment {
 
 export interface Asset {
   id: string;
-  assetId: string; // Unique asset identifier (e.g., AST001)
   name: string;
   type: AssetType;
   status: AssetStatus;
   serialNumber: string;
-  assignedTo?: string; // Display name (derived from employee)
-  assignedToEmployeeId?: string; // FK to Employee
+  assignedTo?: string;
   purchaseDate: string;
   warrantyExpiry: string;
   cost: number;
@@ -64,22 +62,6 @@ export interface DashboardStats {
   totalValue: number;
   assignedRate: number;
   expiringWarranties: number;
-}
-
-export enum EmployeeStatus {
-  ACTIVE = 'Active',
-  INACTIVE = 'Inactive'
-}
-
-export interface Employee {
-  id: string;
-  employeeId: string; // Unique employee identifier (e.g., EMP001)
-  name: string;
-  email?: string;
-  department?: string;
-  location?: string;
-  title?: string;
-  status: EmployeeStatus;
 }
 
 export enum UserRole {
@@ -112,4 +94,27 @@ export interface LoginCredentials {
   email: string;
   password: string;
   rememberMe?: boolean;
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  city: string;
+  comments?: string;
+}
+
+export enum EmployeeStatus {
+  ACTIVE = 'Active',
+  INACTIVE = 'Inactive'
+}
+
+export interface Employee {
+  id: string;
+  employeeId: string; // Unique employee identifier (e.g., EMP001)
+  name: string;
+  email?: string;
+  department?: string;
+  location?: string;
+  title?: string;
+  status: EmployeeStatus;
 }

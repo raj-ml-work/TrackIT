@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Asset, AssetStatus, AssetType } from '../types';
+import { Asset, AssetStatus, AssetType, Location } from '../types';
 import GlassCard from './GlassCard';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
-import { Sparkles, TrendingUp, AlertCircle, Package, DollarSign } from 'lucide-react';
+import { Sparkles, TrendingUp, AlertCircle, Package, DollarSign, MapPin } from 'lucide-react';
 import { generateInventoryInsight } from '../services/geminiService';
 import { motion } from 'framer-motion';
 
 interface DashboardProps {
   assets: Asset[];
+  locations: Location[];
 }
 
 const COLORS = ['#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#f59e0b'];
 
-const Dashboard: React.FC<DashboardProps> = ({ assets }) => {
+const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
   const [insight, setInsight] = useState<string>("");
   const [loadingInsight, setLoadingInsight] = useState(false);
 
@@ -38,6 +39,27 @@ const Dashboard: React.FC<DashboardProps> = ({ assets }) => {
     name: status,
     count: assets.filter(a => a.status === status).length
   }));
+
+  // Location distribution by name
+  const locationData = locations.map(loc => ({
+    name: loc.name,
+    assets: assets.filter(a => a.location === loc.name).length
+  })).filter(d => d.assets > 0).sort((a, b) => b.assets - a.assets);
+
+  // City distribution
+  const cityData = locations.reduce((acc, loc) => {
+    const city = loc.city;
+    if (!acc[city]) {
+      acc[city] = 0;
+    }
+    acc[city] += assets.filter(a => a.location === loc.name).length;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const cityDistribution = Object.entries(cityData)
+    .map(([city, count]: [string, number]) => ({ name: city, assets: count }))
+    .filter(d => d.assets > 0)
+    .sort((a, b) => b.assets - a.assets);
 
   useEffect(() => {
     // Initial insight generation if API key is present
@@ -154,6 +176,97 @@ const Dashboard: React.FC<DashboardProps> = ({ assets }) => {
                </div>
             </div>
           </div>
+        </GlassCard>
+      </div>
+
+      {/* Location Distribution Widgets */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Location Name Distribution */}
+        <GlassCard>
+          <div className="flex items-center gap-3 mb-6">
+            <MapPin className="text-green-500" size={20} />
+            <h3 className="text-lg font-bold text-gray-800">Distribution by Location</h3>
+          </div>
+          {locationData.length > 0 ? (
+            <div className="space-y-3">
+              {locationData.map((loc, index) => {
+                const percentage = assets.length > 0 ? Math.round((loc.assets / assets.length) * 100) : 0;
+                return (
+                  <motion.div
+                    key={loc.name}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center gap-4"
+                  >
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-semibold text-gray-800">{loc.name}</span>
+                        <span className="text-sm text-gray-600">{loc.assets} assets ({percentage}%)</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${percentage}%` }}
+                          transition={{ duration: 0.8, delay: index * 0.1 }}
+                          className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              <MapPin size={40} className="mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No location data available</p>
+            </div>
+          )}
+        </GlassCard>
+
+        {/* City Distribution */}
+        <GlassCard>
+          <div className="flex items-center gap-3 mb-6">
+            <MapPin className="text-blue-500" size={20} />
+            <h3 className="text-lg font-bold text-gray-800">Distribution by City</h3>
+          </div>
+          {cityDistribution.length > 0 ? (
+            <div className="space-y-3">
+              {cityDistribution.map((city, index) => {
+                const percentage = assets.length > 0 ? Math.round((city.assets / assets.length) * 100) : 0;
+                return (
+                  <motion.div
+                    key={city.name}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center gap-4"
+                  >
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-semibold text-gray-800">{city.name}</span>
+                        <span className="text-sm text-gray-600">{city.assets} assets ({percentage}%)</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${percentage}%` }}
+                          transition={{ duration: 0.8, delay: index * 0.1 }}
+                          className="h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              <MapPin size={40} className="mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No city data available</p>
+            </div>
+          )}
         </GlassCard>
       </div>
 

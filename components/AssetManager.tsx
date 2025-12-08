@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType, Employee, EmployeeStatus } from '../types';
+import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType, Location, Employee, EmployeeStatus } from '../types';
 import GlassCard from './GlassCard';
-import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, DollarSign, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, AlertTriangle } from 'lucide-react';
+import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, DollarSign, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AssetManagerProps {
   assets: Asset[];
-  employees: Employee[];
+  employees?: Employee[];
+  locations: Location[];
   onAdd: (asset: Omit<Asset, 'id'>) => void;
   onUpdate: (asset: Asset) => void;
   onDelete: (id: string) => void;
@@ -25,7 +26,6 @@ const initialSpecs: AssetSpecs = {
 };
 
 const initialAsset: Omit<Asset, 'id'> = {
-  assetId: '',
   name: '',
   type: AssetType.LAPTOP,
   status: AssetStatus.AVAILABLE,
@@ -50,7 +50,7 @@ const getIcon = (type: AssetType) => {
   }
 };
 
-const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, onUpdate, onDelete, onAddComment, canDelete = true }) => {
+const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], locations, onAdd, onUpdate, onDelete, onAddComment, canDelete = true }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<AssetType | 'All'>('All');
   
@@ -65,13 +65,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
   
   // Comment State
   const [commentText, setCommentText] = useState('');
-  
-  // Asset ID validation
-  const [assetIdError, setAssetIdError] = useState('');
 
   const filteredAssets = assets.filter(asset => {
     const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          asset.assetId.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           asset.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           asset.specs?.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           asset.specs?.model?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -100,30 +96,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
     ].includes(type);
   };
 
-  const validateAssetId = (): boolean => {
-    setAssetIdError('');
-    
-    // Check if asset ID already exists
-    const existingAsset = assets.find(asset => 
-      asset.assetId.toLowerCase() === formData.assetId.toLowerCase() && 
-      asset.id !== editingId
-    );
-
-    if (existingAsset) {
-      setAssetIdError(`Asset ID "${formData.assetId}" is already in use by ${existingAsset.name}`);
-      return false;
-    }
-    
-    return true;
-  };
-
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateAssetId()) {
-      return;
-    }
-    
     if (hasExtraSpecs(formData.type)) {
       setCurrentStep(2);
     } else {
@@ -133,11 +107,6 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    
-    if (!validateAssetId()) {
-      return;
-    }
-    
     if (editingId) {
       onUpdate({ ...formData, id: editingId });
       // If we are editing the currently viewed asset, update the view as well
@@ -165,7 +134,6 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
     setEditingId(null);
     setCurrentStep(1);
     setFormData(initialAsset);
-    setAssetIdError('');
   };
 
   const updateSpecs = (field: keyof AssetSpecs, value: string) => {
@@ -203,35 +171,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
 
   const renderStep1 = () => (
     <div className="space-y-4">
-      {/* Error Display */}
-      {assetIdError && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2"
-        >
-          <AlertTriangle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{assetIdError}</p>
-        </motion.div>
-      )}
-      
       {/* Core Identifiers */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Asset ID *</label>
-          <input 
-            required 
-            type="text" 
-            disabled={!!editingId}
-            className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-mono disabled:opacity-50 disabled:cursor-not-allowed" 
-            value={formData.assetId} 
-            onChange={e => setFormData({...formData, assetId: e.target.value.toUpperCase()})} 
-            placeholder="e.g. AST001" 
-          />
-          {editingId && (
-            <p className="text-xs text-gray-500 mt-1">Asset ID cannot be changed after creation</p>
-          )}
-        </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Friendly Name *</label>
           <input required type="text" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
@@ -276,8 +217,16 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Location</label>
-          <input type="text" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-            value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} placeholder="e.g. HQ - 2nd Floor" />
+          <select 
+            className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+            value={formData.location}
+            onChange={e => setFormData({...formData, location: e.target.value})}
+          >
+            <option value="">Select Location</option>
+            {locations.map(loc => (
+              <option key={loc.id} value={loc.name}>{loc.name} - {loc.city}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -304,38 +253,18 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
         <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Assigned To</label>
         <select 
           className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-          value={formData.assignedToEmployeeId || ''}
-          onChange={e => {
-            const employeeId = e.target.value;
-            const employee = employees.find(emp => emp.id === employeeId);
-            setFormData({
-              ...formData,
-              assignedToEmployeeId: employeeId || undefined,
-              assignedTo: employee ? employee.name : undefined
-            });
-          }}
+          value={formData.assignedTo || ''}
+          onChange={e => setFormData({...formData, assignedTo: e.target.value || undefined})}
         >
           <option value="">Unassigned</option>
           {employees
             .filter(emp => emp.status === EmployeeStatus.ACTIVE)
             .map(emp => (
-              <option key={emp.id} value={emp.id}>
+              <option key={emp.id} value={emp.name}>
                 {emp.name} - {emp.employeeId} {emp.department ? `(${emp.department})` : ''}
               </option>
             ))}
         </select>
-        {formData.assignedToEmployeeId && formData.status === AssetStatus.AVAILABLE && (
-          <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-            <span>ℹ️</span>
-            <span>Status will automatically change to "In Use" when assigned</span>
-          </p>
-        )}
-        {!formData.assignedToEmployeeId && formData.status === AssetStatus.IN_USE && (
-          <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-            <span>ℹ️</span>
-            <span>Status will automatically change to "Available" when unassigned</span>
-          </p>
-        )}
       </div>
     </div>
   );
@@ -417,7 +346,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input 
             type="text" 
-            placeholder="Search by asset ID, name, serial..." 
+            placeholder="Search assets..." 
             className="w-full pl-10 pr-4 py-2 bg-white/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-700"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -472,18 +401,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
                       {getIcon(asset.type)}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-mono font-semibold">
-                          {asset.assetId}
-                        </span>
-                        <h4 className="font-semibold text-gray-800">{asset.name}</h4>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <span className="font-mono">S/N: {asset.serialNumber}</span>
+                      <h4 className="font-semibold text-gray-800">{asset.name}</h4>
+                      <div className="flex items-center gap-2 text-sm text-gray-500 font-mono">
+                        <span>{asset.serialNumber}</span>
                         {asset.specs?.brand && (
                           <>
                             <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                            <span>{asset.specs.brand} {asset.specs.model}</span>
+                            <span className="font-sans">{asset.specs.brand} {asset.specs.model}</span>
                           </>
                         )}
                       </div>
@@ -610,13 +534,6 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
                      <div className="flex items-start gap-3">
                         <Hash className="text-gray-400 mt-0.5" size={18} />
                         <div>
-                          <p className="text-xs text-gray-500 uppercase">Asset ID</p>
-                          <p className="font-mono text-gray-800 font-semibold">{selectedAsset.assetId}</p>
-                        </div>
-                     </div>
-                     <div className="flex items-start gap-3">
-                        <Hash className="text-gray-400 mt-0.5" size={18} />
-                        <div>
                           <p className="text-xs text-gray-500 uppercase">Serial</p>
                           <p className="font-mono text-gray-800">{selectedAsset.serialNumber}</p>
                         </div>
@@ -630,27 +547,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees, onAdd, o
                      </div>
                      <div className="flex items-start gap-3 col-span-2">
                         <User className="text-gray-400 mt-0.5" size={18} />
-                        <div className="flex-1">
+                        <div>
                           <p className="text-xs text-gray-500 uppercase">Assigned To</p>
-                          {selectedAsset.assignedToEmployeeId ? (
-                            <>
-                              <p className="text-gray-800 font-medium">{selectedAsset.assignedTo || 'Unknown'}</p>
-                              {(() => {
-                                const employee = employees.find(e => e.id === selectedAsset.assignedToEmployeeId);
-                                return employee ? (
-                                  <div className="mt-1 space-y-0.5">
-                                    <p className="text-xs font-mono text-gray-600">ID: {employee.employeeId}</p>
-                                    <div className="text-xs text-gray-500">
-                                      {employee.department && <span>{employee.department}</span>}
-                                      {employee.title && <span> • {employee.title}</span>}
-                                    </div>
-                                  </div>
-                                ) : null;
-                              })()}
-                            </>
-                          ) : (
-                            <p className="text-gray-500 italic">Unassigned</p>
-                          )}
+                          <p className="text-gray-800 font-medium">{selectedAsset.assignedTo || 'Unassigned'}</p>
                         </div>
                      </div>
                   </div>

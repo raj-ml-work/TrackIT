@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
-import { Employee, EmployeeStatus, Asset } from '../types';
-import { UserPlus, Search, Mail, MapPin, Briefcase, Building, Clock, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package } from 'lucide-react';
+import { Employee, EmployeeStatus, Asset, Location } from '../types';
+import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface EmployeeManagementProps {
   employees: Employee[];
   assets: Asset[];
+  locations: Location[];
   onAdd: (employee: Omit<Employee, 'id'>) => void;
   onUpdate: (employee: Employee) => void;
   onDelete: (id: string) => void;
@@ -30,7 +31,7 @@ const statusBadge = (status: EmployeeStatus) => {
     : `${base} bg-amber-100 text-amber-700`;
 };
 
-const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, onAdd, onUpdate, onDelete, canDelete = true }) => {
+const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, onAdd, onUpdate, onDelete, canDelete = true }) => {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<EmployeeStatus | 'All'>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,15 +45,10 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const assetCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     employees.forEach(emp => {
-      counts[emp.id] = assets.filter(a => a.assignedToEmployeeId === emp.id).length;
+      counts[emp.id] = assets.filter(a => a.assignedTo === emp.name).length;
     });
     return counts;
   }, [employees, assets]);
-
-  // Get assets assigned to an employee
-  const getEmployeeAssets = (employeeId: string) => {
-    return assets.filter(a => a.assignedToEmployeeId === employeeId);
-  };
 
   const filteredEmployees = useMemo(() => {
     return employees.filter(employee => {
@@ -65,6 +61,11 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       return matchesSearch && matchesStatus;
     });
   }, [employees, search, filterStatus]);
+
+  // Get assets assigned to an employee
+  const getEmployeeAssets = (employeeName: string) => {
+    return assets.filter(a => a.assignedTo === employeeName);
+  };
 
   const openNew = () => {
     setEditingEmployee(null);
@@ -359,13 +360,17 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 uppercase block mb-1">Location</label>
-                    <input
+                    <select
                       disabled={isSubmitting}
                       className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                       value={form.location}
                       onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))}
-                      placeholder="e.g. HQ"
-                    />
+                    >
+                      <option value="">Select Location</option>
+                      {locations.map(loc => (
+                        <option key={loc.id} value={loc.name}>{loc.name} - {loc.city}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -518,9 +523,9 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   <span className="text-sm text-gray-500">({assetCounts[viewingEmployee.id] || 0})</span>
                 </div>
 
-                {getEmployeeAssets(viewingEmployee.id).length > 0 ? (
+                {getEmployeeAssets(viewingEmployee.name).length > 0 ? (
                   <div className="space-y-3">
-                    {getEmployeeAssets(viewingEmployee.id).map((asset) => (
+                    {getEmployeeAssets(viewingEmployee.name).map((asset) => (
                       <motion.div
                         key={asset.id}
                         initial={{ opacity: 0, y: 10 }}
@@ -529,12 +534,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-mono font-semibold">
-                                {asset.assetId}
-                              </span>
-                              <h5 className="font-semibold text-gray-900">{asset.name}</h5>
-                            </div>
+                            <h5 className="font-semibold text-gray-900 mb-2">{asset.name}</h5>
                             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                               <div className="flex items-center gap-2 text-gray-600">
                                 <span className="text-xs text-gray-500">Type:</span>

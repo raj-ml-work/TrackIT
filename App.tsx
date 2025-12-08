@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials, AssetComment, AssetCommentType, Employee, EmployeeStatus } from './types';
+import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials, AssetComment, AssetCommentType, Location, Employee, EmployeeStatus } from './types';
 import Dashboard from './components/Dashboard';
 import AssetManager from './components/AssetManager';
 import Settings from './components/Settings';
 import UserManagement from './components/UserManagement';
 import EmployeeManagement from './components/EmployeeManagement';
+import LocationManagement from './components/LocationManagement';
 import Login from './components/Login';
 import ProfilePanel from './components/ProfilePanel';
-import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, MapPin, Briefcase } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as authClient from './services/authClient';
 
 // Mock Data
 const MOCK_ASSETS: Asset[] = [
   { 
-    id: '1',
-    assetId: 'AST001',
+    id: '1', 
     name: 'MacBook Pro 16"', 
     type: AssetType.LAPTOP, 
     status: AssetStatus.IN_USE, 
@@ -24,14 +24,12 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2024-01-15', 
     cost: 2499, 
     location: 'HQ - Design', 
-    assignedTo: 'Sarah Johnson',
-    assignedToEmployeeId: 'emp-001',
+    assignedTo: 'Sarah J.',
     specs: { brand: 'Apple', model: 'MacBook Pro', cpu: 'M2 Max', ram: '32GB', storage: '1TB SSD' },
     comments: []
   },
   { 
-    id: '2',
-    assetId: 'AST002',
+    id: '2', 
     name: 'Dell XPS 15', 
     type: AssetType.LAPTOP, 
     status: AssetStatus.AVAILABLE, 
@@ -45,8 +43,7 @@ const MOCK_ASSETS: Asset[] = [
     comments: []
   },
   { 
-    id: '3',
-    assetId: 'AST003',
+    id: '3', 
     name: 'LG UltraFine 5K', 
     type: AssetType.MONITOR, 
     status: AssetStatus.IN_USE, 
@@ -55,14 +52,11 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2026-03-10', 
     cost: 1299, 
     location: 'HQ - Design',
-    assignedTo: 'Sarah Johnson',
-    assignedToEmployeeId: 'emp-001',
     specs: { brand: 'LG', model: '27MD5KL-B', screenSize: '27 inch' },
     comments: []
   },
   { 
-    id: '4',
-    assetId: 'AST004',
+    id: '4', 
     name: 'Keychron Q1', 
     type: AssetType.ACCESSORY, 
     status: AssetStatus.IN_USE, 
@@ -71,14 +65,11 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2024-06-01', 
     cost: 199, 
     location: 'Remote',
-    assignedTo: 'Michael Chen',
-    assignedToEmployeeId: 'emp-002',
     specs: { brand: 'Keychron', model: 'Q1 Pro' },
     comments: []
   },
   { 
-    id: '5',
-    assetId: 'AST005',
+    id: '5', 
     name: 'ThinkPad X1 Carbon', 
     type: AssetType.LAPTOP, 
     status: AssetStatus.MAINTENANCE, 
@@ -91,8 +82,7 @@ const MOCK_ASSETS: Asset[] = [
     comments: []
   },
   { 
-    id: '6',
-    assetId: 'AST006',
+    id: '6', 
     name: 'Herman Miller Aeron', 
     type: AssetType.ACCESSORY, 
     status: AssetStatus.IN_USE, 
@@ -106,7 +96,6 @@ const MOCK_ASSETS: Asset[] = [
   },
   {
     id: '7',
-    assetId: 'AST007',
     name: 'Conf Room Projector',
     type: AssetType.PROJECTOR,
     status: AssetStatus.IN_USE,
@@ -120,7 +109,6 @@ const MOCK_ASSETS: Asset[] = [
   },
   {
     id: '8',
-    assetId: 'AST008',
     name: 'Lobby TV',
     type: AssetType.TV,
     status: AssetStatus.IN_USE,
@@ -134,7 +122,6 @@ const MOCK_ASSETS: Asset[] = [
   },
   {
     id: '9',
-    assetId: 'AST009',
     name: 'Admin Printer',
     type: AssetType.PRINTER,
     status: AssetStatus.IN_USE,
@@ -175,6 +162,15 @@ const MOCK_USERS: UserAccount[] = [
   }
 ];
 
+enum View {
+  DASHBOARD = 'Dashboard',
+  INVENTORY = 'Inventory',
+  EMPLOYEES = 'Employees',
+  LOCATIONS = 'Locations',
+  USERS = 'Users',
+  SETTINGS = 'Settings'
+}
+
 const MOCK_EMPLOYEES: Employee[] = [
   {
     id: 'emp-001',
@@ -182,7 +178,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     name: 'Sarah Johnson',
     email: 'sarah.j@company.com',
     department: 'Design',
-    location: 'HQ',
+    location: 'HQ - Building A',
     title: 'Senior Designer',
     status: EmployeeStatus.ACTIVE
   },
@@ -192,7 +188,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     name: 'Michael Chen',
     email: 'michael.c@company.com',
     department: 'Engineering',
-    location: 'HQ',
+    location: 'HQ - Building A',
     title: 'Software Engineer',
     status: EmployeeStatus.ACTIVE
   },
@@ -212,7 +208,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     name: 'David Kim',
     email: 'david.k@company.com',
     department: 'Engineering',
-    location: 'HQ',
+    location: 'HQ - Building A',
     title: 'DevOps Engineer',
     status: EmployeeStatus.ACTIVE
   },
@@ -222,24 +218,44 @@ const MOCK_EMPLOYEES: Employee[] = [
     name: 'Lisa Anderson',
     email: 'lisa.a@company.com',
     department: 'Sales',
-    location: 'Branch Office',
+    location: 'Branch Office - NYC',
     title: 'Sales Executive',
     status: EmployeeStatus.INACTIVE
   }
 ];
 
-enum View {
-  DASHBOARD = 'Dashboard',
-  INVENTORY = 'Inventory',
-  EMPLOYEES = 'Employees',
-  USERS = 'Users',
-  SETTINGS = 'Settings'
-}
+const MOCK_LOCATIONS: Location[] = [
+  {
+    id: 'loc-001',
+    name: 'HQ - Building A',
+    city: 'San Francisco',
+    comments: 'Main headquarters building'
+  },
+  {
+    id: 'loc-002',
+    name: 'HQ - Warehouse',
+    city: 'San Francisco',
+    comments: 'Storage and distribution center'
+  },
+  {
+    id: 'loc-003',
+    name: 'Branch Office - NYC',
+    city: 'New York',
+    comments: 'East coast regional office'
+  },
+  {
+    id: 'loc-004',
+    name: 'Remote',
+    city: 'Various',
+    comments: 'Work from home employees'
+  }
+];
 
 const App: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>(MOCK_ASSETS);
   const [users, setUsers] = useState<UserAccount[]>(MOCK_USERS);
   const [employees, setEmployees] = useState<Employee[]>(MOCK_EMPLOYEES);
+  const [locations, setLocations] = useState<Location[]>(MOCK_LOCATIONS);
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
@@ -281,13 +297,6 @@ const App: React.FC = () => {
   // Asset handlers
   const handleAddAsset = (newAsset: Omit<Asset, 'id'>) => {
     const assetId = Math.random().toString(36).substr(2, 9);
-    
-    // Auto-set status to In Use if asset is assigned during creation
-    let finalAsset = { ...newAsset };
-    if (finalAsset.assignedToEmployeeId && finalAsset.status === AssetStatus.AVAILABLE) {
-      finalAsset.status = AssetStatus.IN_USE;
-    }
-    
     const creationComment: AssetComment = {
       id: Math.random().toString(36).substr(2, 9),
       assetId,
@@ -299,7 +308,7 @@ const App: React.FC = () => {
     };
     
     const asset: Asset = { 
-      ...finalAsset, 
+      ...newAsset, 
       id: assetId,
       comments: [creationComment]
     };
@@ -309,62 +318,49 @@ const App: React.FC = () => {
   const handleUpdateAsset = (updatedAsset: Asset) => {
     setAssets(prev => prev.map(a => {
       if (a.id === updatedAsset.id) {
-        // Auto-update status based on assignment
-        let finalAsset = { ...updatedAsset };
-        
-        // If asset is being assigned and status is Available, change to In Use
-        if (finalAsset.assignedToEmployeeId && !a.assignedToEmployeeId && finalAsset.status === AssetStatus.AVAILABLE) {
-          finalAsset.status = AssetStatus.IN_USE;
-        }
-        
-        // If asset is being unassigned and status is In Use, change to Available
-        if (!finalAsset.assignedToEmployeeId && a.assignedToEmployeeId && finalAsset.status === AssetStatus.IN_USE) {
-          finalAsset.status = AssetStatus.AVAILABLE;
-        }
-        
         // Generate audit trail for changes
         const auditComments: AssetComment[] = [];
         const now = new Date().toISOString();
         
-        if (a.status !== finalAsset.status) {
+        if (a.status !== updatedAsset.status) {
           auditComments.push({
             id: Math.random().toString(36).substr(2, 9),
             assetId: a.id,
             authorName: session?.user.name || 'System',
             authorId: session?.user.id,
-            message: `Status changed from "${a.status}" to "${finalAsset.status}"`,
+            message: `Status changed from "${a.status}" to "${updatedAsset.status}"`,
             type: AssetCommentType.SYSTEM,
             createdAt: now
           });
         }
         
-        if (a.assignedTo !== finalAsset.assignedTo) {
+        if (a.assignedTo !== updatedAsset.assignedTo) {
           auditComments.push({
             id: Math.random().toString(36).substr(2, 9),
             assetId: a.id,
             authorName: session?.user.name || 'System',
             authorId: session?.user.id,
-            message: `Assigned to changed from "${a.assignedTo || 'Unassigned'}" to "${finalAsset.assignedTo || 'Unassigned'}"`,
+            message: `Assigned to changed from "${a.assignedTo || 'Unassigned'}" to "${updatedAsset.assignedTo || 'Unassigned'}"`,
             type: AssetCommentType.SYSTEM,
             createdAt: now
           });
         }
         
-        if (a.location !== finalAsset.location) {
+        if (a.location !== updatedAsset.location) {
           auditComments.push({
             id: Math.random().toString(36).substr(2, 9),
             assetId: a.id,
             authorName: session?.user.name || 'System',
             authorId: session?.user.id,
-            message: `Location changed from "${a.location}" to "${finalAsset.location}"`,
+            message: `Location changed from "${a.location}" to "${updatedAsset.location}"`,
             type: AssetCommentType.SYSTEM,
             createdAt: now
           });
         }
         
         // Merge existing comments with new audit comments
-        const allComments = [...(finalAsset.comments || []), ...auditComments];
-        return { ...finalAsset, comments: allComments };
+        const allComments = [...(updatedAsset.comments || []), ...auditComments];
+        return { ...updatedAsset, comments: allComments };
       }
       return a;
     }));
@@ -424,6 +420,30 @@ const App: React.FC = () => {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, status: u.status === UserStatus.ACTIVE ? UserStatus.INACTIVE : UserStatus.ACTIVE } : u));
   };
 
+  // Location handlers
+  const handleAddLocation = (location: Omit<Location, 'id'>) => {
+    const newLocation: Location = {
+      ...location,
+      id: `loc-${Math.random().toString(36).substr(2, 9)}`
+    };
+    setLocations(prev => [newLocation, ...prev]);
+  };
+
+  const handleUpdateLocation = (updated: Location) => {
+    setLocations(prev => prev.map(l => l.id === updated.id ? updated : l));
+  };
+
+  const handleDeleteLocation = (id: string) => {
+    const location = locations.find(l => l.id === id);
+    const assetCount = assets.filter(a => a.location === location?.name).length;
+    
+    if (assetCount > 0) {
+      alert(`Cannot delete ${location?.name || 'this location'}. It has ${assetCount} asset(s). Please reassign them first.`);
+      return;
+    }
+    setLocations(prev => prev.filter(l => l.id !== id));
+  };
+
   // Employee handlers
   const handleAddEmployee = (employee: Omit<Employee, 'id'>) => {
     const newEmployee: Employee = {
@@ -438,12 +458,11 @@ const App: React.FC = () => {
   };
 
   const handleDeleteEmployee = (id: string) => {
-    // Check if employee has assigned assets
-    const hasAssignedAssets = assets.some(a => a.assignedToEmployeeId === id);
-    if (hasAssignedAssets) {
-      const employee = employees.find(e => e.id === id);
-      const count = assets.filter(a => a.assignedToEmployeeId === id).length;
-      alert(`Cannot delete ${employee?.name || 'this employee'}. They have ${count} asset(s) assigned. Please reassign or unassign assets first.`);
+    const employee = employees.find(e => e.id === id);
+    const assetCount = assets.filter(a => a.assignedTo === employee?.name).length;
+    
+    if (assetCount > 0) {
+      alert(`Cannot delete ${employee?.name || 'this employee'}. They have ${assetCount} asset(s) assigned. Please reassign or unassign assets first.`);
       return;
     }
     setEmployees(prev => prev.filter(e => e.id !== id));
@@ -497,6 +516,7 @@ const App: React.FC = () => {
           <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
           <NavItem view={View.INVENTORY} icon={Box} />
           <NavItem view={View.EMPLOYEES} icon={Briefcase} />
+          <NavItem view={View.LOCATIONS} icon={MapPin} />
           {isAdmin && <NavItem view={View.USERS} icon={Users} />}
           {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
         </nav>
@@ -531,6 +551,7 @@ const App: React.FC = () => {
              <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
               <NavItem view={View.INVENTORY} icon={Box} />
               <NavItem view={View.EMPLOYEES} icon={Briefcase} />
+              <NavItem view={View.LOCATIONS} icon={MapPin} />
               {isAdmin && <NavItem view={View.USERS} icon={Users} />}
               {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
             </nav>
@@ -548,6 +569,7 @@ const App: React.FC = () => {
                 {currentView === View.DASHBOARD && `Overview of ${assets.length} managed assets.`}
                 {currentView === View.INVENTORY && "Manage and track your corporate equipment."}
                 {currentView === View.EMPLOYEES && "Manage organization employees and asset assignments."}
+                {currentView === View.LOCATIONS && "Manage office locations and standardize addresses."}
                 {currentView === View.USERS && "Admin-only control of teammates, roles, and status."}
                 {currentView === View.SETTINGS && "Configure your workspace."}
               </p>
@@ -563,11 +585,12 @@ const App: React.FC = () => {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
             >
-              {currentView === View.DASHBOARD && <Dashboard assets={assets} />}
+              {currentView === View.DASHBOARD && <Dashboard assets={assets} locations={locations} />}
               {currentView === View.INVENTORY && (
                 <AssetManager 
                   assets={assets}
                   employees={employees}
+                  locations={locations}
                   onAdd={handleAddAsset} 
                   onUpdate={handleUpdateAsset} 
                   onDelete={handleDeleteAsset}
@@ -579,9 +602,20 @@ const App: React.FC = () => {
                 <EmployeeManagement 
                   employees={employees}
                   assets={assets}
+                  locations={locations}
                   onAdd={handleAddEmployee}
                   onUpdate={handleUpdateEmployee}
                   onDelete={handleDeleteEmployee}
+                  canDelete={isAdmin}
+                />
+              )}
+              {currentView === View.LOCATIONS && (
+                <LocationManagement 
+                  locations={locations}
+                  assets={assets}
+                  onAdd={handleAddLocation}
+                  onUpdate={handleUpdateLocation}
+                  onDelete={handleDeleteLocation}
                   canDelete={isAdmin}
                 />
               )}
