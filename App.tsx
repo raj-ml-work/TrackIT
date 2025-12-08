@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus } from './types';
+import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials } from './types';
 import Dashboard from './components/Dashboard';
 import AssetManager from './components/AssetManager';
 import Settings from './components/Settings';
 import UserManagement from './components/UserManagement';
+import Login from './components/Login';
+import ProfilePanel from './components/ProfilePanel';
 import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as authClient from './services/authClient';
 
 // Mock Data
 const MOCK_ASSETS: Asset[] = [
@@ -159,16 +162,44 @@ const App: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>(MOCK_ASSETS);
   const [users, setUsers] = useState<UserAccount[]>(MOCK_USERS);
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
-  const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.ADMIN);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const isAdmin = currentUserRole === UserRole.ADMIN;
+  
+  // Auth state
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  const isAdmin = session?.user.role === UserRole.ADMIN;
+
+  // Restore session on mount
   useEffect(() => {
-    if (!isAdmin && (currentView === View.USERS || currentView === View.SETTINGS)) {
+    const restored = authClient.restoreSession();
+    if (restored) {
+      setSession(restored);
+    }
+    setIsLoading(false);
+  }, []);
+
+  // Redirect non-admins away from restricted views
+  useEffect(() => {
+    if (session && !isAdmin && (currentView === View.USERS || currentView === View.SETTINGS)) {
       setCurrentView(View.DASHBOARD);
     }
-  }, [isAdmin, currentView]);
+  }, [isAdmin, currentView, session]);
 
+  // Auth handlers
+  const handleLogin = async (credentials: LoginCredentials) => {
+    const newSession = await authClient.login(credentials);
+    setSession(newSession);
+    authClient.saveSession(newSession);
+  };
+
+  const handleLogout = async () => {
+    await authClient.logout();
+    setSession(null);
+    setCurrentView(View.DASHBOARD);
+  };
+
+  // Asset handlers
   const handleAddAsset = (newAsset: Omit<Asset, 'id'>) => {
     const asset: Asset = { ...newAsset, id: Math.random().toString(36).substr(2, 9) };
     setAssets(prev => [asset, ...prev]);
@@ -184,13 +215,22 @@ const App: React.FC = () => {
     }
   };
 
+  // User handlers
   const handleAddUser = (user: Omit<UserAccount, 'id' | 'lastLogin'>) => {
     const newUser: UserAccount = {
       ...user,
       id: Math.random().toString(36).substr(2, 9),
       lastLogin: '—'
     };
-    setUsers(prev => [newUser, ...prev]);
+    
+    // Register the user in auth system if password provided
+    if (user.password) {
+      authClient.registerUser({ ...newUser, password: user.password });
+    }
+    
+    // Remove password before storing in state (security)
+    const { password, ...userWithoutPassword } = newUser;
+    setUsers(prev => [userWithoutPassword, ...prev]);
   };
 
   const handleUpdateUser = (updated: UserAccount) => {
@@ -214,6 +254,25 @@ const App: React.FC = () => {
       <span className="font-medium tracking-tight">{view}</span>
     </button>
   );
+
+  // Show loading state while checking for session
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="inline-flex p-4 bg-gray-900 rounded-2xl text-white mb-4 animate-pulse">
+            <Hexagon size={36} fill="currentColor" />
+          </div>
+          <p className="text-gray-600 font-medium">Loading Auralis...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!session) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen flex font-sans text-slate-800 selection:bg-indigo-100">
@@ -282,20 +341,7 @@ const App: React.FC = () => {
                 {currentView === View.SETTINGS && "Configure your workspace."}
               </p>
             </div>
-            <div className="flex items-center gap-3 bg-white/70 border border-white/60 rounded-2xl px-4 py-2 shadow-sm">
-              <div className="text-left">
-                <p className="text-xs text-gray-400 uppercase">Session Role</p>
-                <p className="text-sm font-semibold text-gray-800">{isAdmin ? 'Admin' : 'Normal User'}</p>
-              </div>
-              <select
-                value={currentUserRole}
-                onChange={(e) => setCurrentUserRole(e.target.value as UserRole)}
-                className="text-sm bg-gray-100 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none"
-              >
-                <option value={UserRole.ADMIN}>Admin</option>
-                <option value={UserRole.USER}>Normal User</option>
-              </select>
-            </div>
+            <ProfilePanel user={session.user} onLogout={handleLogout} />
           </header>
 
           <AnimatePresence mode='wait'>

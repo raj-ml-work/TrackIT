@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
 import { UserAccount, UserRole, UserStatus } from '../types';
-import { UserPlus, Search, ShieldCheck, Shield, Mail, Clock, X, Pencil, Power, RefreshCw } from 'lucide-react';
+import { UserPlus, Search, ShieldCheck, Shield, Mail, Clock, X, Pencil, Power, RefreshCw, Loader, Eye, EyeOff, Key } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserManagementProps {
@@ -38,6 +38,14 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [form, setForm] = useState<Omit<UserAccount, 'id' | 'lastLogin'>>(initialForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Password fields for new user creation
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
@@ -48,6 +56,36 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
       return matchesSearch && matchesRole;
     });
   }, [users, search, filterRole]);
+
+  const getPasswordStrength = (pwd: string): { strength: number; label: string; color: string } => {
+    if (!pwd) return { strength: 0, label: '', color: '' };
+    
+    let strength = 0;
+    if (pwd.length >= 6) strength++;
+    if (pwd.length >= 10) strength++;
+    if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) strength++;
+    if (/\d/.test(pwd)) strength++;
+    if (/[^a-zA-Z0-9]/.test(pwd)) strength++;
+
+    if (strength <= 2) return { strength, label: 'Weak', color: 'bg-red-500' };
+    if (strength <= 3) return { strength, label: 'Fair', color: 'bg-yellow-500' };
+    if (strength <= 4) return { strength, label: 'Good', color: 'bg-blue-500' };
+    return { strength, label: 'Strong', color: 'bg-green-500' };
+  };
+
+  const passwordStrength = getPasswordStrength(password);
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+    let pwd = '';
+    for (let i = 0; i < 12; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setPassword(pwd);
+    setConfirmPassword(pwd);
+    setShowPassword(true);
+    setShowConfirmPassword(true);
+  };
 
   const openNew = () => {
     setEditingUser(null);
@@ -70,15 +108,46 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
     setIsModalOpen(false);
     setEditingUser(null);
     setForm(initialForm);
+    setPassword('');
+    setConfirmPassword('');
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+    setPasswordError('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPasswordError('');
+    
+    // Validate password for new users
+    if (!editingUser) {
+      if (!password) {
+        setPasswordError('Password is required');
+        return;
+      }
+      if (password.length < 6) {
+        setPasswordError('Password must be at least 6 characters');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setPasswordError('Passwords do not match');
+        return;
+      }
+    }
+    
+    setIsSubmitting(true);
+    
+    // Simulate async operation
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     if (editingUser) {
       onUpdate({ ...editingUser, ...form });
     } else {
-      onAdd(form);
+      // Include password when creating new user (will be handled by backend later)
+      onAdd({ ...form, password });
     }
+    
+    setIsSubmitting(false);
     closeModal();
   };
 
@@ -145,13 +214,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
               </motion.div>
             )}
 
-            {filteredUsers.map(user => (
+            {filteredUsers.map((user, index) => (
               <motion.div
                 key={user.id}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
-                className="grid grid-cols-12 items-center px-3 py-3 rounded-xl hover:bg-white/60 transition-colors border border-transparent hover:border-gray-100"
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ scale: 1.01 }}
+                className="grid grid-cols-12 items-center px-3 py-3 rounded-xl hover:bg-white/60 transition-all border border-transparent hover:border-gray-100 hover:shadow-sm"
               >
                 <div className="col-span-3">
                   <div className="flex items-center gap-3">
@@ -182,20 +253,28 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                   <span>{user.lastLogin}</span>
                 </div>
                 <div className="col-span-12 flex items-center gap-2 mt-3 md:mt-0 md:justify-end text-sm">
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => openEdit(user)}
-                    className="px-3 py-2 rounded-lg bg-gray-900 text-white hover:-translate-y-0.5 transition-transform flex items-center gap-1 text-xs"
+                    className="px-3 py-2 rounded-lg bg-gray-900 text-white hover:-translate-y-0.5 transition-transform flex items-center gap-1 text-xs shadow-md hover:shadow-lg"
                   >
                     <Pencil size={14} />
                     Edit
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => onToggleStatus(user.id)}
-                    className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 flex items-center gap-1 text-xs"
+                    className={`px-3 py-2 rounded-lg border flex items-center gap-1 text-xs transition-colors ${
+                      user.status === UserStatus.ACTIVE 
+                        ? 'border-amber-200 text-amber-700 hover:bg-amber-50' 
+                        : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                    }`}
                   >
                     {user.status === UserStatus.ACTIVE ? <Power size={14} /> : <RefreshCw size={14} />}
                     {user.status === UserStatus.ACTIVE ? 'Deactivate' : 'Reactivate'}
-                  </button>
+                  </motion.button>
                 </div>
               </motion.div>
             ))}
@@ -212,9 +291,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
             className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
               className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg relative"
             >
               <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-600" onClick={closeModal}>
@@ -231,11 +311,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
               </div>
 
               <form className="space-y-4" onSubmit={handleSubmit}>
+                {passwordError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2"
+                  >
+                    <X size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-700">{passwordError}</p>
+                  </motion.div>
+                )}
+                
                 <div>
                   <label className="text-xs text-gray-500 uppercase block mb-1">Full Name</label>
                   <input
                     required
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none"
+                    disabled={isSubmitting}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                     value={form.name}
                     onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
                   />
@@ -245,16 +337,104 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                   <input
                     required
                     type="email"
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none"
+                    disabled={isSubmitting}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                     value={form.email}
                     onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
                   />
                 </div>
+
+                {/* Password fields - only for new users */}
+                {!editingUser && (
+                  <>
+                    <div className="pt-2 pb-1">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Key size={16} className="text-gray-500" />
+                          <span className="text-xs text-gray-500 uppercase font-medium">Account Password</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={generateRandomPassword}
+                          disabled={isSubmitting}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors disabled:opacity-50"
+                        >
+                          Generate Strong Password
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase block mb-1">Password *</label>
+                          <div className="relative">
+                            <input
+                              type={showPassword ? 'text' : 'password'}
+                              required
+                              disabled={isSubmitting}
+                              className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none disabled:opacity-50"
+                              value={password}
+                              onChange={e => setPassword(e.target.value)}
+                              placeholder="Minimum 6 characters"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
+                          {password && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="mt-2"
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${(passwordStrength.strength / 5) * 100}%` }}
+                                    className={`h-full ${passwordStrength.color} transition-all`}
+                                  />
+                                </div>
+                                <span className="text-xs font-medium text-gray-600">{passwordStrength.label}</span>
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase block mb-1">Confirm Password *</label>
+                          <div className="relative">
+                            <input
+                              type={showConfirmPassword ? 'text' : 'password'}
+                              required
+                              disabled={isSubmitting}
+                              className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none disabled:opacity-50"
+                              value={confirmPassword}
+                              onChange={e => setConfirmPassword(e.target.value)}
+                              placeholder="Re-enter password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 uppercase block mb-1">Role</label>
                     <select
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
+                      disabled={isSubmitting}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                       value={form.role}
                       onChange={e => setForm(prev => ({ ...prev, role: e.target.value as UserRole }))}
                     >
@@ -266,7 +446,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                   <div>
                     <label className="text-xs text-gray-500 uppercase block mb-1">Status</label>
                     <select
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
+                      disabled={isSubmitting}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                       value={form.status}
                       onChange={e => setForm(prev => ({ ...prev, status: e.target.value as UserStatus }))}
                     >
@@ -276,15 +457,37 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                     </select>
                   </div>
                 </div>
+
+                {/* Note for editing existing users */}
+                {editingUser && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                    <p className="text-xs text-blue-800">
+                      <span className="font-semibold">Note:</span> To change this user's password, they should use the "Change Password" option in their profile menu after logging in.
+                    </p>
+                  </div>
+                )}
                 <div className="flex items-center justify-end gap-2 pt-2">
-                  <button type="button" onClick={closeModal} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700">
+                  <button 
+                    type="button" 
+                    onClick={closeModal} 
+                    className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                    disabled={isSubmitting}
+                  >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:-translate-y-0.5 transition-transform"
+                    disabled={isSubmitting}
+                    className="px-4 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:-translate-y-0.5 transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {editingUser ? 'Save Changes' : 'Create User'}
+                    {isSubmitting ? (
+                      <>
+                        <Loader size={16} className="animate-spin" />
+                        {editingUser ? 'Saving...' : 'Creating...'}
+                      </>
+                    ) : (
+                      <>{editingUser ? 'Save Changes' : 'Create User'}</>
+                    )}
                   </button>
                 </div>
               </form>

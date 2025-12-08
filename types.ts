@@ -65,4 +65,17 @@ export interface UserAccount {
   role: UserRole;
   status: UserStatus;
   lastLogin: string;
+  password?: string; // Only used during creation, not stored in state
+}
+
+export interface AuthSession {
+  user: UserAccount;
+  token?: string;
+  rememberMe: boolean;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+  rememberMe?: boolean;
 }
