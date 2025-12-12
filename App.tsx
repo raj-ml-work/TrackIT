@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials, AssetComment, AssetCommentType, Location, Employee, EmployeeStatus } from './types';
+import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials, AssetComment, AssetCommentType, Location, Department, Employee, EmployeeStatus } from './types';
 import Dashboard from './components/Dashboard';
 import AssetManager from './components/AssetManager';
 import Settings from './components/Settings';
 import UserManagement from './components/UserManagement';
 import EmployeeManagement from './components/EmployeeManagement';
 import LocationManagement from './components/LocationManagement';
+import DepartmentManagement from './components/DepartmentManagement';
 import Login from './components/Login';
 import ProfilePanel from './components/ProfilePanel';
-import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, MapPin, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, MapPin, Briefcase, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as authClient from './services/authClient';
 import { 
@@ -175,6 +176,7 @@ enum View {
   INVENTORY = 'Inventory',
   EMPLOYEES = 'Employees',
   LOCATIONS = 'Locations',
+  DEPARTMENTS = 'Departments',
   USERS = 'Users',
   SETTINGS = 'Settings'
 }
@@ -259,11 +261,40 @@ const MOCK_LOCATIONS: Location[] = [
   }
 ];
 
+const MOCK_DEPARTMENTS: Department[] = [
+  {
+    id: 'dept-001',
+    name: 'Engineering',
+    description: 'Software development and technical teams'
+  },
+  {
+    id: 'dept-002',
+    name: 'Sales',
+    description: 'Sales and business development'
+  },
+  {
+    id: 'dept-003',
+    name: 'Marketing',
+    description: 'Marketing and communications'
+  },
+  {
+    id: 'dept-004',
+    name: 'HR',
+    description: 'Human resources and talent management'
+  },
+  {
+    id: 'dept-005',
+    name: 'Operations',
+    description: 'Operations and logistics'
+  }
+];
+
 const App: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>(MOCK_ASSETS);
   const [users, setUsers] = useState<UserAccount[]>(MOCK_USERS);
   const [employees, setEmployees] = useState<Employee[]>(MOCK_EMPLOYEES);
   const [locations, setLocations] = useState<Location[]>(MOCK_LOCATIONS);
+  const [departments, setDepartments] = useState<Department[]>(MOCK_DEPARTMENTS);
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
@@ -693,6 +724,44 @@ const App: React.FC = () => {
     }
   };
 
+  // Department handlers
+  const handleAddDepartment = async (department: Omit<Department, 'id'>) => {
+    try {
+      // For now, using mock data. Backend integration can be added later
+      const newDepartment: Department = {
+        ...department,
+        id: `dept-${Math.random().toString(36).substr(2, 9)}`
+      };
+      setDepartments(prev => [newDepartment, ...prev]);
+    } catch (error) {
+      console.error('Error adding department:', error);
+      alert('Failed to add department. Please try again.');
+      throw error;
+    }
+  };
+
+  const handleDeleteDepartment = async (id: string) => {
+    try {
+      const department = departments.find(d => d.id === id);
+      if (!department) return;
+
+      // Check if department is used by any employees
+      const employeesUsingDepartment = employees.filter(e => e.department === department.name);
+      if (employeesUsingDepartment.length > 0) {
+        alert(`Cannot delete "${department.name}". It is being used by ${employeesUsingDepartment.length} employee(s). Please reassign employees first.`);
+        return;
+      }
+
+      // Only update state after successful deletion
+      setDepartments(prev => prev.filter(d => d.id !== id));
+    } catch (error) {
+      console.error('Error deleting department:', error);
+      alert('Failed to delete department. Please try again.');
+      // State is not updated, so the department remains visible in the UI
+      throw error;
+    }
+  };
+
   // Employee handlers
   const handleAddEmployee = async (employee: Omit<Employee, 'id'>) => {
     try {
@@ -811,6 +880,7 @@ const App: React.FC = () => {
           <NavItem view={View.INVENTORY} icon={Box} />
           <NavItem view={View.EMPLOYEES} icon={Briefcase} />
           <NavItem view={View.LOCATIONS} icon={MapPin} />
+          <NavItem view={View.DEPARTMENTS} icon={Building2} />
           {isAdmin && <NavItem view={View.USERS} icon={Users} />}
           {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
         </nav>
@@ -850,6 +920,7 @@ const App: React.FC = () => {
               <NavItem view={View.INVENTORY} icon={Box} />
               <NavItem view={View.EMPLOYEES} icon={Briefcase} />
               <NavItem view={View.LOCATIONS} icon={MapPin} />
+              <NavItem view={View.DEPARTMENTS} icon={Building2} />
               {isAdmin && <NavItem view={View.USERS} icon={Users} />}
               {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
             </nav>
@@ -908,6 +979,7 @@ const App: React.FC = () => {
                   employees={employees}
                   assets={assets}
                   locations={locations}
+                  departments={departments}
                   onAdd={handleAddEmployee}
                   onUpdate={handleUpdateEmployee}
                   onDelete={handleDeleteEmployee}
@@ -921,6 +993,15 @@ const App: React.FC = () => {
                   onAdd={handleAddLocation}
                   onUpdate={handleUpdateLocation}
                   onDelete={handleDeleteLocation}
+                  canDelete={isAdmin}
+                />
+              )}
+              {currentView === View.DEPARTMENTS && (
+                <DepartmentManagement 
+                  departments={departments}
+                  employees={employees}
+                  onAdd={handleAddDepartment}
+                  onDelete={handleDeleteDepartment}
                   canDelete={isAdmin}
                 />
               )}

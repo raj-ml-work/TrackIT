@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
-import { Employee, EmployeeStatus, Asset, Location } from '../types';
+import { Employee, EmployeeStatus, Asset, Location, Department } from '../types';
 import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -8,6 +8,7 @@ interface EmployeeManagementProps {
   employees: Employee[];
   assets: Asset[];
   locations: Location[];
+  departments: Department[];
   onAdd: (employee: Omit<Employee, 'id'>) => Promise<void>;
   onUpdate: (employee: Employee) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -31,7 +32,7 @@ const statusBadge = (status: EmployeeStatus) => {
     : `${base} bg-amber-100 text-amber-700`;
 };
 
-const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, onAdd, onUpdate, onDelete, canDelete = true }) => {
+const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canDelete = true }) => {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<EmployeeStatus | 'All'>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -402,13 +403,17 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 uppercase block mb-1">Department</label>
-                    <input
+                    <select
                       disabled={isSubmitting}
                       className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                      value={form.department}
-                      onChange={e => setForm(prev => ({ ...prev, department: e.target.value }))}
-                      placeholder="e.g. Engineering"
-                    />
+                      value={form.department || ''}
+                      onChange={e => setForm(prev => ({ ...prev, department: e.target.value || undefined }))}
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.name}>{dept.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 uppercase block mb-1">Location</label>

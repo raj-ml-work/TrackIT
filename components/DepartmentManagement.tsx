@@ -1,22 +1,20 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
-import { Location, Asset } from '../types';
-import { MapPin, Plus, X, Trash2, Loader } from 'lucide-react';
+import { Department, Employee } from '../types';
+import { Building2, Plus, X, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface LocationManagementProps {
-  locations: Location[];
-  assets: Asset[];
-  onAdd: (location: Omit<Location, 'id'>) => Promise<void>;
-  onUpdate: (location: Location) => Promise<void>;
+interface DepartmentManagementProps {
+  departments: Department[];
+  employees: Employee[];
+  onAdd: (department: Omit<Department, 'id'>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   canDelete?: boolean;
 }
 
-const initialForm: Omit<Location, 'id'> = {
+const initialForm: Omit<Department, 'id'> = {
   name: '',
-  city: '',
-  comments: ''
+  description: ''
 };
 
 // Color palette for tags
@@ -33,27 +31,27 @@ const tagColors = [
   'bg-cyan-100 text-cyan-700 border-cyan-200',
 ];
 
-const LocationManagement: React.FC<LocationManagementProps> = ({ 
-  locations, 
-  assets, 
+const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ 
+  departments, 
+  employees, 
   onAdd, 
   onDelete, 
   canDelete = true 
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form, setForm] = useState<Omit<Location, 'id'>>(initialForm);
+  const [form, setForm] = useState<Omit<Department, 'id'>>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formErrors, setFormErrors] = useState<{ name?: string; city?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ name?: string }>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Compute usage counts
-  const locationUsage = useMemo(() => {
+  const departmentUsage = useMemo(() => {
     const usage: Record<string, number> = {};
-    locations.forEach(loc => {
-      usage[loc.id] = assets.filter(a => a.location === loc.name).length;
+    departments.forEach(dept => {
+      usage[dept.id] = employees.filter(emp => emp.department === dept.name).length;
     });
     return usage;
-  }, [locations, assets]);
+  }, [departments, employees]);
 
   // Get color for tag based on index
   const getTagColor = (index: number) => {
@@ -76,24 +74,20 @@ const LocationManagement: React.FC<LocationManagementProps> = ({
     e.preventDefault();
     
     // Validate required fields
-    const errors: { name?: string; city?: string } = {};
+    const errors: { name?: string } = {};
     
     if (!form.name || form.name.trim() === '') {
-      errors.name = 'Location name is required';
+      errors.name = 'Department name is required';
     }
     
-    if (!form.city || form.city.trim() === '') {
-      errors.city = 'City is required';
-    }
-    
-    // Check for duplicate location names (case-insensitive)
+    // Check for duplicate department names (case-insensitive)
     if (form.name && form.name.trim() !== '') {
-      const existingLocation = locations.find(loc => 
-        loc.name.toLowerCase() === form.name.toLowerCase()
+      const existingDepartment = departments.find(dept => 
+        dept.name.toLowerCase() === form.name.toLowerCase()
       );
       
-      if (existingLocation) {
-        errors.name = `Location "${form.name}" already exists`;
+      if (existingDepartment) {
+        errors.name = `Department "${form.name}" already exists`;
       }
     }
     
@@ -110,27 +104,27 @@ const LocationManagement: React.FC<LocationManagementProps> = ({
       closeModal();
     } catch (error) {
       // Error is already handled in the handler
-      console.error('Error submitting location:', error);
+      console.error('Error submitting department:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (location: Location) => {
-    const usageCount = locationUsage[location.id] || 0;
+  const handleDelete = async (department: Department) => {
+    const usageCount = departmentUsage[department.id] || 0;
     
     if (usageCount > 0) {
-      alert(`Cannot delete "${location.name}". It is being used by ${usageCount} asset(s). Please reassign or remove assets first.`);
+      alert(`Cannot delete "${department.name}". It is being used by ${usageCount} employee(s). Please reassign employees first.`);
       return;
     }
 
-    if (confirm(`Are you sure you want to delete "${location.name}"?`)) {
-      setDeletingId(location.id);
+    if (confirm(`Are you sure you want to delete "${department.name}"?`)) {
+      setDeletingId(department.id);
       try {
-        await onDelete(location.id);
+        await onDelete(department.id);
       } catch (error) {
         // Error is already handled in the handler
-        console.error('Error deleting location:', error);
+        console.error('Error deleting department:', error);
       } finally {
         setDeletingId(null);
       }
@@ -141,62 +135,59 @@ const LocationManagement: React.FC<LocationManagementProps> = ({
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">Office Locations</h3>
-          <p className="text-sm text-gray-600">Manage locations as tags. Click to delete unused locations.</p>
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">Departments</h3>
+          <p className="text-sm text-gray-600">Manage departments as tags. Click to delete unused departments.</p>
         </div>
         <button
           onClick={openNew}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 transition-all duration-300"
         >
           <Plus size={18} />
-          Add Location
+          Add Department
         </button>
       </div>
 
       <GlassCard>
-        {locations.length === 0 ? (
+        {departments.length === 0 ? (
           <div className="text-center py-12">
-            <MapPin size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-600 font-medium mb-2">No locations yet</p>
-            <p className="text-sm text-gray-500">Add your first location to get started</p>
+            <Building2 size={48} className="mx-auto text-gray-300 mb-4" />
+            <p className="text-gray-600 font-medium mb-2">No departments yet</p>
+            <p className="text-sm text-gray-500">Add your first department to get started</p>
           </div>
         ) : (
           <div className="flex flex-wrap gap-3">
             <AnimatePresence>
-              {locations.map((location, index) => {
-                const usageCount = locationUsage[location.id] || 0;
-                const isDeleting = deletingId === location.id;
-                const canDeleteLocation = canDelete && usageCount === 0;
+              {departments.map((department, index) => {
+                const usageCount = departmentUsage[department.id] || 0;
+                const isDeleting = deletingId === department.id;
+                const canDeleteDepartment = canDelete && usageCount === 0;
                 
                 return (
                   <motion.div
-                    key={location.id}
+                    key={department.id}
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
                     className={`relative group inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
                       getTagColor(index)
-                    } ${canDeleteLocation ? 'cursor-pointer hover:shadow-md' : 'cursor-default'}`}
-                    onClick={() => canDeleteLocation && !isDeleting && handleDelete(location)}
+                    } ${canDeleteDepartment ? 'cursor-pointer hover:shadow-md' : 'cursor-default'}`}
+                    onClick={() => canDeleteDepartment && !isDeleting && handleDelete(department)}
                     title={
                       usageCount > 0 
-                        ? `Used by ${usageCount} asset(s) - cannot delete`
+                        ? `Used by ${usageCount} employee(s) - cannot delete`
                         : canDelete 
                           ? 'Click to delete'
                           : 'No permission to delete'
                     }
                   >
-                    <MapPin size={16} />
-                    <span className="font-medium">
-                      {location.name}
-                      {location.city && `, ${location.city}`}
-                    </span>
+                    <Building2 size={16} />
+                    <span className="font-medium">{department.name}</span>
                     {usageCount > 0 && (
                       <span className="text-xs px-1.5 py-0.5 rounded bg-white/50 font-semibold">
                         {usageCount}
                       </span>
                     )}
-                    {canDeleteLocation && !isDeleting && (
+                    {canDeleteDepartment && !isDeleting && (
                       <X 
                         size={14} 
                         className="opacity-60 group-hover:opacity-100 transition-opacity"
@@ -213,7 +204,7 @@ const LocationManagement: React.FC<LocationManagementProps> = ({
         )}
       </GlassCard>
 
-      {/* Add Location Modal */}
+      {/* Add Department Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -236,67 +227,46 @@ const LocationManagement: React.FC<LocationManagementProps> = ({
               </button>
 
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-green-100 text-green-700">
-                  <MapPin size={18} />
+                <div className="p-2 rounded-lg bg-blue-100 text-blue-700">
+                  <Building2 size={18} />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Add Location</p>
-                  <h4 className="text-lg font-bold text-gray-800">New Location</h4>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Add Department</p>
+                  <h4 className="text-lg font-bold text-gray-800">New Department</h4>
                 </div>
               </div>
 
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase block mb-1">Location Name *</label>
+                  <label className="text-xs text-gray-500 uppercase block mb-1">Department Name *</label>
                   <input
                     required
                     disabled={isSubmitting}
                     className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
                       formErrors.name 
                         ? 'border-red-300 focus:ring-red-100' 
-                        : 'border-gray-200 focus:ring-green-100'
+                        : 'border-gray-200 focus:ring-blue-100'
                     }`}
                     value={form.name}
                     onChange={e => {
                       setForm(prev => ({ ...prev, name: e.target.value }));
                       if (formErrors.name) setFormErrors(prev => ({ ...prev, name: undefined }));
                     }}
-                    placeholder="e.g. HQ - Building A"
+                    placeholder="e.g. Engineering, Sales, Marketing"
                   />
                   {formErrors.name && (
                     <p className="text-xs text-red-600 mt-1">{formErrors.name}</p>
                   )}
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase block mb-1">City *</label>
-                  <input
-                    required
-                    disabled={isSubmitting}
-                    className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
-                      formErrors.city 
-                        ? 'border-red-300 focus:ring-red-100' 
-                        : 'border-gray-200 focus:ring-green-100'
-                    }`}
-                    value={form.city}
-                    onChange={e => {
-                      setForm(prev => ({ ...prev, city: e.target.value }));
-                      if (formErrors.city) setFormErrors(prev => ({ ...prev, city: undefined }));
-                    }}
-                    placeholder="e.g. San Francisco"
-                  />
-                  {formErrors.city && (
-                    <p className="text-xs text-red-600 mt-1">{formErrors.city}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase block mb-1">Comments</label>
+                  <label className="text-xs text-gray-500 uppercase block mb-1">Description</label>
                   <textarea
                     disabled={isSubmitting}
                     rows={3}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity resize-none"
-                    value={form.comments}
-                    onChange={e => setForm(prev => ({ ...prev, comments: e.target.value }))}
-                    placeholder="Additional notes about this location (optional)"
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity resize-none"
+                    value={form.description}
+                    onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Brief description of the department (optional)"
                   />
                 </div>
 
@@ -322,7 +292,7 @@ const LocationManagement: React.FC<LocationManagementProps> = ({
                     ) : (
                       <>
                         <Plus size={16} />
-                        Add Location
+                        Add Department
                       </>
                     )}
                   </button>
@@ -336,4 +306,5 @@ const LocationManagement: React.FC<LocationManagementProps> = ({
   );
 };
 
-export default LocationManagement;
+export default DepartmentManagement;
+
