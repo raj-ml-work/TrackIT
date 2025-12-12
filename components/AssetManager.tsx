@@ -59,6 +59,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   const [currentStep, setCurrentStep] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Omit<Asset, 'id'>>(initialAsset);
+  const [formErrors, setFormErrors] = useState<{ assignedTo?: string; status?: string }>({});
 
   // Details Drawer State
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
@@ -107,15 +108,38 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    
+    // Validate form
+    const errors: { assignedTo?: string; status?: string } = {};
+    
+    // If status is "In Use", assignedTo must be set
+    if (formData.status === AssetStatus.IN_USE && !formData.assignedTo) {
+      errors.assignedTo = 'An employee must be assigned when status is "In Use"';
+      errors.status = 'Status cannot be "In Use" without an assigned employee';
+      setFormErrors(errors);
+      return;
+    }
+    
+    // If assignedTo is set, ensure status is "In Use"
+    // If assignedTo is not set and status is "In Use", change to "Available"
+    const finalFormData = {
+      ...formData,
+      status: formData.assignedTo 
+        ? AssetStatus.IN_USE 
+        : (formData.status === AssetStatus.IN_USE ? AssetStatus.AVAILABLE : formData.status)
+    };
+    
+    setFormErrors({});
+    
     try {
       if (editingId) {
-        await onUpdate({ ...formData, id: editingId });
+        await onUpdate({ ...finalFormData, id: editingId });
         // If we are editing the currently viewed asset, update the view as well
         if (selectedAsset && selectedAsset.id === editingId) {
-          setSelectedAsset({ ...formData, id: editingId } as Asset);
+          setSelectedAsset({ ...finalFormData, id: editingId } as Asset);
         }
       } else {
-        await onAdd(formData);
+        await onAdd(finalFormData);
       }
       closeModal();
     } catch (error) {
@@ -132,6 +156,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     setEditingId(asset.id);
     setCurrentStep(1);
     setIsModalOpen(true);
+    setFormErrors({});
   };
 
   const closeModal = () => {
@@ -139,6 +164,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     setEditingId(null);
     setCurrentStep(1);
     setFormData(initialAsset);
+    setFormErrors({});
   };
 
   const updateSpecs = (field: keyof AssetSpecs, value: string) => {
@@ -197,10 +223,33 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         </div>
         <div>
            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Status *</label>
-           <select className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg outline-none"
-             value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as AssetStatus})}>
+           <select 
+             className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
+               formErrors.status ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+             }`}
+             value={formData.status} 
+             onChange={e => {
+               const newStatus = e.target.value as AssetStatus;
+               const errors: { assignedTo?: string; status?: string } = {};
+               
+               // If setting status to "In Use" but no one is assigned, show error
+               if (newStatus === AssetStatus.IN_USE && !formData.assignedTo) {
+                 errors.assignedTo = 'An employee must be assigned when status is "In Use"';
+                 errors.status = 'Please assign an employee first';
+               } else {
+                 // Clear errors if valid
+                 setFormErrors({});
+               }
+               
+               setFormData({...formData, status: newStatus});
+               setFormErrors(errors);
+             }}
+           >
                {Object.values(AssetStatus).map(s => <option key={s} value={s}>{s}</option>)}
            </select>
+           {formErrors.status && (
+             <p className="mt-1 text-xs text-red-600">{formErrors.status}</p>
+           )}
         </div>
       </div>
 
@@ -262,9 +311,34 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       <div>
         <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Assigned To</label>
         <select 
-          className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+          className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
+            formErrors.assignedTo ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+          }`}
           value={formData.assignedTo || ''}
-          onChange={e => setFormData({...formData, assignedTo: e.target.value || undefined})}
+          onChange={e => {
+            const newAssignedTo = e.target.value || undefined;
+            const errors: { assignedTo?: string; status?: string } = {};
+            
+            // If assigning to someone, automatically set status to "In Use"
+            if (newAssignedTo) {
+              setFormData(prev => ({ 
+                ...prev, 
+                assignedTo: newAssignedTo,
+                status: AssetStatus.IN_USE 
+              }));
+              // Clear any errors since assignment is valid
+              setFormErrors({});
+            } else {
+              // If unassigning, set status to "Available" if it was "In Use"
+              setFormData(prev => ({ 
+                ...prev, 
+                assignedTo: undefined,
+                status: prev.status === AssetStatus.IN_USE ? AssetStatus.AVAILABLE : prev.status
+              }));
+              // Clear errors
+              setFormErrors({});
+            }
+          }}
         >
           <option value="">Unassigned</option>
           {employees
@@ -275,6 +349,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               </option>
             ))}
         </select>
+        {formErrors.assignedTo && (
+          <p className="mt-1 text-xs text-red-600">{formErrors.assignedTo}</p>
+        )}
       </div>
     </div>
   );
@@ -350,69 +427,86 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
 
   return (
     <div className="space-y-6">
-      {/* Header Controls */}
-      <GlassCard className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input 
-            type="text" 
-            placeholder="Search assets..." 
-            className="w-full pl-10 pr-4 py-2 bg-white/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-700"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      <div className="flex justify-end">
+        <button 
+          onClick={() => { setCurrentStep(1); setIsModalOpen(true); }}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+        >
+          <Plus size={18} />
+          Add Asset
+        </button>
+      </div>
+
+      <GlassCard>
+        <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl w-full md:w-80">
+            <Search size={16} className="text-gray-400" />
+            <input
+              className="w-full bg-transparent focus:outline-none text-sm"
+              placeholder="Search assets by name, serial number, brand, or model"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 uppercase tracking-wide">Type</span>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as AssetType | 'All')}
+              className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none"
+            >
+              <option value="All">All Types</option>
+              {Object.values(AssetType).map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
         </div>
-        
-        <div className="flex gap-3">
-          <div className="relative">
-             <select 
-               className="appearance-none pl-10 pr-8 py-2 bg-white/50 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/50 text-gray-700"
-               value={filterType}
-               onChange={(e) => setFilterType(e.target.value as AssetType | 'All')}
-             >
-               <option value="All">All Types</option>
-               {Object.values(AssetType).map(t => <option key={t} value={t}>{t}</option>)}
-             </select>
-             <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+
+        {/* Asset List */}
+        <div className="space-y-2">
+          <div className="grid grid-cols-12 text-xs text-gray-400 px-2">
+            <span className="col-span-4">Asset</span>
+            <span className="col-span-2">Location</span>
+            <span className="col-span-2">Status</span>
+            <span className="col-span-2">Assigned To</span>
+            <span className="col-span-2"></span>
           </div>
 
-          <button 
-            onClick={() => { setCurrentStep(1); setIsModalOpen(true); }}
-            className="flex items-center gap-2 bg-gray-900 text-white px-5 py-2 rounded-xl hover:bg-gray-800 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
-          >
-            <Plus size={18} />
-            <span>Add Asset</span>
-          </button>
-        </div>
-      </GlassCard>
+          <AnimatePresence>
+            {filteredAssets.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-8 text-center border border-dashed border-gray-200 rounded-2xl bg-gray-50/60"
+              >
+                <p className="text-gray-700 font-semibold mb-1">No assets found</p>
+                <p className="text-gray-500 text-sm">Try adjusting your search or filters, or add a new asset.</p>
+              </motion.div>
+            )}
 
-      {/* Asset List */}
-      <div className="grid grid-cols-1 gap-4">
-        <AnimatePresence>
-          {filteredAssets.map((asset) => (
-            <motion.div
-              key={asset.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              layout
-            >
-              <GlassCard 
-                className="py-4 hover:bg-white/40 group cursor-pointer active:scale-[0.99]" 
-                hoverEffect={false}
+            {filteredAssets.map((asset, index) => (
+              <motion.div
+                key={asset.id}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ scale: 1.01 }}
+                className="grid grid-cols-12 items-center px-3 py-3 rounded-xl hover:bg-white/60 transition-all border border-transparent hover:border-gray-100 hover:shadow-sm cursor-pointer group"
                 onClick={() => setSelectedAsset(asset)}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className={`p-3 rounded-2xl ${
+                <div className="col-span-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl ${
                       asset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-600' : 
-                      asset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                      asset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-600' : 
+                      asset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-600' :
+                      'bg-yellow-100 text-yellow-600'
                     }`}>
                       {getIcon(asset.type)}
                     </div>
                     <div>
-                      <h4 className="font-semibold text-gray-800">{asset.name}</h4>
-                      <div className="flex items-center gap-2 text-sm text-gray-500 font-mono">
+                      <p className="font-semibold text-gray-800 leading-tight">{asset.name}</p>
+                      <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
                         <span>{asset.serialNumber}</span>
                         {asset.specs?.brand && (
                           <>
@@ -423,59 +517,53 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       </div>
                     </div>
                   </div>
-
-                  <div className="hidden md:flex flex-col gap-1 w-32">
-                    <span className="text-xs text-gray-400 uppercase tracking-wide">Location</span>
-                    <span className="text-sm text-gray-700">{asset.location}</span>
-                  </div>
-
-                  <div className="hidden md:flex flex-col gap-1 w-32">
-                     <span className="text-xs text-gray-400 uppercase tracking-wide">Status</span>
-                     <span className={`inline-flex w-fit items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                       asset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-800' :
-                       asset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-800' :
-                       asset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-800' :
-                       'bg-yellow-100 text-yellow-800'
-                     }`}>
-                       {asset.status}
-                     </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); openEdit(asset); }} 
-                      className="p-2 hover:bg-white/50 rounded-lg text-gray-600 hover:text-blue-600"
-                    >
-                      <Edit2 size={18} />
-                    </button>
-                    {canDelete && (
-                      <button 
-                        onClick={async (e) => { 
-                          e.stopPropagation(); 
-                          try {
-                            await onDelete(asset.id);
-                          } catch (error) {
-                            console.error('Error deleting asset:', error);
-                          }
-                        }} 
-                        className="p-2 hover:bg-white/50 rounded-lg text-gray-600 hover:text-red-600"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    )}
-                  </div>
                 </div>
-              </GlassCard>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        
-        {filteredAssets.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
-            <p>No assets found matching your criteria.</p>
-          </div>
-        )}
-      </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-700">{asset.location}</p>
+                </div>
+                <div className="col-span-2">
+                  <span className={`inline-flex w-fit items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    asset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-800' :
+                    asset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-800' :
+                    asset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {asset.status}
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-700">{asset.assignedTo || 'Unassigned'}</p>
+                </div>
+                <div className="col-span-2 flex items-center gap-2 justify-end">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); openEdit(asset); }} 
+                    className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  {canDelete && (
+                    <button 
+                      onClick={async (e) => { 
+                        e.stopPropagation(); 
+                        try {
+                          await onDelete(asset.id);
+                        } catch (error) {
+                          console.error('Error deleting asset:', error);
+                        }
+                      }} 
+                      className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      </GlassCard>
 
       {/* Detail Drawer */}
       <AnimatePresence>
