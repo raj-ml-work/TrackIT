@@ -11,6 +11,13 @@ import ProfilePanel from './components/ProfilePanel';
 import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, MapPin, Briefcase } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as authClient from './services/authClient';
+import { 
+  isDatabaseReady, 
+  getAssets, createAsset, updateAsset, deleteAsset, addAssetComment,
+  getEmployees, createEmployee, updateEmployee, deleteEmployee,
+  getLocations, createLocation, updateLocation, deleteLocation,
+  getUsers, createUser, updateUser, deleteUser
+} from './services/dataService';
 
 // Mock Data
 const MOCK_ASSETS: Asset[] = [
@@ -23,8 +30,8 @@ const MOCK_ASSETS: Asset[] = [
     purchaseDate: '2023-01-15', 
     warrantyExpiry: '2024-01-15', 
     cost: 2499, 
-    location: 'HQ - Design', 
-    assignedTo: 'Sarah J.',
+    location: 'HQ - Building A', 
+    assignedTo: 'Sarah Johnson',
     specs: { brand: 'Apple', model: 'MacBook Pro', cpu: 'M2 Max', ram: '32GB', storage: '1TB SSD' },
     comments: []
   },
@@ -37,7 +44,7 @@ const MOCK_ASSETS: Asset[] = [
     purchaseDate: '2022-11-20', 
     warrantyExpiry: '2025-11-20', 
     cost: 1899, 
-    location: 'HQ - IT', 
+    location: 'HQ - Building A', 
     notes: 'Reimaged',
     specs: { brand: 'Dell', model: 'XPS 9520', cpu: 'Core i7-12700H', ram: '16GB', storage: '512GB SSD' },
     comments: []
@@ -51,7 +58,7 @@ const MOCK_ASSETS: Asset[] = [
     purchaseDate: '2023-03-10', 
     warrantyExpiry: '2026-03-10', 
     cost: 1299, 
-    location: 'HQ - Design',
+    location: 'HQ - Building A',
     specs: { brand: 'LG', model: '27MD5KL-B', screenSize: '27 inch' },
     comments: []
   },
@@ -65,6 +72,7 @@ const MOCK_ASSETS: Asset[] = [
     warrantyExpiry: '2024-06-01', 
     cost: 199, 
     location: 'Remote',
+    assignedTo: 'Emily Rodriguez',
     specs: { brand: 'Keychron', model: 'Q1 Pro' },
     comments: []
   },
@@ -77,7 +85,7 @@ const MOCK_ASSETS: Asset[] = [
     purchaseDate: '2021-05-15', 
     warrantyExpiry: '2024-05-15', 
     cost: 1400, 
-    location: 'HQ - Repair',
+    location: 'HQ - Warehouse',
     specs: { brand: 'Lenovo', model: 'Gen 9', cpu: 'Core i5', ram: '8GB', storage: '256GB' },
     comments: []
   },
@@ -90,7 +98,7 @@ const MOCK_ASSETS: Asset[] = [
     purchaseDate: '2022-01-01', 
     warrantyExpiry: '2034-01-01', 
     cost: 1400, 
-    location: 'HQ - Exec',
+    location: 'HQ - Building A',
     specs: { brand: 'Herman Miller', model: 'Aeron B' },
     comments: []
   },
@@ -103,7 +111,7 @@ const MOCK_ASSETS: Asset[] = [
     purchaseDate: '2023-01-01',
     warrantyExpiry: '2025-01-01',
     cost: 899,
-    location: 'Conf Room A',
+    location: 'HQ - Building A',
     specs: { brand: 'Epson', model: 'VS260' },
     comments: []
   },
@@ -116,7 +124,7 @@ const MOCK_ASSETS: Asset[] = [
     purchaseDate: '2023-02-15',
     warrantyExpiry: '2025-02-15',
     cost: 600,
-    location: 'Lobby',
+    location: 'HQ - Building A',
     specs: { brand: 'Samsung', model: 'Crystal UHD', screenSize: '55 inch' },
     comments: []
   },
@@ -129,7 +137,7 @@ const MOCK_ASSETS: Asset[] = [
     purchaseDate: '2022-06-01',
     warrantyExpiry: '2024-06-01',
     cost: 350,
-    location: 'Admin Desk',
+    location: 'Branch Office - NYC',
     specs: { brand: 'HP', model: 'LaserJet Pro', printerType: 'Monochrome' },
     comments: []
   }
@@ -262,17 +270,76 @@ const App: React.FC = () => {
   // Auth state
   const [session, setSession] = useState<AuthSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(false);
+  const [useBackend, setUseBackend] = useState(false);
 
   const isAdmin = session?.user.role === UserRole.ADMIN;
 
-  // Restore session on mount
+  // Initialize default admin and restore session on mount
   useEffect(() => {
-    const restored = authClient.restoreSession();
-    if (restored) {
-      setSession(restored);
-    }
-    setIsLoading(false);
+    const initializeApp = async () => {
+      try {
+        // Check if database is configured
+        const dbReady = isDatabaseReady();
+        setUseBackend(dbReady);
+
+        // Initialize default admin user if needed (only for Supabase)
+        await authClient.initializeDefaultAdmin();
+        
+        // Restore session
+        const restored = await authClient.restoreSession();
+        if (restored) {
+          setSession(restored);
+        }
+
+        // Load data from backend if configured
+        if (dbReady) {
+          await loadDataFromBackend();
+        }
+      } catch (error) {
+        console.error('Error initializing app:', error);
+        // Fall back to mock data if backend fails
+        setUseBackend(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initializeApp();
   }, []);
+
+  // Load data from backend
+  const loadDataFromBackend = async () => {
+    setIsDataLoading(true);
+    try {
+      const [assetsData, employeesData, locationsData, usersData] = await Promise.all([
+        getAssets().catch(err => {
+          console.error('Error loading assets:', err);
+          return MOCK_ASSETS;
+        }),
+        getEmployees().catch(err => {
+          console.error('Error loading employees:', err);
+          return MOCK_EMPLOYEES;
+        }),
+        getLocations().catch(err => {
+          console.error('Error loading locations:', err);
+          return MOCK_LOCATIONS;
+        }),
+        getUsers().catch(err => {
+          console.error('Error loading users:', err);
+          return MOCK_USERS;
+        })
+      ]);
+
+      setAssets(assetsData);
+      setEmployees(employeesData);
+      setLocations(locationsData);
+      setUsers(usersData);
+    } catch (error) {
+      console.error('Error loading data from backend:', error);
+    } finally {
+      setIsDataLoading(false);
+    }
+  };
 
   // Redirect non-admins away from restricted views
   useEffect(() => {
@@ -295,169 +362,362 @@ const App: React.FC = () => {
   };
 
   // Asset handlers
-  const handleAddAsset = (newAsset: Omit<Asset, 'id'>) => {
-    const assetId = Math.random().toString(36).substr(2, 9);
-    const creationComment: AssetComment = {
-      id: Math.random().toString(36).substr(2, 9),
-      assetId,
-      authorName: session?.user.name || 'System',
-      authorId: session?.user.id,
-      message: `Asset created by ${session?.user.name || 'System'}`,
-      type: AssetCommentType.SYSTEM,
-      createdAt: new Date().toISOString()
-    };
-    
-    const asset: Asset = { 
-      ...newAsset, 
-      id: assetId,
-      comments: [creationComment]
-    };
-    setAssets(prev => [asset, ...prev]);
-  };
-
-  const handleUpdateAsset = (updatedAsset: Asset) => {
-    setAssets(prev => prev.map(a => {
-      if (a.id === updatedAsset.id) {
-        // Generate audit trail for changes
-        const auditComments: AssetComment[] = [];
-        const now = new Date().toISOString();
-        
-        if (a.status !== updatedAsset.status) {
-          auditComments.push({
-            id: Math.random().toString(36).substr(2, 9),
-            assetId: a.id,
-            authorName: session?.user.name || 'System',
-            authorId: session?.user.id,
-            message: `Status changed from "${a.status}" to "${updatedAsset.status}"`,
-            type: AssetCommentType.SYSTEM,
-            createdAt: now
-          });
-        }
-        
-        if (a.assignedTo !== updatedAsset.assignedTo) {
-          auditComments.push({
-            id: Math.random().toString(36).substr(2, 9),
-            assetId: a.id,
-            authorName: session?.user.name || 'System',
-            authorId: session?.user.id,
-            message: `Assigned to changed from "${a.assignedTo || 'Unassigned'}" to "${updatedAsset.assignedTo || 'Unassigned'}"`,
-            type: AssetCommentType.SYSTEM,
-            createdAt: now
-          });
-        }
-        
-        if (a.location !== updatedAsset.location) {
-          auditComments.push({
-            id: Math.random().toString(36).substr(2, 9),
-            assetId: a.id,
-            authorName: session?.user.name || 'System',
-            authorId: session?.user.id,
-            message: `Location changed from "${a.location}" to "${updatedAsset.location}"`,
-            type: AssetCommentType.SYSTEM,
-            createdAt: now
-          });
-        }
-        
-        // Merge existing comments with new audit comments
-        const allComments = [...(updatedAsset.comments || []), ...auditComments];
-        return { ...updatedAsset, comments: allComments };
-      }
-      return a;
-    }));
-  };
-
-  const handleAddComment = (assetId: string, message: string) => {
-    const newComment: AssetComment = {
-      id: Math.random().toString(36).substr(2, 9),
-      assetId,
-      authorName: session?.user.name || 'Unknown',
-      authorId: session?.user.id,
-      message,
-      type: AssetCommentType.NOTE,
-      createdAt: new Date().toISOString()
-    };
-    
-    setAssets(prev => prev.map(a => {
-      if (a.id === assetId) {
-        return {
-          ...a,
-          comments: [...(a.comments || []), newComment]
+  const handleAddAsset = async (newAsset: Omit<Asset, 'id'>) => {
+    try {
+      if (useBackend) {
+        const createdAsset = await createAsset(newAsset);
+        // Add creation comment
+        await addAssetComment({
+          assetId: createdAsset.id,
+          authorName: session?.user.name || 'System',
+          authorId: session?.user.id,
+          message: `Asset created by ${session?.user.name || 'System'}`,
+          type: AssetCommentType.SYSTEM,
+          createdAt: new Date().toISOString()
+        });
+        setAssets(prev => [createdAsset, ...prev]);
+      } else {
+        // Mock data fallback
+        const assetId = Math.random().toString(36).substr(2, 9);
+        const creationComment: AssetComment = {
+          id: Math.random().toString(36).substr(2, 9),
+          assetId,
+          authorName: session?.user.name || 'System',
+          authorId: session?.user.id,
+          message: `Asset created by ${session?.user.name || 'System'}`,
+          type: AssetCommentType.SYSTEM,
+          createdAt: new Date().toISOString()
         };
+        
+        const asset: Asset = { 
+          ...newAsset, 
+          id: assetId,
+          comments: [creationComment]
+        };
+        setAssets(prev => [asset, ...prev]);
       }
-      return a;
-    }));
+    } catch (error) {
+      console.error('Error adding asset:', error);
+      alert('Failed to add asset. Please try again.');
+      throw error;
+    }
   };
 
-  const handleDeleteAsset = (id: string) => {
-    if (confirm('Are you sure you want to delete this asset?')) {
+  const handleUpdateAsset = async (updatedAsset: Asset) => {
+    try {
+      const oldAsset = assets.find(a => a.id === updatedAsset.id);
+      if (!oldAsset) return;
+
+      // Generate audit trail for changes
+      const auditComments: Omit<AssetComment, 'id'>[] = [];
+      const now = new Date().toISOString();
+      
+      if (oldAsset.status !== updatedAsset.status) {
+        auditComments.push({
+          assetId: oldAsset.id,
+          authorName: session?.user.name || 'System',
+          authorId: session?.user.id,
+          message: `Status changed from "${oldAsset.status}" to "${updatedAsset.status}"`,
+          type: AssetCommentType.SYSTEM,
+          createdAt: now
+        });
+      }
+      
+      if (oldAsset.assignedTo !== updatedAsset.assignedTo) {
+        auditComments.push({
+          assetId: oldAsset.id,
+          authorName: session?.user.name || 'System',
+          authorId: session?.user.id,
+          message: `Assigned to changed from "${oldAsset.assignedTo || 'Unassigned'}" to "${updatedAsset.assignedTo || 'Unassigned'}"`,
+          type: AssetCommentType.SYSTEM,
+          createdAt: now
+        });
+      }
+      
+      if (oldAsset.location !== updatedAsset.location) {
+        auditComments.push({
+          assetId: oldAsset.id,
+          authorName: session?.user.name || 'System',
+          authorId: session?.user.id,
+          message: `Location changed from "${oldAsset.location}" to "${updatedAsset.location}"`,
+          type: AssetCommentType.SYSTEM,
+          createdAt: now
+        });
+      }
+
+      if (useBackend) {
+        const updated = await updateAsset(updatedAsset);
+        // Add audit comments to backend
+        for (const comment of auditComments) {
+          await addAssetComment(comment);
+        }
+        setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
+      } else {
+        // Mock data fallback
+        setAssets(prev => prev.map(a => {
+          if (a.id === updatedAsset.id) {
+            const allComments = [...(updatedAsset.comments || []), ...auditComments.map(c => ({ ...c, id: Math.random().toString(36).substr(2, 9) }))];
+            return { ...updatedAsset, comments: allComments };
+          }
+          return a;
+        }));
+      }
+    } catch (error) {
+      console.error('Error updating asset:', error);
+      alert('Failed to update asset. Please try again.');
+      throw error;
+    }
+  };
+
+  const handleAddComment = async (assetId: string, message: string) => {
+    try {
+      const newComment: Omit<AssetComment, 'id'> = {
+        assetId,
+        authorName: session?.user.name || 'Unknown',
+        authorId: session?.user.id,
+        message,
+        type: AssetCommentType.NOTE,
+        createdAt: new Date().toISOString()
+      };
+
+      if (useBackend) {
+        const createdComment = await addAssetComment(newComment);
+        setAssets(prev => prev.map(a => {
+          if (a.id === assetId) {
+            return {
+              ...a,
+              comments: [...(a.comments || []), createdComment]
+            };
+          }
+          return a;
+        }));
+      } else {
+        // Mock data fallback
+        const comment: AssetComment = {
+          ...newComment,
+          id: Math.random().toString(36).substr(2, 9)
+        };
+        setAssets(prev => prev.map(a => {
+          if (a.id === assetId) {
+            return {
+              ...a,
+              comments: [...(a.comments || []), comment]
+            };
+          }
+          return a;
+        }));
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      alert('Failed to add comment. Please try again.');
+      throw error;
+    }
+  };
+
+  const handleDeleteAsset = async (id: string) => {
+    if (!isAdmin) {
+      alert('Only administrators can delete assets.');
+      return;
+    }
+
+    if (!confirm('Are you sure you want to delete this asset?')) {
+      return;
+    }
+
+    try {
+      if (useBackend) {
+        await deleteAsset(id);
+      }
+      // Only update state after successful deletion
       setAssets(prev => prev.filter(a => a.id !== id));
+    } catch (error) {
+      console.error('Error deleting asset:', error);
+      alert('Failed to delete asset. Please try again.');
+      // State is not updated, so the asset remains visible in the UI
+      throw error;
     }
   };
 
   // User handlers
-  const handleAddUser = (user: Omit<UserAccount, 'id' | 'lastLogin'>) => {
-    const newUser: UserAccount = {
-      ...user,
-      id: Math.random().toString(36).substr(2, 9),
-      lastLogin: '—'
-    };
-    
-    // Register the user in auth system if password provided
-    if (user.password) {
-      authClient.registerUser({ ...newUser, password: user.password });
+  const handleAddUser = async (user: Omit<UserAccount, 'id' | 'lastLogin'>) => {
+    try {
+      if (useBackend) {
+        if (!user.password) {
+          throw new Error('Password is required when creating a user');
+        }
+        const createdUser = await createUser({
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status
+        }, user.password);
+        setUsers(prev => [createdUser, ...prev]);
+      } else {
+        // Mock data fallback
+        const newUser: UserAccount = {
+          ...user,
+          id: Math.random().toString(36).substr(2, 9),
+          lastLogin: '—'
+        };
+        
+        // Register the user in auth system if password provided
+        if (user.password) {
+          await authClient.registerUser({ ...newUser, password: user.password });
+        }
+        
+        // Remove password before storing in state (security)
+        const { password, ...userWithoutPassword } = newUser;
+        setUsers(prev => [userWithoutPassword, ...prev]);
+      }
+    } catch (error) {
+      console.error('Error adding user:', error);
+      alert('Failed to add user. Please try again.');
+      throw error;
     }
-    
-    // Remove password before storing in state (security)
-    const { password, ...userWithoutPassword } = newUser;
-    setUsers(prev => [userWithoutPassword, ...prev]);
   };
 
-  const handleUpdateUser = (updated: UserAccount) => {
-    setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+  const handleUpdateUser = async (updated: UserAccount) => {
+    try {
+      if (useBackend) {
+        const updatedUser = await updateUser(updated);
+        setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+      } else {
+        setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('Failed to update user. Please try again.');
+      throw error;
+    }
   };
 
-  const handleToggleUserStatus = (id: string) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: u.status === UserStatus.ACTIVE ? UserStatus.INACTIVE : UserStatus.ACTIVE } : u));
+  const handleToggleUserStatus = async (id: string) => {
+    try {
+      const user = users.find(u => u.id === id);
+      if (!user) return;
+
+      const newStatus = user.status === UserStatus.ACTIVE ? UserStatus.INACTIVE : UserStatus.ACTIVE;
+      
+      if (useBackend) {
+        const updatedUser = await updateUser({ ...user, status: newStatus });
+        setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+      } else {
+        setUsers(prev => prev.map(u => u.id === id ? { ...u, status: newStatus } : u));
+      }
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      alert('Failed to update user status. Please try again.');
+      throw error;
+    }
   };
 
   // Location handlers
-  const handleAddLocation = (location: Omit<Location, 'id'>) => {
-    const newLocation: Location = {
-      ...location,
-      id: `loc-${Math.random().toString(36).substr(2, 9)}`
-    };
-    setLocations(prev => [newLocation, ...prev]);
+  const handleAddLocation = async (location: Omit<Location, 'id'>) => {
+    try {
+      if (useBackend) {
+        const createdLocation = await createLocation(location);
+        setLocations(prev => [createdLocation, ...prev]);
+      } else {
+        // Mock data fallback
+        const newLocation: Location = {
+          ...location,
+          id: `loc-${Math.random().toString(36).substr(2, 9)}`
+        };
+        setLocations(prev => [newLocation, ...prev]);
+      }
+    } catch (error) {
+      console.error('Error adding location:', error);
+      alert('Failed to add location. Please try again.');
+      throw error;
+    }
   };
 
-  const handleUpdateLocation = (updated: Location) => {
-    setLocations(prev => prev.map(l => l.id === updated.id ? updated : l));
+  const handleUpdateLocation = async (updated: Location) => {
+    try {
+      if (useBackend) {
+        const updatedLocation = await updateLocation(updated);
+        setLocations(prev => prev.map(l => l.id === updatedLocation.id ? updatedLocation : l));
+      } else {
+        setLocations(prev => prev.map(l => l.id === updated.id ? updated : l));
+      }
+    } catch (error) {
+      console.error('Error updating location:', error);
+      alert('Failed to update location. Please try again.');
+      throw error;
+    }
   };
 
-  const handleDeleteLocation = (id: string) => {
-    const location = locations.find(l => l.id === id);
-    const assetCount = assets.filter(a => a.location === location?.name).length;
-    
-    if (assetCount > 0) {
-      alert(`Cannot delete ${location?.name || 'this location'}. It has ${assetCount} asset(s). Please reassign them first.`);
+  const handleDeleteLocation = async (id: string) => {
+    if (!isAdmin) {
+      alert('Only administrators can delete locations.');
       return;
     }
-    setLocations(prev => prev.filter(l => l.id !== id));
+
+    const location = locations.find(l => l.id === id);
+    const assetCount = assets.filter(a => a.location === location?.name).length;
+    const employeeCount = employees.filter(e => e.location === location?.name).length;
+    
+    if (assetCount > 0 || employeeCount > 0) {
+      alert(`Cannot delete ${location?.name || 'this location'}. It has ${assetCount} asset(s) and ${employeeCount} employee(s). Please reassign them first.`);
+      return;
+    }
+
+    try {
+      if (useBackend) {
+        await deleteLocation(id);
+      }
+      // Only update state after successful deletion
+      setLocations(prev => prev.filter(l => l.id !== id));
+    } catch (error) {
+      console.error('Error deleting location:', error);
+      alert('Failed to delete location. Please try again.');
+      // State is not updated, so the location remains visible in the UI
+      throw error;
+    }
   };
 
   // Employee handlers
-  const handleAddEmployee = (employee: Omit<Employee, 'id'>) => {
-    const newEmployee: Employee = {
-      ...employee,
-      id: `emp-${Math.random().toString(36).substr(2, 9)}`
-    };
-    setEmployees(prev => [newEmployee, ...prev]);
+  const handleAddEmployee = async (employee: Omit<Employee, 'id'>) => {
+    try {
+      if (useBackend) {
+        const createdEmployee = await createEmployee(employee);
+        setEmployees(prev => [createdEmployee, ...prev]);
+      } else {
+        // Mock data fallback
+        const newEmployee: Employee = {
+          ...employee,
+          id: `emp-${Math.random().toString(36).substr(2, 9)}`
+        };
+        setEmployees(prev => [newEmployee, ...prev]);
+      }
+    } catch (error) {
+      console.error('Error adding employee:', error);
+      alert(error instanceof Error ? error.message : 'Failed to add employee. Please try again.');
+      throw error;
+    }
   };
 
-  const handleUpdateEmployee = (updated: Employee) => {
-    setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e));
+  const handleUpdateEmployee = async (updated: Employee) => {
+    try {
+      if (useBackend) {
+        const updatedEmployee = await updateEmployee(updated);
+        setEmployees(prev => prev.map(e => e.id === updatedEmployee.id ? updatedEmployee : e));
+      } else {
+        setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e));
+      }
+    } catch (error) {
+      console.error('Error updating employee:', error);
+      alert('Failed to update employee. Please try again.');
+      throw error;
+    }
   };
 
-  const handleDeleteEmployee = (id: string) => {
+  const handleDeleteEmployee = async (id: string) => {
+    if (!isAdmin) {
+      alert('Only administrators can delete employees.');
+      return;
+    }
+
     const employee = employees.find(e => e.id === id);
     const assetCount = assets.filter(a => a.assignedTo === employee?.name).length;
     
@@ -465,7 +725,19 @@ const App: React.FC = () => {
       alert(`Cannot delete ${employee?.name || 'this employee'}. They have ${assetCount} asset(s) assigned. Please reassign or unassign assets first.`);
       return;
     }
-    setEmployees(prev => prev.filter(e => e.id !== id));
+
+    try {
+      if (useBackend) {
+        await deleteEmployee(id);
+      }
+      // Only update state after successful deletion
+      setEmployees(prev => prev.filter(e => e.id !== id));
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+      alert('Failed to delete employee. Please try again.');
+      // State is not updated, so the employee remains visible in the UI
+      throw error;
+    }
   };
 
   const NavItem = ({ view, icon: Icon }: { view: View, icon: any }) => (

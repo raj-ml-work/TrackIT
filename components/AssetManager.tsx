@@ -8,10 +8,10 @@ interface AssetManagerProps {
   assets: Asset[];
   employees?: Employee[];
   locations: Location[];
-  onAdd: (asset: Omit<Asset, 'id'>) => void;
-  onUpdate: (asset: Asset) => void;
-  onDelete: (id: string) => void;
-  onAddComment: (assetId: string, message: string) => void;
+  onAdd: (asset: Omit<Asset, 'id'>) => Promise<void>;
+  onUpdate: (asset: Asset) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onAddComment: (assetId: string, message: string) => Promise<void>;
   canDelete?: boolean;
 }
 
@@ -105,18 +105,23 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     }
   };
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (editingId) {
-      onUpdate({ ...formData, id: editingId });
-      // If we are editing the currently viewed asset, update the view as well
-      if (selectedAsset && selectedAsset.id === editingId) {
-        setSelectedAsset({ ...formData, id: editingId } as Asset);
+    try {
+      if (editingId) {
+        await onUpdate({ ...formData, id: editingId });
+        // If we are editing the currently viewed asset, update the view as well
+        if (selectedAsset && selectedAsset.id === editingId) {
+          setSelectedAsset({ ...formData, id: editingId } as Asset);
+        }
+      } else {
+        await onAdd(formData);
       }
-    } else {
-      onAdd(formData);
+      closeModal();
+    } catch (error) {
+      // Error is already handled in the handler
+      console.error('Error submitting asset:', error);
     }
-    closeModal();
   };
 
   const openEdit = (asset: Asset) => {
@@ -146,12 +151,17 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     }));
   };
 
-  const handleSubmitComment = (e: React.FormEvent) => {
+  const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAsset || !commentText.trim()) return;
     
-    onAddComment(selectedAsset.id, commentText.trim());
-    setCommentText('');
+    try {
+      await onAddComment(selectedAsset.id, commentText.trim());
+      setCommentText('');
+    } catch (error) {
+      // Error is already handled in the handler
+      console.error('Error adding comment:', error);
+    }
   };
 
   const getRelativeTime = (dateString: string): string => {
@@ -440,7 +450,14 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                     </button>
                     {canDelete && (
                       <button 
-                        onClick={(e) => { e.stopPropagation(); onDelete(asset.id); }} 
+                        onClick={async (e) => { 
+                          e.stopPropagation(); 
+                          try {
+                            await onDelete(asset.id);
+                          } catch (error) {
+                            console.error('Error deleting asset:', error);
+                          }
+                        }} 
                         className="p-2 hover:bg-white/50 rounded-lg text-gray-600 hover:text-red-600"
                       >
                         <Trash2 size={18} />
@@ -490,10 +507,14 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       </button>
                       {canDelete && (
                         <button 
-                          onClick={() => { 
+                          onClick={async () => { 
                             if(confirm('Delete this asset?')) { 
-                              onDelete(selectedAsset.id); 
-                              setSelectedAsset(null); 
+                              try {
+                                await onDelete(selectedAsset.id); 
+                                setSelectedAsset(null);
+                              } catch (error) {
+                                console.error('Error deleting asset:', error);
+                              }
                             }
                           }} 
                           className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"

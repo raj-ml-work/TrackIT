@@ -6,9 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserManagementProps {
   users: UserAccount[];
-  onAdd: (user: Omit<UserAccount, 'id' | 'lastLogin'>) => void;
-  onUpdate: (user: UserAccount) => void;
-  onToggleStatus: (id: string) => void;
+  onAdd: (user: Omit<UserAccount, 'id' | 'lastLogin'>) => Promise<void>;
+  onUpdate: (user: UserAccount) => Promise<void>;
+  onToggleStatus: (id: string) => Promise<void>;
 }
 
 const initialForm: Omit<UserAccount, 'id' | 'lastLogin'> = {
@@ -137,18 +137,20 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
     
     setIsSubmitting(true);
     
-    // Simulate async operation
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    if (editingUser) {
-      onUpdate({ ...editingUser, ...form });
-    } else {
-      // Include password when creating new user (will be handled by backend later)
-      onAdd({ ...form, password });
+    try {
+      if (editingUser) {
+        await onUpdate({ ...editingUser, ...form });
+      } else {
+        // Include password when creating new user (will be handled by backend later)
+        await onAdd({ ...form, password });
+      }
+      closeModal();
+    } catch (error) {
+      // Error is already handled in the handler
+      console.error('Error submitting user:', error);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    setIsSubmitting(false);
-    closeModal();
   };
 
   return (
@@ -199,7 +201,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
             <span className="col-span-3">Email</span>
             <span className="col-span-2">Role</span>
             <span className="col-span-2">Status</span>
-            <span className="col-span-2 text-right">Last Login</span>
+            <span className="col-span-1 text-right">Last Login</span>
+            <span className="col-span-1"></span>
           </div>
 
           <AnimatePresence>
@@ -248,32 +251,38 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                 <div className="col-span-2">
                   <span className={statusBadge(user.status)}>{user.status}</span>
                 </div>
-                <div className="col-span-2 flex items-center gap-2 justify-end text-sm text-gray-500">
-                  <Clock size={14} />
-                  <span>{user.lastLogin}</span>
+                <div className="col-span-1 flex items-center gap-2 justify-end text-sm text-gray-500">
+                  <Clock size={14} className="hidden md:block" />
+                  <span className="text-xs md:text-sm">{user.lastLogin}</span>
                 </div>
-                <div className="col-span-12 flex items-center gap-2 mt-3 md:mt-0 md:justify-end text-sm">
+                <div className="col-span-1 flex items-center gap-2 justify-end">
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => openEdit(user)}
-                    className="px-3 py-2 rounded-lg bg-gray-900 text-white hover:-translate-y-0.5 transition-transform flex items-center gap-1 text-xs shadow-md hover:shadow-lg"
+                    className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                    title="Edit"
                   >
-                    <Pencil size={14} />
-                    Edit
+                    <Pencil size={16} />
                   </motion.button>
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => onToggleStatus(user.id)}
-                    className={`px-3 py-2 rounded-lg border flex items-center gap-1 text-xs transition-colors ${
+                    onClick={async () => {
+                      try {
+                        await onToggleStatus(user.id);
+                      } catch (error) {
+                        console.error('Error toggling user status:', error);
+                      }
+                    }}
+                    className={`p-2 rounded-lg transition-colors ${
                       user.status === UserStatus.ACTIVE 
-                        ? 'border-amber-200 text-amber-700 hover:bg-amber-50' 
-                        : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                        ? 'hover:bg-amber-50 text-amber-600' 
+                        : 'hover:bg-emerald-50 text-emerald-600'
                     }`}
+                    title={user.status === UserStatus.ACTIVE ? 'Deactivate' : 'Reactivate'}
                   >
-                    {user.status === UserStatus.ACTIVE ? <Power size={14} /> : <RefreshCw size={14} />}
-                    {user.status === UserStatus.ACTIVE ? 'Deactivate' : 'Reactivate'}
+                    {user.status === UserStatus.ACTIVE ? <Power size={16} /> : <RefreshCw size={16} />}
                   </motion.button>
                 </div>
               </motion.div>

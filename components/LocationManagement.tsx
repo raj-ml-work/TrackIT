@@ -7,9 +7,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface LocationManagementProps {
   locations: Location[];
   assets: Asset[];
-  onAdd: (location: Omit<Location, 'id'>) => void;
-  onUpdate: (location: Location) => void;
-  onDelete: (id: string) => void;
+  onAdd: (location: Omit<Location, 'id'>) => Promise<void>;
+  onUpdate: (location: Location) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   canDelete?: boolean;
 }
 
@@ -71,19 +71,22 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
     e.preventDefault();
     setIsSubmitting(true);
 
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    if (editingLocation) {
-      onUpdate({ ...editingLocation, ...form });
-    } else {
-      onAdd(form);
+    try {
+      if (editingLocation) {
+        await onUpdate({ ...editingLocation, ...form });
+      } else {
+        await onAdd(form);
+      }
+      closeModal();
+    } catch (error) {
+      // Error is already handled in the handler
+      console.error('Error submitting location:', error);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
-    closeModal();
   };
 
-  const handleDelete = (location: Location) => {
+  const handleDelete = async (location: Location) => {
     const usage = locationUsage[location.id] || 0;
     
     if (usage > 0) {
@@ -92,7 +95,12 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
     }
 
     if (confirm(`Are you sure you want to delete ${location.name}?`)) {
-      onDelete(location.id);
+      try {
+        await onDelete(location.id);
+      } catch (error) {
+        // Error is already handled in the handler
+        console.error('Error deleting location:', error);
+      }
     }
   };
 
@@ -301,4 +309,7 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
 };
 
 export default LocationManagement;
+
+
+
 

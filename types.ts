@@ -82,6 +82,7 @@ export interface UserAccount {
   status: UserStatus;
   lastLogin: string;
   password?: string; // Only used during creation, not stored in state
+  passwordHash?: string; // Stored hash/value used for custom auth
 }
 
 export interface AuthSession {

@@ -8,9 +8,9 @@ interface EmployeeManagementProps {
   employees: Employee[];
   assets: Asset[];
   locations: Location[];
-  onAdd: (employee: Omit<Employee, 'id'>) => void;
-  onUpdate: (employee: Employee) => void;
-  onDelete: (id: string) => void;
+  onAdd: (employee: Omit<Employee, 'id'>) => Promise<void>;
+  onUpdate: (employee: Employee) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   canDelete?: boolean;
 }
 
@@ -111,19 +111,22 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
     setIsSubmitting(true);
 
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    if (editingEmployee) {
-      onUpdate({ ...editingEmployee, ...form });
-    } else {
-      onAdd(form);
+    try {
+      if (editingEmployee) {
+        await onUpdate({ ...editingEmployee, ...form });
+      } else {
+        await onAdd(form);
+      }
+      closeModal();
+    } catch (error) {
+      // Error is already handled in the handler
+      console.error('Error submitting employee:', error);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
-    closeModal();
   };
 
-  const handleDelete = (employee: Employee) => {
+  const handleDelete = async (employee: Employee) => {
     const assignedCount = assetCounts[employee.id] || 0;
     if (assignedCount > 0) {
       alert(`Cannot delete ${employee.name}. They have ${assignedCount} asset(s) assigned. Please reassign or unassign assets first.`);
@@ -131,7 +134,12 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     }
 
     if (confirm(`Are you sure you want to delete ${employee.name}?`)) {
-      onDelete(employee.id);
+      try {
+        await onDelete(employee.id);
+      } catch (error) {
+        // Error is already handled in the handler
+        console.error('Error deleting employee:', error);
+      }
     }
   };
 
@@ -581,4 +589,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 };
 
 export default EmployeeManagement;
+
+
+
 
