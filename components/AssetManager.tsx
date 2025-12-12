@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType, Location, Employee, EmployeeStatus } from '../types';
 import GlassCard from './GlassCard';
-import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, DollarSign, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send } from 'lucide-react';
+import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, DollarSign, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AssetManagerProps {
@@ -608,8 +608,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ delay: index * 0.05 }}
                 whileHover={{ scale: 1.01 }}
-                className="grid grid-cols-12 items-center px-3 py-3 rounded-xl hover:bg-white/60 transition-all border border-transparent hover:border-gray-100 hover:shadow-sm cursor-pointer group"
-                onClick={() => setSelectedAsset(asset)}
+                className="grid grid-cols-12 items-center px-3 py-3 rounded-xl hover:bg-white/60 transition-all border border-transparent hover:border-gray-100 hover:shadow-sm"
               >
                 <div className="col-span-4">
                   <div className="flex items-center gap-3">
@@ -652,17 +651,29 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   <p className="text-sm text-gray-700">{asset.assignedTo || 'Unassigned'}</p>
                 </div>
                 <div className="col-span-2 flex items-center gap-2 justify-end">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); openEdit(asset); }} 
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSelectedAsset(asset)}
+                    className="p-2 hover:bg-green-50 text-green-600 rounded-lg transition-colors"
+                    title="View Details"
+                  >
+                    <Eye size={16} />
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => openEdit(asset)} 
                     className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
                     title="Edit"
                   >
                     <Edit2 size={16} />
-                  </button>
+                  </motion.button>
                   {canDelete && (
-                    <button 
-                      onClick={async (e) => { 
-                        e.stopPropagation(); 
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={async () => { 
                         try {
                           await onDelete(asset.id);
                         } catch (error) {
@@ -673,7 +684,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       title="Delete"
                     >
                       <Trash2 size={16} />
-                    </button>
+                    </motion.button>
                   )}
                 </div>
               </motion.div>
@@ -682,199 +693,190 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         </div>
       </GlassCard>
 
-      {/* Detail Drawer */}
+      {/* Asset Details Modal */}
       <AnimatePresence>
         {selectedAsset && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
               onClick={() => setSelectedAsset(null)}
-              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
-            />
-            <motion.div 
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed top-0 right-0 h-full w-full max-w-md bg-white/95 backdrop-blur-xl shadow-2xl z-50 overflow-y-auto border-l border-white/50"
             >
-              <div className="p-8 space-y-8">
-                {/* Header */}
-                <div className="flex justify-between items-start">
-                   <button onClick={() => setSelectedAsset(null)} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500">
-                     <X size={24} />
-                   </button>
-                   <div className="flex gap-2">
-                      <button onClick={() => openEdit(selectedAsset)} className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors">
-                        <Edit2 size={20} />
-                      </button>
-                      {canDelete && (
-                        <button 
-                          onClick={async () => { 
-                            if(confirm('Delete this asset?')) { 
-                              try {
-                                await onDelete(selectedAsset.id); 
-                                setSelectedAsset(null);
-                              } catch (error) {
-                                console.error('Error deleting asset:', error);
-                              }
-                            }
-                          }} 
-                          className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-                      )}
-                   </div>
-                </div>
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl relative max-h-[90vh] overflow-y-auto"
+              >
+              <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-600" onClick={() => setSelectedAsset(null)}>
+                <X size={18} />
+              </button>
 
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                     <div className="p-4 bg-gray-100 rounded-2xl text-gray-700">
-                       {getIcon(selectedAsset.type)}
-                     </div>
-                     <div>
-                       <span className="text-sm text-gray-500 font-medium">{selectedAsset.type}</span>
-                       <h2 className="text-2xl font-bold text-gray-900">{selectedAsset.name}</h2>
-                     </div>
+              {/* Asset Header */}
+              <div className="mb-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className={`p-4 rounded-2xl ${
+                    selectedAsset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-600' : 
+                    selectedAsset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-600' : 
+                    selectedAsset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-600' :
+                    'bg-yellow-100 text-yellow-600'
+                  }`}>
+                    {getIcon(selectedAsset.type)}
                   </div>
-                  
-                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                     selectedAsset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-800' :
-                     selectedAsset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-800' :
-                     selectedAsset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-800' :
-                     'bg-yellow-100 text-yellow-800'
-                   }`}>
-                     {selectedAsset.status}
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold text-gray-900">{selectedAsset.name}</h3>
+                    <p className="text-sm text-gray-600">{selectedAsset.type}</p>
                   </div>
-                </div>
-
-                <div className="h-px bg-gray-100 w-full" />
-
-                {/* Main Info */}
-                <div className="space-y-6">
-                  <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Primary Details</h3>
-                  <div className="grid grid-cols-2 gap-y-6 gap-x-4">
-                     <div className="flex items-start gap-3">
-                        <Hash className="text-gray-400 mt-0.5" size={18} />
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase">Serial</p>
-                          <p className="font-mono text-gray-800">{selectedAsset.serialNumber}</p>
-                        </div>
-                     </div>
-                     <div className="flex items-start gap-3">
-                        <MapPin className="text-gray-400 mt-0.5" size={18} />
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase">Location</p>
-                          <p className="text-gray-800">{selectedAsset.location}</p>
-                        </div>
-                     </div>
-                     <div className="flex items-start gap-3 col-span-2">
-                        <User className="text-gray-400 mt-0.5" size={18} />
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase">Assigned To</p>
-                          <p className="text-gray-800 font-medium">{selectedAsset.assignedTo || 'Unassigned'}</p>
-                        </div>
-                     </div>
-                  </div>
-                </div>
-
-                {/* Financials */}
-                <div className="space-y-6">
-                  <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Financials</h3>
-                  <div className="grid grid-cols-2 gap-y-6 gap-x-4">
-                     <div className="flex items-start gap-3">
-                        <DollarSign className="text-gray-400 mt-0.5" size={18} />
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase">Cost</p>
-                          <p className="text-gray-800 font-mono">${selectedAsset.cost.toLocaleString()}</p>
-                        </div>
-                     </div>
-                     <div className="flex items-start gap-3">
-                        <Calendar className="text-gray-400 mt-0.5" size={18} />
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase">Purchased</p>
-                          <p className="text-gray-800">{selectedAsset.purchaseDate}</p>
-                        </div>
-                     </div>
-                     <div className="flex items-start gap-3 col-span-2">
-                        <FileText className="text-gray-400 mt-0.5" size={18} />
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase">Warranty Expiry</p>
-                          <p className="text-gray-800">{selectedAsset.warrantyExpiry}</p>
-                        </div>
-                     </div>
-                  </div>
-                </div>
-
-                {/* Specs */}
-                {selectedAsset.specs && (
-                  <div className="bg-gray-50 rounded-2xl p-6 space-y-4">
-                     <div className="flex items-center gap-2 mb-2">
-                        <Cpu className="text-gray-500" size={18} />
-                        <h3 className="text-sm font-bold text-gray-700">Hardware Specs</h3>
-                     </div>
-                     <div className="space-y-3">
-                        {selectedAsset.specs.brand && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-500">Brand</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.brand}</span>
-                          </div>
-                        )}
-                        {selectedAsset.specs.model && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-500">Model</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.model}</span>
-                          </div>
-                        )}
-                        {selectedAsset.specs.cpu && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-500">Processor</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.cpu}</span>
-                          </div>
-                        )}
-                        {selectedAsset.specs.ram && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-500">Memory</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.ram}</span>
-                          </div>
-                        )}
-                        {selectedAsset.specs.storage && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-500">Storage</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.storage}</span>
-                          </div>
-                        )}
-                        {selectedAsset.specs.screenSize && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-500">Display</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.screenSize}</span>
-                          </div>
-                        )}
-                        {selectedAsset.specs.printerType && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-500">Type</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.printerType}</span>
-                          </div>
-                        )}
-                     </div>
-                  </div>
-                )}
-
-                {/* Comments & Activity */}
-                <div className="space-y-4">
                   <div className="flex items-center gap-2">
-                    <MessageSquare className="text-gray-500" size={18} />
-                    <h3 className="text-sm font-bold text-gray-700">Comments & Activity</h3>
-                    <span className="text-xs text-gray-400 ml-auto">
-                      {selectedAsset.comments?.length || 0} {selectedAsset.comments?.length === 1 ? 'entry' : 'entries'}
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                      selectedAsset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-800' :
+                      selectedAsset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-800' :
+                      selectedAsset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {selectedAsset.status}
                     </span>
+                    <button onClick={() => { setSelectedAsset(null); openEdit(selectedAsset); }} className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors" title="Edit">
+                      <Edit2 size={18} />
+                    </button>
+                    {canDelete && (
+                      <button 
+                        onClick={async () => { 
+                          if(confirm('Delete this asset?')) { 
+                            try {
+                              await onDelete(selectedAsset.id); 
+                              setSelectedAsset(null);
+                            } catch (error) {
+                              console.error('Error deleting asset:', error);
+                            }
+                          }
+                        }} 
+                        className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
+                </div>
 
-                  {/* Comments List */}
-                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                {/* Asset Details Grid */}
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-xl">
+                  <div className="flex items-start gap-2">
+                    <Hash size={16} className="text-gray-400 mt-1" />
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Serial Number</p>
+                      <p className="text-sm font-mono text-gray-800">{selectedAsset.serialNumber}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <MapPin size={16} className="text-gray-400 mt-1" />
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Location</p>
+                      <p className="text-sm text-gray-800">{selectedAsset.location}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <User size={16} className="text-gray-400 mt-1" />
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Assigned To</p>
+                      <p className="text-sm text-gray-800 font-medium">{selectedAsset.assignedTo || 'Unassigned'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <DollarSign size={16} className="text-gray-400 mt-1" />
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Cost</p>
+                      <p className="text-sm font-mono text-gray-800">${selectedAsset.cost.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Calendar size={16} className="text-gray-400 mt-1" />
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Purchase Date</p>
+                      <p className="text-sm text-gray-800">{selectedAsset.purchaseDate}</p>
+                    </div>
+                  </div>
+                  {selectedAsset.warrantyExpiry && (
+                    <div className="flex items-start gap-2">
+                      <FileText size={16} className="text-gray-400 mt-1" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Warranty Expiry</p>
+                        <p className="text-sm text-gray-800">{selectedAsset.warrantyExpiry}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Hardware Specs Section */}
+              {selectedAsset.specs && (
+                <div className="border-t pt-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Cpu size={20} className="text-gray-600" />
+                    <h4 className="text-lg font-bold text-gray-900">Hardware Specs</h4>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                    {selectedAsset.specs.brand && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">Brand</span>
+                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.brand}</span>
+                      </div>
+                    )}
+                    {selectedAsset.specs.model && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">Model</span>
+                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.model}</span>
+                      </div>
+                    )}
+                    {selectedAsset.specs.cpu && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">Processor</span>
+                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.cpu}</span>
+                      </div>
+                    )}
+                    {selectedAsset.specs.ram && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">Memory</span>
+                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.ram}</span>
+                      </div>
+                    )}
+                    {selectedAsset.specs.storage && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">Storage</span>
+                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.storage}</span>
+                      </div>
+                    )}
+                    {selectedAsset.specs.screenSize && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">Display</span>
+                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.screenSize}</span>
+                      </div>
+                    )}
+                    {selectedAsset.specs.printerType && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">Type</span>
+                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.printerType}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Comments & Activity Section */}
+              <div className="border-t pt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <MessageSquare size={20} className="text-gray-600" />
+                  <h4 className="text-lg font-bold text-gray-900">Comments & Activity</h4>
+                  <span className="text-sm text-gray-500">({selectedAsset.comments?.length || 0})</span>
+                </div>
+
+                {/* Comments List */}
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-2 mb-4">
                     {selectedAsset.comments && selectedAsset.comments.length > 0 ? (
                       selectedAsset.comments
                         .slice()
@@ -948,8 +950,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       </div>
                     </div>
                   </form>
-                </div>
               </div>
+              </motion.div>
             </motion.div>
           </>
         )}

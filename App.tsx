@@ -367,7 +367,7 @@ const App: React.FC = () => {
       if (useBackend) {
         const createdAsset = await createAsset(newAsset);
         // Add creation comment
-        await addAssetComment({
+        const creationComment = await addAssetComment({
           assetId: createdAsset.id,
           authorName: session?.user.name || 'System',
           authorId: session?.user.id,
@@ -375,7 +375,11 @@ const App: React.FC = () => {
           type: AssetCommentType.SYSTEM,
           createdAt: new Date().toISOString()
         });
-        setAssets(prev => [createdAsset, ...prev]);
+        // Update local state with the created comment
+        setAssets(prev => [{
+          ...createdAsset,
+          comments: [creationComment]
+        }, ...prev]);
       } else {
         // Mock data fallback
         const assetId = Math.random().toString(36).substr(2, 9);
@@ -447,11 +451,24 @@ const App: React.FC = () => {
 
       if (useBackend) {
         const updated = await updateAsset(updatedAsset);
-        // Add audit comments to backend
+        // Add audit comments to backend and collect created comments
+        const createdComments: AssetComment[] = [];
         for (const comment of auditComments) {
-          await addAssetComment(comment);
+          const createdComment = await addAssetComment(comment);
+          createdComments.push(createdComment);
         }
-        setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
+        // Update local state with the updated asset and new comments
+        // Use updated.comments as base (which has all existing comments from DB)
+        // and append the newly created audit comments
+        setAssets(prev => prev.map(a => {
+          if (a.id === updated.id) {
+            return {
+              ...updated,
+              comments: [...(updated.comments || []), ...createdComments]
+            };
+          }
+          return a;
+        }));
       } else {
         // Mock data fallback
         setAssets(prev => prev.map(a => {

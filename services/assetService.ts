@@ -24,7 +24,37 @@ export const getAssets = async (): Promise<Asset[]> => {
     if (error) throw error;
 
     // Transform database format to app format
-    return (data || []).map(transformAssetFromDB);
+    const assets = (data || []).map(transformAssetFromDB);
+    
+    // Fetch comments for all assets
+    if (assets.length > 0) {
+      const assetIds = assets.map(a => a.id);
+      const { data: commentsData, error: commentsError } = await supabase
+        .from(COMMENTS_TABLE_NAME)
+        .select('*')
+        .in('asset_id', assetIds)
+        .order('created_at', { ascending: false });
+
+      if (!commentsError && commentsData) {
+        // Group comments by asset_id
+        const commentsByAssetId: Record<string, AssetComment[]> = {};
+        commentsData.forEach(dbComment => {
+          const comment = transformCommentFromDB(dbComment);
+          if (!commentsByAssetId[comment.assetId]) {
+            commentsByAssetId[comment.assetId] = [];
+          }
+          commentsByAssetId[comment.assetId].push(comment);
+        });
+
+        // Attach comments to assets
+        return assets.map(asset => ({
+          ...asset,
+          comments: commentsByAssetId[asset.id] || []
+        }));
+      }
+    }
+
+    return assets;
   } catch (error) {
     console.error('Error fetching assets:', error);
     throw error;
@@ -46,7 +76,22 @@ export const getAssetById = async (id: string): Promise<Asset | null> => {
     if (error) throw error;
     if (!data) return null;
 
-    return transformAssetFromDB(data);
+    const asset = transformAssetFromDB(data);
+    
+    // Fetch comments for this asset
+    const { data: commentsData, error: commentsError } = await supabase
+      .from(COMMENTS_TABLE_NAME)
+      .select('*')
+      .eq('asset_id', id)
+      .order('created_at', { ascending: false });
+
+    if (!commentsError && commentsData) {
+      asset.comments = commentsData.map(transformCommentFromDB);
+    } else {
+      asset.comments = [];
+    }
+
+    return asset;
   } catch (error) {
     console.error('Error fetching asset:', error);
     throw error;
@@ -69,7 +114,10 @@ export const createAsset = async (asset: Omit<Asset, 'id'>): Promise<Asset> => {
 
     if (error) throw error;
 
-    return transformAssetFromDB(data);
+    const createdAsset = transformAssetFromDB(data);
+    // Initialize comments array (new assets won't have comments yet)
+    createdAsset.comments = [];
+    return createdAsset;
   } catch (error) {
     console.error('Error creating asset:', error);
     throw error;
@@ -93,7 +141,22 @@ export const updateAsset = async (asset: Asset): Promise<Asset> => {
 
     if (error) throw error;
 
-    return transformAssetFromDB(data);
+    const updatedAsset = transformAssetFromDB(data);
+    
+    // Fetch comments for this asset
+    const { data: commentsData, error: commentsError } = await supabase
+      .from(COMMENTS_TABLE_NAME)
+      .select('*')
+      .eq('asset_id', asset.id)
+      .order('created_at', { ascending: false });
+
+    if (!commentsError && commentsData) {
+      updatedAsset.comments = commentsData.map(transformCommentFromDB);
+    } else {
+      updatedAsset.comments = [];
+    }
+
+    return updatedAsset;
   } catch (error) {
     console.error('Error updating asset:', error);
     throw error;
