@@ -59,7 +59,15 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   const [currentStep, setCurrentStep] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Omit<Asset, 'id'>>(initialAsset);
-  const [formErrors, setFormErrors] = useState<{ assignedTo?: string; status?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ 
+    name?: string; 
+    serialNumber?: string; 
+    location?: string;
+    assignedTo?: string; 
+    status?: string;
+    purchaseDate?: string;
+    cost?: string;
+  }>({});
 
   // Details Drawer State
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
@@ -109,13 +117,46 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
-    // Validate form
-    const errors: { assignedTo?: string; status?: string } = {};
+    // Validate all required fields
+    const errors: { 
+      name?: string; 
+      serialNumber?: string; 
+      location?: string;
+      assignedTo?: string; 
+      status?: string;
+      purchaseDate?: string;
+      cost?: string;
+    } = {};
+    
+    // Required field validations
+    if (!formData.name || formData.name.trim() === '') {
+      errors.name = 'Asset name is required';
+    }
+    
+    if (!formData.serialNumber || formData.serialNumber.trim() === '') {
+      errors.serialNumber = 'Serial number is required';
+    }
+    
+    if (!formData.location || formData.location.trim() === '') {
+      errors.location = 'Location is required';
+    }
+    
+    if (!formData.purchaseDate || formData.purchaseDate.trim() === '') {
+      errors.purchaseDate = 'Purchase date is required';
+    }
+    
+    if (formData.cost === undefined || formData.cost === null || formData.cost < 0) {
+      errors.cost = 'Cost must be a valid number (0 or greater)';
+    }
     
     // If status is "In Use", assignedTo must be set
     if (formData.status === AssetStatus.IN_USE && !formData.assignedTo) {
       errors.assignedTo = 'An employee must be assigned when status is "In Use"';
       errors.status = 'Status cannot be "In Use" without an assigned employee';
+    }
+    
+    // If there are validation errors, show them and prevent submission
+    if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
     }
@@ -211,8 +252,22 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Friendly Name *</label>
-          <input required type="text" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
-            value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g. Designer Workstation 1" />
+          <input 
+            required 
+            type="text" 
+            className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
+              formErrors.name ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+            }`}
+            value={formData.name} 
+            onChange={e => {
+              setFormData({...formData, name: e.target.value});
+              if (formErrors.name) setFormErrors(prev => ({ ...prev, name: undefined }));
+            }} 
+            placeholder="e.g. Designer Workstation 1" 
+          />
+          {formErrors.name && (
+            <p className="mt-1 text-xs text-red-600">{formErrors.name}</p>
+          )}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Type *</label>
@@ -271,40 +326,93 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Serial Number *</label>
-          <input required type="text" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-            value={formData.serialNumber} onChange={e => setFormData({...formData, serialNumber: e.target.value})} placeholder="S/N" />
+          <input 
+            required 
+            type="text" 
+            className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
+              formErrors.serialNumber ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+            }`}
+            value={formData.serialNumber} 
+            onChange={e => {
+              setFormData({...formData, serialNumber: e.target.value});
+              if (formErrors.serialNumber) setFormErrors(prev => ({ ...prev, serialNumber: undefined }));
+            }} 
+            placeholder="S/N" 
+          />
+          {formErrors.serialNumber && (
+            <p className="mt-1 text-xs text-red-600">{formErrors.serialNumber}</p>
+          )}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Location</label>
+          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Location *</label>
           <select 
-            className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+            className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
+              formErrors.location ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+            }`}
             value={formData.location}
-            onChange={e => setFormData({...formData, location: e.target.value})}
+            onChange={e => {
+              setFormData({...formData, location: e.target.value});
+              if (formErrors.location) setFormErrors(prev => ({ ...prev, location: undefined }));
+            }}
           >
             <option value="">Select Location</option>
             {locations.map(loc => (
               <option key={loc.id} value={loc.name}>{loc.name} - {loc.city}</option>
             ))}
           </select>
+          {formErrors.location && (
+            <p className="mt-1 text-xs text-red-600">{formErrors.location}</p>
+          )}
         </div>
       </div>
 
       {/* Financials */}
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Cost ($)</label>
-          <input type="number" min="0" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-            value={formData.cost} onChange={e => setFormData({...formData, cost: parseFloat(e.target.value)})} />
+          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Cost ($) *</label>
+          <input 
+            type="number" 
+            min="0" 
+            step="0.01"
+            className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
+              formErrors.cost ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+            }`}
+            value={formData.cost || ''} 
+            onChange={e => {
+              const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+              setFormData({...formData, cost: isNaN(value) ? 0 : value});
+              if (formErrors.cost) setFormErrors(prev => ({ ...prev, cost: undefined }));
+            }} 
+          />
+          {formErrors.cost && (
+            <p className="mt-1 text-xs text-red-600">{formErrors.cost}</p>
+          )}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Purchased</label>
-          <input type="date" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-            value={formData.purchaseDate} onChange={e => setFormData({...formData, purchaseDate: e.target.value})} />
+          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Purchase Date *</label>
+          <input 
+            type="date" 
+            className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
+              formErrors.purchaseDate ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+            }`}
+            value={formData.purchaseDate} 
+            onChange={e => {
+              setFormData({...formData, purchaseDate: e.target.value});
+              if (formErrors.purchaseDate) setFormErrors(prev => ({ ...prev, purchaseDate: undefined }));
+            }} 
+          />
+          {formErrors.purchaseDate && (
+            <p className="mt-1 text-xs text-red-600">{formErrors.purchaseDate}</p>
+          )}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Warranty</label>
-          <input type="date" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-            value={formData.warrantyExpiry} onChange={e => setFormData({...formData, warrantyExpiry: e.target.value})} />
+          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Warranty Expiry</label>
+          <input 
+            type="date" 
+            className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+            value={formData.warrantyExpiry} 
+            onChange={e => setFormData({...formData, warrantyExpiry: e.target.value})} 
+          />
         </div>
       </div>
       
@@ -317,7 +425,6 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           value={formData.assignedTo || ''}
           onChange={e => {
             const newAssignedTo = e.target.value || undefined;
-            const errors: { assignedTo?: string; status?: string } = {};
             
             // If assigning to someone, automatically set status to "In Use"
             if (newAssignedTo) {
@@ -327,7 +434,12 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                 status: AssetStatus.IN_USE 
               }));
               // Clear any errors since assignment is valid
-              setFormErrors({});
+              setFormErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors.assignedTo;
+                delete newErrors.status;
+                return newErrors;
+              });
             } else {
               // If unassigning, set status to "Available" if it was "In Use"
               setFormData(prev => ({ 
@@ -336,7 +448,12 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                 status: prev.status === AssetStatus.IN_USE ? AssetStatus.AVAILABLE : prev.status
               }));
               // Clear errors
-              setFormErrors({});
+              setFormErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors.assignedTo;
+                delete newErrors.status;
+                return newErrors;
+              });
             }
           }}
         >

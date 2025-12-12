@@ -25,6 +25,7 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [form, setForm] = useState<Omit<Location, 'id'>>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState<{ name?: string; city?: string }>({});
 
   // Compute usage counts
   const locationUsage = useMemo(() => {
@@ -65,10 +66,41 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
     setIsModalOpen(false);
     setEditingLocation(null);
     setForm(initialForm);
+    setFormErrors({});
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
+    const errors: { name?: string; city?: string } = {};
+    
+    if (!form.name || form.name.trim() === '') {
+      errors.name = 'Location name is required';
+    }
+    
+    if (!form.city || form.city.trim() === '') {
+      errors.city = 'City is required';
+    }
+    
+    // Check for duplicate location names (case-insensitive)
+    if (form.name && form.name.trim() !== '') {
+      const existingLocation = locations.find(loc => 
+        loc.name.toLowerCase() === form.name.toLowerCase() && 
+        loc.id !== editingLocation?.id
+      );
+      
+      if (existingLocation) {
+        errors.name = `Location "${form.name}" already exists`;
+      }
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    
+    setFormErrors({});
     setIsSubmitting(true);
 
     try {
@@ -246,22 +278,42 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
                   <input
                     required
                     disabled={isSubmitting}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                    className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                      formErrors.name 
+                        ? 'border-red-300 focus:ring-red-100' 
+                        : 'border-gray-200 focus:ring-green-100'
+                    }`}
                     value={form.name}
-                    onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={e => {
+                      setForm(prev => ({ ...prev, name: e.target.value }));
+                      if (formErrors.name) setFormErrors(prev => ({ ...prev, name: undefined }));
+                    }}
                     placeholder="e.g. HQ - Building A"
                   />
+                  {formErrors.name && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.name}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase block mb-1">City *</label>
                   <input
                     required
                     disabled={isSubmitting}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                    className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                      formErrors.city 
+                        ? 'border-red-300 focus:ring-red-100' 
+                        : 'border-gray-200 focus:ring-green-100'
+                    }`}
                     value={form.city}
-                    onChange={e => setForm(prev => ({ ...prev, city: e.target.value }))}
+                    onChange={e => {
+                      setForm(prev => ({ ...prev, city: e.target.value }));
+                      if (formErrors.city) setFormErrors(prev => ({ ...prev, city: undefined }));
+                    }}
                     placeholder="e.g. San Francisco"
                   />
+                  {formErrors.city && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.city}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase block mb-1">Comments</label>

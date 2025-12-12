@@ -196,18 +196,22 @@ const transformAssetFromDB = (dbAsset: any): Asset => {
  * Transform app format to database format
  */
 const transformAssetToDB = (asset: Asset | Omit<Asset, 'id'>): any => {
+  // Convert empty strings to null for date fields (PostgreSQL requires null, not empty string)
+  const purchaseDate = asset.purchaseDate && asset.purchaseDate.trim() !== '' ? asset.purchaseDate : null;
+  const warrantyExpiry = asset.warrantyExpiry && asset.warrantyExpiry.trim() !== '' ? asset.warrantyExpiry : null;
+  
   return {
     id: 'id' in asset ? asset.id : undefined,
     name: asset.name,
     type: asset.type,
     status: asset.status,
     serial_number: asset.serialNumber,
-    assigned_to: asset.assignedTo,
-    purchase_date: asset.purchaseDate,
-    warranty_expiry: asset.warrantyExpiry,
-    cost: asset.cost,
-    location: asset.location,
-    notes: asset.notes,
+    assigned_to: asset.assignedTo || null,
+    purchase_date: purchaseDate,
+    warranty_expiry: warrantyExpiry,
+    cost: asset.cost || 0,
+    location: asset.location || null,
+    notes: asset.notes || null,
     specs: asset.specs ? (typeof asset.specs === 'string' ? asset.specs : JSON.stringify(asset.specs)) : null
     // Comments are stored in separate asset_comments table, not in assets table
   };

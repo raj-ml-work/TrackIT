@@ -39,6 +39,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const [form, setForm] = useState<Omit<Employee, 'id'>>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [employeeIdError, setEmployeeIdError] = useState('');
+  const [formErrors, setFormErrors] = useState<{ employeeId?: string; name?: string }>({});
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
 
   // Compute assigned asset counts
@@ -92,23 +93,41 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     setEditingEmployee(null);
     setForm(initialForm);
     setEmployeeIdError('');
+    setFormErrors({});
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmployeeIdError('');
+    const errors: { employeeId?: string; name?: string } = {};
+
+    // Validate required fields
+    if (!form.employeeId || form.employeeId.trim() === '') {
+      errors.employeeId = 'Employee ID is required';
+    }
+
+    if (!form.name || form.name.trim() === '') {
+      errors.name = 'Employee name is required';
+    }
 
     // Validate employee ID uniqueness
-    const existingEmployee = employees.find(emp => 
-      emp.employeeId.toLowerCase() === form.employeeId.toLowerCase() && 
-      emp.id !== editingEmployee?.id
-    );
+    if (form.employeeId && form.employeeId.trim() !== '') {
+      const existingEmployee = employees.find(emp => 
+        emp.employeeId.toLowerCase() === form.employeeId.toLowerCase() && 
+        emp.id !== editingEmployee?.id
+      );
 
-    if (existingEmployee) {
-      setEmployeeIdError(`Employee ID "${form.employeeId}" is already in use by ${existingEmployee.name}`);
+      if (existingEmployee) {
+        errors.employeeId = `Employee ID "${form.employeeId}" is already in use by ${existingEmployee.name}`;
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       return;
     }
 
+    setFormErrors({});
     setIsSubmitting(true);
 
     try {
@@ -326,12 +345,26 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   <input
                     required
                     disabled={isSubmitting || !!editingEmployee}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity font-mono"
+                    className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity font-mono ${
+                      formErrors.employeeId || employeeIdError 
+                        ? 'border-red-300 focus:ring-red-100' 
+                        : 'border-gray-200 focus:ring-blue-100'
+                    }`}
                     value={form.employeeId}
-                    onChange={e => setForm(prev => ({ ...prev, employeeId: e.target.value.toUpperCase() }))}
+                    onChange={e => {
+                      setForm(prev => ({ ...prev, employeeId: e.target.value.toUpperCase() }));
+                      if (formErrors.employeeId) setFormErrors(prev => ({ ...prev, employeeId: undefined }));
+                      if (employeeIdError) setEmployeeIdError('');
+                    }}
                     placeholder="e.g. EMP001"
                   />
-                  {editingEmployee && (
+                  {formErrors.employeeId && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.employeeId}</p>
+                  )}
+                  {employeeIdError && !formErrors.employeeId && (
+                    <p className="text-xs text-red-600 mt-1">{employeeIdError}</p>
+                  )}
+                  {editingEmployee && !formErrors.employeeId && !employeeIdError && (
                     <p className="text-xs text-gray-500 mt-1">Employee ID cannot be changed after creation</p>
                   )}
                 </div>
@@ -340,10 +373,21 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   <input
                     required
                     disabled={isSubmitting}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                    className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                      formErrors.name 
+                        ? 'border-red-300 focus:ring-red-100' 
+                        : 'border-gray-200 focus:ring-blue-100'
+                    }`}
                     value={form.name}
-                    onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={e => {
+                      setForm(prev => ({ ...prev, name: e.target.value }));
+                      if (formErrors.name) setFormErrors(prev => ({ ...prev, name: undefined }));
+                    }}
+                    placeholder="e.g. John Doe"
                   />
+                  {formErrors.name && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.name}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase block mb-1">Email</label>

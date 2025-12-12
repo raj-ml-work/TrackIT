@@ -46,6 +46,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [formErrors, setFormErrors] = useState<{ name?: string; email?: string }>({});
 
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
@@ -113,28 +114,49 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
     setShowPassword(false);
     setShowConfirmPassword(false);
     setPasswordError('');
+    setFormErrors({});
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
+    const errors: { name?: string; email?: string } = {};
+    
+    // Validate required fields
+    if (!form.name || form.name.trim() === '') {
+      errors.name = 'Name is required';
+    }
+    
+    if (!form.email || form.email.trim() === '') {
+      errors.email = 'Email is required';
+    } else {
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.email)) {
+        errors.email = 'Please enter a valid email address';
+      }
+    }
     
     // Validate password for new users
     if (!editingUser) {
       if (!password) {
         setPasswordError('Password is required');
-        return;
-      }
-      if (password.length < 6) {
+        if (Object.keys(errors).length === 0) return;
+      } else if (password.length < 6) {
         setPasswordError('Password must be at least 6 characters');
-        return;
-      }
-      if (password !== confirmPassword) {
+        if (Object.keys(errors).length === 0) return;
+      } else if (password !== confirmPassword) {
         setPasswordError('Passwords do not match');
-        return;
+        if (Object.keys(errors).length === 0) return;
       }
     }
     
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    
+    setFormErrors({});
     setIsSubmitting(true);
     
     try {
@@ -332,25 +354,47 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                 )}
                 
                 <div>
-                  <label className="text-xs text-gray-500 uppercase block mb-1">Full Name</label>
+                  <label className="text-xs text-gray-500 uppercase block mb-1">Full Name *</label>
                   <input
                     required
                     disabled={isSubmitting}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                    className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                      formErrors.name 
+                        ? 'border-red-300 focus:ring-red-100' 
+                        : 'border-gray-200 focus:ring-indigo-100'
+                    }`}
                     value={form.name}
-                    onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={e => {
+                      setForm(prev => ({ ...prev, name: e.target.value }));
+                      if (formErrors.name) setFormErrors(prev => ({ ...prev, name: undefined }));
+                    }}
+                    placeholder="e.g. John Doe"
                   />
+                  {formErrors.name && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.name}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase block mb-1">Email</label>
+                  <label className="text-xs text-gray-500 uppercase block mb-1">Email *</label>
                   <input
                     required
                     type="email"
                     disabled={isSubmitting}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                    className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                      formErrors.email 
+                        ? 'border-red-300 focus:ring-red-100' 
+                        : 'border-gray-200 focus:ring-indigo-100'
+                    }`}
                     value={form.email}
-                    onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={e => {
+                      setForm(prev => ({ ...prev, email: e.target.value }));
+                      if (formErrors.email) setFormErrors(prev => ({ ...prev, email: undefined }));
+                    }}
+                    placeholder="e.g. john.doe@example.com"
                   />
+                  {formErrors.email && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>
+                  )}
                 </div>
 
                 {/* Password fields - only for new users */}
