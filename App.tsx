@@ -760,14 +760,14 @@ const App: React.FC = () => {
   const NavItem = ({ view, icon: Icon }: { view: View, icon: any }) => (
     <button
       onClick={() => { setCurrentView(view); setIsMobileMenuOpen(false); }}
-      className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 w-full ${
+      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 w-full text-left ${
         currentView === view 
-          ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/20' 
-          : 'text-gray-500 hover:bg-white/50 hover:text-gray-900'
+          ? 'bg-blue-50 text-blue-600 font-semibold' 
+          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
       }`}
     >
       <Icon size={20} />
-      <span className="font-medium tracking-tight">{view}</span>
+      <span className="text-sm font-medium">{view}</span>
     </button>
   );
 
@@ -793,15 +793,20 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex font-sans text-slate-800 selection:bg-indigo-100">
       {/* Sidebar for Desktop */}
-      <aside className="hidden lg:flex flex-col w-72 fixed h-full p-6 glass-panel border-r-0 rounded-r-3xl z-20">
-        <div className="flex items-center gap-3 px-4 mb-12 mt-2">
-          <div className="p-2 bg-gray-900 rounded-xl text-white">
-            <Hexagon size={24} fill="currentColor" className="text-white" />
+      <aside className="hidden lg:flex flex-col w-64 fixed h-full bg-white border-r border-gray-200 z-20">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Hexagon size={20} fill="white" className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">Auralis</h1>
+              <p className="text-xs text-gray-500">Inventory Management</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-display font-bold tracking-tight text-gray-900">Auralis</h1>
         </div>
 
-        <nav className="space-y-2 flex-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
           <NavItem view={View.INVENTORY} icon={Box} />
           <NavItem view={View.EMPLOYEES} icon={Briefcase} />
@@ -810,19 +815,23 @@ const App: React.FC = () => {
           {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
         </nav>
 
-        <div className="mt-auto px-6 py-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
-          <p className="text-xs opacity-80 font-medium mb-1">Pro Plan</p>
-          <p className="text-sm font-bold">Auralis Corp</p>
+        <div className="p-4 border-t border-gray-200">
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <p className="text-xs text-gray-500 font-medium mb-1">Pro Plan</p>
+            <p className="text-sm font-semibold text-gray-900">Auralis Corp</p>
+          </div>
         </div>
       </aside>
 
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 w-full z-30 px-6 py-4 glass-panel border-b border-white/20 flex justify-between items-center">
+      <div className="lg:hidden fixed top-0 w-full z-30 px-4 py-3 bg-white border-b border-gray-200 flex justify-between items-center">
         <div className="flex items-center gap-2">
-           <Hexagon size={24} className="text-gray-900" />
-           <span className="font-bold text-lg">Auralis</span>
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <Hexagon size={18} fill="white" className="text-white" />
+          </div>
+          <span className="font-bold text-lg text-gray-900">Auralis</span>
         </div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 rounded-lg bg-white/50">
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600">
            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
@@ -834,9 +843,9 @@ const App: React.FC = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-20 left-0 w-full z-20 bg-white/95 backdrop-blur-xl p-6 shadow-xl border-b border-gray-100 lg:hidden"
+            className="fixed top-14 left-0 w-full z-20 bg-white p-4 shadow-lg border-b border-gray-200 lg:hidden"
           >
-             <nav className="space-y-2">
+             <nav className="space-y-1">
              <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
               <NavItem view={View.INVENTORY} icon={Box} />
               <NavItem view={View.EMPLOYEES} icon={Briefcase} />
@@ -849,12 +858,21 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-72 p-6 lg:p-10 pt-24 lg:pt-10 overflow-y-auto min-h-screen">
-        <div className="max-w-7xl mx-auto">
-          <header className="mb-8 flex justify-between items-end gap-4 flex-wrap">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">{currentView}</h2>
-              <p className="text-gray-500 font-medium">
+      <main className="flex-1 lg:ml-64 bg-gray-50 min-h-screen">
+        {/* Top Header Bar */}
+        <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-gray-900">{currentView}</h1>
+            <div className="flex items-center gap-4">
+              <ProfilePanel user={session.user} onLogout={handleLogout} />
+            </div>
+          </div>
+        </div>
+        
+        <div className="p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-6">
+              <p className="text-gray-600 text-sm">
                 {currentView === View.DASHBOARD && `Overview of ${assets.length} managed assets.`}
                 {currentView === View.INVENTORY && "Manage and track your corporate equipment."}
                 {currentView === View.EMPLOYEES && "Manage organization employees and asset assignments."}
@@ -863,8 +881,6 @@ const App: React.FC = () => {
                 {currentView === View.SETTINGS && "Configure your workspace."}
               </p>
             </div>
-            <ProfilePanel user={session.user} onLogout={handleLogout} />
-          </header>
 
           <AnimatePresence mode='wait'>
             <motion.div
@@ -919,6 +935,7 @@ const App: React.FC = () => {
               {currentView === View.SETTINGS && isAdmin && <Settings />}
             </motion.div>
           </AnimatePresence>
+          </div>
         </div>
       </main>
     </div>

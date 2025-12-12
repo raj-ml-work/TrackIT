@@ -73,7 +73,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="inline-flex p-4 bg-gray-900 rounded-2xl text-white mb-4 shadow-lg"
+              className="inline-flex p-4 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl text-white mb-4 shadow-lg shadow-indigo-500/30"
             >
               <Hexagon size={36} fill="currentColor" />
             </motion.div>
@@ -171,7 +171,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               disabled={isLoading}
               whileHover={!isLoading ? { y: -2 } : {}}
               whileTap={!isLoading ? { scale: 0.98 } : {}}
-              className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold shadow-lg hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold shadow-lg shadow-indigo-500/30 hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>

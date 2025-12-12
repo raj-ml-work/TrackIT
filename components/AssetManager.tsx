@@ -547,7 +547,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       <div className="flex justify-end">
         <button 
           onClick={() => { setCurrentStep(1); setIsModalOpen(true); }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 transition-all duration-300"
         >
           <Plus size={18} />
           Add Asset
@@ -942,7 +942,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                           disabled={!commentText.trim()}
                           whileHover={commentText.trim() ? { scale: 1.02 } : {}}
                           whileTap={commentText.trim() ? { scale: 0.98 } : {}}
-                          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-md shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                         >
                           <Send size={16} />
                           Add Comment
@@ -1020,7 +1020,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       <button 
                         type="button" 
                         onClick={handleNext} 
-                        className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors shadow-lg flex items-center gap-2 text-sm font-medium"
+                        className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/30 flex items-center gap-2 text-sm font-medium"
                       >
                         Next <ArrowRight size={16} />
                       </button>
@@ -1028,7 +1028,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       <button 
                         type="button"
                         onClick={() => handleSubmit()} 
-                        className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors shadow-lg flex items-center gap-2 text-sm font-medium"
+                        className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/30 flex items-center gap-2 text-sm font-medium"
                       >
                         <Check size={16} /> {editingId ? 'Update Asset' : 'Create Asset'}
                       </button>
