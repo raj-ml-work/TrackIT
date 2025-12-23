@@ -7,6 +7,7 @@ import UserManagement from './components/UserManagement';
 import EmployeeManagement from './components/EmployeeManagement';
 import LocationManagement from './components/LocationManagement';
 import DepartmentManagement from './components/DepartmentManagement';
+import DepartmentManagementPage from './src/pages/DepartmentManagementPage';
 import Login from './components/Login';
 import ProfilePanel from './components/ProfilePanel';
 import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, MapPin, Briefcase, Building2 } from 'lucide-react';
@@ -997,12 +998,9 @@ const App: React.FC = () => {
                 />
               )}
               {currentView === View.DEPARTMENTS && (
-                <DepartmentManagement 
-                  departments={departments}
-                  employees={employees}
-                  onAdd={handleAddDepartment}
-                  onDelete={handleDeleteDepartment}
-                  canDelete={isAdmin}
+                <DepartmentManagementPage
+                  onAddDepartment={handleAddDepartment}
+                  onDeleteDepartment={handleDeleteDepartment}
                 />
               )}
               {currentView === View.USERS && isAdmin && (

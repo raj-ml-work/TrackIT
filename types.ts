@@ -13,17 +13,27 @@ export enum AssetStatus {
   IN_USE = 'In Use',
   AVAILABLE = 'Available',
   MAINTENANCE = 'Maintenance',
-  RETIRED = 'Retired'
+  RETIRED = 'Retired',
+  ASSIGNED = 'Assigned',
+  UNDER_MAINTENANCE = 'Under Maintenance'
 }
 
 export interface AssetSpecs {
+  id?: string;
+  assetId?: string;
+  assetType?: string;
   brand?: string;
   model?: string;
-  cpu?: string; // Laptop, Desktop
-  ram?: string; // Laptop, Desktop, Mobile
-  storage?: string; // Laptop, Desktop, Mobile
+  processorType?: string; // CPU/Processor
+  ramCapacity?: string; // e.g., "16GB", "32GB"
+  storageCapacity?: string; // e.g., "512GB SSD"
   screenSize?: string; // Monitor, TV (e.g. "27 inch")
+  isTouchscreen?: boolean;
   printerType?: 'Color' | 'Monochrome'; // Printer
+  // Legacy fields for backward compatibility
+  cpu?: string;
+  ram?: string;
+  storage?: string;
 }
 
 export enum AssetCommentType {
@@ -47,13 +57,20 @@ export interface Asset {
   type: AssetType;
   status: AssetStatus;
   serialNumber: string;
-  assignedTo?: string;
+  assignedTo?: string; // Legacy: employee name (for backward compatibility)
+  assignedToId?: string; // UUID of assigned employee (FK to employees.id)
+  employeeId?: string; // Alternative assignment field (FK to employees.id)
   purchaseDate: string;
+  acquisitionDate?: string; // When asset was actually acquired/assigned
   warrantyExpiry: string;
   cost: number;
-  location: string;
+  location: string; // Legacy: location name (for backward compatibility)
+  locationId?: string; // UUID of location (FK to locations.id)
+  manufacturer?: string;
+  previousTag?: string; // For historical tracking
   notes?: string;
-  specs?: AssetSpecs;
+  specs?: AssetSpecs; // Legacy JSONB specs
+  assetSpecs?: AssetSpecs; // Normalized specs from asset_specs table
   comments?: AssetComment[];
 }
 
@@ -101,7 +118,15 @@ export interface Location {
   id: string;
   name: string;
   city: string;
+  country?: string;
   comments?: string;
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  code?: string;
+  status: 'Active' | 'Inactive';
 }
 
 export interface Department {
@@ -115,13 +140,55 @@ export enum EmployeeStatus {
   INACTIVE = 'Inactive'
 }
 
+export interface EmployeePersonalInfo {
+  id: string;
+  firstName: string;
+  lastName?: string;
+  gender?: string;
+  mobileNumber?: string;
+  emergencyContactName?: string;
+  emergencyContactNumber?: string;
+  personalEmail?: string;
+  linkedinUrl?: string;
+  additionalComments?: string;
+}
+
+export interface EmployeeOfficialInfo {
+  id: string;
+  division?: string;
+  biometricId?: string;
+  rfidSerial?: string;
+  agreementSigned?: boolean;
+  startDate?: string;
+  officialDob?: string;
+  officialEmail?: string;
+}
+
 export interface Employee {
   id: string;
-  employeeId: string; // Unique employee identifier (e.g., EMP001)
-  name: string;
-  email?: string;
-  department?: string;
-  location?: string;
-  title?: string;
+  employeeId: string; // Unique employee identifier (e.g., BS0001, EMP001)
+  clientId?: string; // FK to clients.id
+  locationId?: string; // FK to locations.id
+  personalInfoId?: string; // FK to employee_personal_info.id
+  officialInfoId?: string; // FK to employee_official_info.id
   status: EmployeeStatus;
+  // Denormalized fields for easy access (populated via joins)
+  name?: string; // From personal_info.first_name + last_name
+  email?: string; // From official_info.official_email or personal_info.personal_email
+  department?: string; // From official_info.division
+  location?: string; // From locations.name
+  title?: string; // Can be added to official_info if needed
+  // Full related objects (optional, populated when needed)
+  personalInfo?: EmployeePersonalInfo;
+  officialInfo?: EmployeeOfficialInfo;
+}
+
+export interface AssetHistory {
+  id: string;
+  assetId: string;
+  fieldName: string;
+  oldValue?: string;
+  newValue?: string;
+  changedBy?: string; // FK to users.id
+  changedAt: string;
 }

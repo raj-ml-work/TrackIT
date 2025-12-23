@@ -308,3 +308,4 @@ const DepartmentManagement: React.FC<DepartmentManagementProps> = ({
 
 export default DepartmentManagement;
 
+

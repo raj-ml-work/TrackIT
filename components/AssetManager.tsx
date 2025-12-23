@@ -63,7 +63,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     name?: string; 
     serialNumber?: string; 
     location?: string;
+    locationId?: string;
     assignedTo?: string; 
+    assignedToId?: string;
     status?: string;
     purchaseDate?: string;
     cost?: string;
@@ -122,7 +124,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       name?: string; 
       serialNumber?: string; 
       location?: string;
+      locationId?: string;
       assignedTo?: string; 
+      assignedToId?: string;
       status?: string;
       purchaseDate?: string;
       cost?: string;
@@ -137,7 +141,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       errors.serialNumber = 'Serial number is required';
     }
     
-    if (!formData.location || formData.location.trim() === '') {
+    if (!formData.locationId && (!formData.location || formData.location.trim() === '')) {
+      errors.locationId = 'Location is required';
       errors.location = 'Location is required';
     }
     
@@ -149,9 +154,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       errors.cost = 'Cost must be a valid number (0 or greater)';
     }
     
-    // If status is "In Use", assignedTo must be set
-    if (formData.status === AssetStatus.IN_USE && !formData.assignedTo) {
-      errors.assignedTo = 'An employee must be assigned when status is "In Use"';
+    // If status is "In Use", assignedToId must be set
+    const assignedToId = formData.assignedToId || formData.employeeId;
+    if (formData.status === AssetStatus.IN_USE && !assignedToId) {
+      errors.assignedToId = 'An employee must be assigned when status is "In Use"';
       errors.status = 'Status cannot be "In Use" without an assigned employee';
     }
     
@@ -161,11 +167,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       return;
     }
     
-    // If assignedTo is set, ensure status is "In Use"
-    // If assignedTo is not set and status is "In Use", change to "Available"
+    // If assignedToId is set, ensure status is "In Use"
+    // If assignedToId is not set and status is "In Use", change to "Available"
     const finalFormData = {
       ...formData,
-      status: formData.assignedTo 
+      assignedToId: assignedToId || undefined,
+      employeeId: assignedToId || undefined,
+      status: assignedToId 
         ? AssetStatus.IN_USE 
         : (formData.status === AssetStatus.IN_USE ? AssetStatus.AVAILABLE : formData.status)
     };
@@ -190,9 +198,26 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   };
 
   const openEdit = (asset: Asset) => {
+    // Use assignedToId or employeeId if available, otherwise try to find employee by name
+    let assignedToId = asset.assignedToId || asset.employeeId;
+    if (!assignedToId && asset.assignedTo) {
+      const employee = employees.find(emp => emp.name === asset.assignedTo);
+      assignedToId = employee?.id;
+    }
+    
+    // Use locationId if available, otherwise try to find location by name
+    let locationId = asset.locationId;
+    if (!locationId && asset.location) {
+      const location = locations.find(loc => loc.name === asset.location);
+      locationId = location?.id;
+    }
+    
     setFormData({
         ...asset,
-        specs: { ...initialSpecs, ...asset.specs }
+        assignedToId: assignedToId,
+        employeeId: assignedToId,
+        locationId: locationId,
+        specs: { ...initialSpecs, ...asset.specs, ...asset.assetSpecs }
     });
     setEditingId(asset.id);
     setCurrentStep(1);
@@ -288,12 +313,20 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                const errors: { assignedTo?: string; status?: string } = {};
                
                // If setting status to "In Use" but no one is assigned, show error
-               if (newStatus === AssetStatus.IN_USE && !formData.assignedTo) {
-                 errors.assignedTo = 'An employee must be assigned when status is "In Use"';
-                 errors.status = 'Please assign an employee first';
+               const assignedToId = formData.assignedToId || formData.employeeId;
+               const statusErrors: { assignedToId?: string; status?: string } = {};
+               if (newStatus === AssetStatus.IN_USE && !assignedToId) {
+                 statusErrors.assignedToId = 'An employee must be assigned when status is "In Use"';
+                 statusErrors.status = 'Please assign an employee first';
+                 setFormErrors(prev => ({ ...prev, ...statusErrors }));
                } else {
                  // Clear errors if valid
-                 setFormErrors({});
+                 setFormErrors(prev => {
+                   const newErrors = { ...prev };
+                   delete newErrors.assignedToId;
+                   delete newErrors.status;
+                   return newErrors;
+                 });
                }
                
                setFormData({...formData, status: newStatus});
@@ -347,21 +380,33 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Location *</label>
           <select 
             className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-              formErrors.location ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+              formErrors.location || formErrors.locationId ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
             }`}
-            value={formData.location}
+            value={formData.locationId || formData.location || ''}
             onChange={e => {
-              setFormData({...formData, location: e.target.value});
-              if (formErrors.location) setFormErrors(prev => ({ ...prev, location: undefined }));
+              const selectedLocation = locations.find(loc => loc.id === e.target.value);
+              setFormData({
+                ...formData, 
+                locationId: e.target.value || undefined,
+                location: selectedLocation?.name || ''
+              });
+              if (formErrors.location || formErrors.locationId) {
+                setFormErrors(prev => {
+                  const newErrors = { ...prev };
+                  delete newErrors.location;
+                  delete newErrors.locationId;
+                  return newErrors;
+                });
+              }
             }}
           >
             <option value="">Select Location</option>
             {locations.map(loc => (
-              <option key={loc.id} value={loc.name}>{loc.name} - {loc.city}</option>
+              <option key={loc.id} value={loc.id}>{loc.name} - {loc.city}</option>
             ))}
           </select>
-          {formErrors.location && (
-            <p className="mt-1 text-xs text-red-600">{formErrors.location}</p>
+          {(formErrors.location || formErrors.locationId) && (
+            <p className="mt-1 text-xs text-red-600">{formErrors.location || formErrors.locationId}</p>
           )}
         </div>
       </div>
@@ -420,23 +465,27 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Assigned To</label>
         <select 
           className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-            formErrors.assignedTo ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+            formErrors.assignedTo || formErrors.assignedToId ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
           }`}
-          value={formData.assignedTo || ''}
+          value={formData.assignedToId || formData.employeeId || ''}
           onChange={e => {
-            const newAssignedTo = e.target.value || undefined;
+            const newAssignedToId = e.target.value || undefined;
+            const selectedEmployee = employees.find(emp => emp.id === newAssignedToId);
             
             // If assigning to someone, automatically set status to "In Use"
-            if (newAssignedTo) {
+            if (newAssignedToId && selectedEmployee) {
               setFormData(prev => ({ 
                 ...prev, 
-                assignedTo: newAssignedTo,
+                assignedToId: newAssignedToId,
+                employeeId: newAssignedToId,
+                assignedTo: selectedEmployee.name, // Keep for display/backward compatibility
                 status: AssetStatus.IN_USE 
               }));
               // Clear any errors since assignment is valid
               setFormErrors(prev => {
                 const newErrors = { ...prev };
                 delete newErrors.assignedTo;
+                delete newErrors.assignedToId;
                 delete newErrors.status;
                 return newErrors;
               });
@@ -444,6 +493,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               // If unassigning, set status to "Available" if it was "In Use"
               setFormData(prev => ({ 
                 ...prev, 
+                assignedToId: undefined,
+                employeeId: undefined,
                 assignedTo: undefined,
                 status: prev.status === AssetStatus.IN_USE ? AssetStatus.AVAILABLE : prev.status
               }));
@@ -451,6 +502,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               setFormErrors(prev => {
                 const newErrors = { ...prev };
                 delete newErrors.assignedTo;
+                delete newErrors.assignedToId;
                 delete newErrors.status;
                 return newErrors;
               });
@@ -461,13 +513,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           {employees
             .filter(emp => emp.status === EmployeeStatus.ACTIVE)
             .map(emp => (
-              <option key={emp.id} value={emp.name}>
-                {emp.name} - {emp.employeeId} {emp.department ? `(${emp.department})` : ''}
+              <option key={emp.id} value={emp.id}>
+                {emp.name || `${emp.employeeId}`} - {emp.employeeId} {emp.department ? `(${emp.department})` : ''}
               </option>
             ))}
         </select>
-        {formErrors.assignedTo && (
-          <p className="mt-1 text-xs text-red-600">{formErrors.assignedTo}</p>
+        {(formErrors.assignedTo || formErrors.assignedToId) && (
+          <p className="mt-1 text-xs text-red-600">{formErrors.assignedTo || formErrors.assignedToId}</p>
         )}
       </div>
     </div>

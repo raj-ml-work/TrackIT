@@ -55,7 +55,8 @@ export {
   updateAsset,
   deleteAsset,
   getAssetComments,
-  addAssetComment
+  addAssetComment,
+  checkSerialNumberExists
 } from './assetService';
 
 export {
