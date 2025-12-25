@@ -117,6 +117,18 @@ export const createUser = async (user: Omit<UserAccount, 'id' | 'lastLogin'>, pa
 export const updateUser = async (user: UserAccount): Promise<UserAccount> => {
   try {
     const supabase = await getSupabaseClient();
+    
+    // First, get the current user data to compare changes
+    const { data: currentUserData, error: fetchError } = await supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (fetchError) throw fetchError;
+    
+    const currentUser = transformUserFromDB(currentUserData);
+    
     const userData = transformUserToDB(user);
     
     const { data, error } = await supabase
@@ -128,7 +140,15 @@ export const updateUser = async (user: UserAccount): Promise<UserAccount> => {
 
     if (error) throw error;
 
-    return transformUserFromDB(data);
+    const updatedUser = transformUserFromDB(data);
+    
+    // Log changes for audit purposes
+    const changes = getUserChanges(currentUser, updatedUser);
+    if (changes.length > 0) {
+      console.log(`User update audit: ${changes.join(', ')}`);
+    }
+
+    return updatedUser;
   } catch (error) {
     console.error('Error updating user:', error);
     throw error;
@@ -211,6 +231,31 @@ const transformUserFromDB = (dbUser: any): UserAccount => {
 };
 
 /**
+ * Compare two users and return a list of changes
+ */
+const getUserChanges = (oldUser: UserAccount, newUser: UserAccount): string[] => {
+  const changes: string[] = [];
+  
+  if (oldUser.name !== newUser.name) {
+    changes.push(`name changed from "${oldUser.name}" to "${newUser.name}"`);
+  }
+  
+  if (oldUser.status !== newUser.status) {
+    changes.push(`status changed from "${oldUser.status}" to "${newUser.status}"`);
+  }
+  
+  if (oldUser.email !== newUser.email) {
+    changes.push(`email changed from "${oldUser.email}" to "${newUser.email}"`);
+  }
+  
+  if (oldUser.role !== newUser.role) {
+    changes.push(`role changed from "${oldUser.role}" to "${newUser.role}"`);
+  }
+  
+  return changes;
+};
+
+/**
  * Transform app format to database format
  */
 const transformUserToDB = (user: UserAccount | Omit<UserAccount, 'id' | 'lastLogin'>): any => {
@@ -241,3 +286,6 @@ const formatLastLogin = (timestamp: string): string => {
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString();
 };
+
+// Export the helper function for testing
+export { getUserChanges };

@@ -108,6 +108,18 @@ export const createEmployee = async (employee: Omit<Employee, 'id'>): Promise<Em
 export const updateEmployee = async (employee: Employee): Promise<Employee> => {
   try {
     const supabase = await getSupabaseClient();
+    
+    // First, get the current employee data to compare changes
+    const { data: currentEmployeeData, error: fetchError } = await supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .eq('id', employee.id)
+      .single();
+
+    if (fetchError) throw fetchError;
+    
+    const currentEmployee = transformEmployeeFromDB(currentEmployeeData);
+    
     const employeeData = transformEmployeeToDB(employee);
     
     const { data, error } = await supabase
@@ -119,7 +131,15 @@ export const updateEmployee = async (employee: Employee): Promise<Employee> => {
 
     if (error) throw error;
 
-    return transformEmployeeFromDB(data);
+    const updatedEmployee = transformEmployeeFromDB(data);
+    
+    // Log changes for audit purposes
+    const changes = getEmployeeChanges(currentEmployee, updatedEmployee);
+    if (changes.length > 0) {
+      console.log(`Employee update audit: ${changes.join(', ')}`);
+    }
+
+    return updatedEmployee;
   } catch (error) {
     console.error('Error updating employee:', error);
     throw error;
@@ -161,6 +181,39 @@ const transformEmployeeFromDB = (dbEmployee: any): Employee => {
 };
 
 /**
+ * Compare two employees and return a list of changes
+ */
+const getEmployeeChanges = (oldEmployee: Employee, newEmployee: Employee): string[] => {
+  const changes: string[] = [];
+  
+  if (oldEmployee.name !== newEmployee.name) {
+    changes.push(`name changed from "${oldEmployee.name}" to "${newEmployee.name}"`);
+  }
+  
+  if (oldEmployee.status !== newEmployee.status) {
+    changes.push(`status changed from "${oldEmployee.status}" to "${newEmployee.status}"`);
+  }
+  
+  if (oldEmployee.email !== newEmployee.email) {
+    changes.push(`email changed from "${oldEmployee.email || 'N/A'}" to "${newEmployee.email || 'N/A'}"`);
+  }
+  
+  if (oldEmployee.department !== newEmployee.department) {
+    changes.push(`department changed from "${oldEmployee.department || 'N/A'}" to "${newEmployee.department || 'N/A'}"`);
+  }
+  
+  if (oldEmployee.location !== newEmployee.location) {
+    changes.push(`location changed from "${oldEmployee.location || 'N/A'}" to "${newEmployee.location || 'N/A'}"`);
+  }
+  
+  if (oldEmployee.title !== newEmployee.title) {
+    changes.push(`title changed from "${oldEmployee.title || 'N/A'}" to "${newEmployee.title || 'N/A'}"`);
+  }
+  
+  return changes;
+};
+
+/**
  * Transform app format to database format
  */
 const transformEmployeeToDB = (employee: Employee | Omit<Employee, 'id'>): any => {
@@ -175,4 +228,7 @@ const transformEmployeeToDB = (employee: Employee | Omit<Employee, 'id'>): any =
     status: employee.status
   };
 };
+
+// Export the helper function for testing
+export { getEmployeeChanges };
 
