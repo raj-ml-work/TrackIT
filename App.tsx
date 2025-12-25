@@ -15,7 +15,7 @@ import * as authClient from './services/authClient';
 import ConfirmDialog, { DialogType } from './components/ConfirmDialog';
 import {
   isDatabaseReady,
-  getAssets, createAsset, updateAsset, deleteAsset, addAssetComment,
+  getAssets, getAssetById, createAsset, updateAsset, deleteAsset, addAssetComment, getAssetComments,
   getEmployees, createEmployee, updateEmployee, deleteEmployee,
   getLocations, createLocation, updateLocation, deleteLocation,
   getUsers, createUser, updateUser, deleteUser,
@@ -418,52 +418,57 @@ const App: React.FC = () => {
       const oldAsset = assets.find(a => a.id === updatedAsset.id);
       if (!oldAsset) return;
 
-      // Generate audit trail for changes
-      const auditComments: Omit<AssetComment, 'id'>[] = [];
-      const now = new Date().toISOString();
-      
-      if (oldAsset.status !== updatedAsset.status) {
-        auditComments.push({
-          assetId: oldAsset.id,
-          authorName: session?.user.name || 'System',
-          authorId: session?.user.id,
-          message: `Status changed from "${oldAsset.status}" to "${updatedAsset.status}"`,
-          type: AssetCommentType.SYSTEM,
-          createdAt: now
-        });
-      }
-      
-      if (oldAsset.assignedTo !== updatedAsset.assignedTo) {
-        auditComments.push({
-          assetId: oldAsset.id,
-          authorName: session?.user.name || 'System',
-          authorId: session?.user.id,
-          message: `Assigned to changed from "${oldAsset.assignedTo || 'Unassigned'}" to "${updatedAsset.assignedTo || 'Unassigned'}"`,
-          type: AssetCommentType.SYSTEM,
-          createdAt: now
-        });
-      }
-      
-      if (oldAsset.location !== updatedAsset.location) {
-        auditComments.push({
-          assetId: oldAsset.id,
-          authorName: session?.user.name || 'System',
-          authorId: session?.user.id,
-          message: `Location changed from "${oldAsset.location}" to "${updatedAsset.location}"`,
-          type: AssetCommentType.SYSTEM,
-          createdAt: now
-        });
-      }
-
       if (useBackend) {
         const updated = await updateAsset(updatedAsset);
-        // Add audit comments to backend
-        for (const comment of auditComments) {
-          await addAssetComment(comment);
-        }
-        setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
+        
+        // Load the updated asset with all comments from the backend
+        const updatedAssetWithComments = await getAssetById(updated.id);
+        
+        // Also get all comments for this asset
+        const comments = await getAssetComments(updated.id);
+        
+        setAssets(prev => prev.map(a =>
+          a.id === updated.id ? { ...updatedAssetWithComments, comments } : a
+        ));
       } else {
-        // Mock data fallback
+        // Mock data fallback - keep existing audit logic
+        // Generate audit trail for changes
+        const auditComments: Omit<AssetComment, 'id'>[] = [];
+        const now = new Date().toISOString();
+        
+        if (oldAsset.status !== updatedAsset.status) {
+          auditComments.push({
+            assetId: oldAsset.id,
+            authorName: session?.user.name || 'System',
+            authorId: session?.user.id,
+            message: `Status changed from "${oldAsset.status}" to "${updatedAsset.status}"`,
+            type: AssetCommentType.SYSTEM,
+            createdAt: now
+          });
+        }
+        
+        if (oldAsset.assignedTo !== updatedAsset.assignedTo) {
+          auditComments.push({
+            assetId: oldAsset.id,
+            authorName: session?.user.name || 'System',
+            authorId: session?.user.id,
+            message: `Assigned to changed from "${oldAsset.assignedTo || 'Unassigned'}" to "${updatedAsset.assignedTo || 'Unassigned'}"`,
+            type: AssetCommentType.SYSTEM,
+            createdAt: now
+          });
+        }
+        
+        if (oldAsset.location !== updatedAsset.location) {
+          auditComments.push({
+            assetId: oldAsset.id,
+            authorName: session?.user.name || 'System',
+            authorId: session?.user.id,
+            message: `Location changed from "${oldAsset.location}" to "${updatedAsset.location}"`,
+            type: AssetCommentType.SYSTEM,
+            createdAt: now
+          });
+        }
+
         setAssets(prev => prev.map(a => {
           if (a.id === updatedAsset.id) {
             const allComments = [...(updatedAsset.comments || []), ...auditComments.map(c => ({ ...c, id: Math.random().toString(36).substr(2, 9) }))];
