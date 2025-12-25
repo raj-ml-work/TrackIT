@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
+import ConfirmDialog, { DialogType } from './ConfirmDialog';
 import { Location, Asset } from '../types';
 import { MapPin, Search, Plus, X, Pencil, Trash2, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,6 +26,19 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [form, setForm] = useState<Omit<Location, 'id'>>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    type: DialogType;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    type: DialogType.CONFIRM,
+    title: '',
+    message: '',
+    onConfirm: undefined
+  });
 
   // Compute usage counts
   const locationUsage = useMemo(() => {
@@ -90,18 +104,30 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
     const usage = locationUsage[location.id] || 0;
     
     if (usage > 0) {
-      alert(`Cannot delete ${location.name}. It has ${usage} asset(s) assigned. Please reassign them first.`);
+      setDialogState({
+        isOpen: true,
+        type: DialogType.ERROR,
+        title: 'Cannot Delete Location',
+        message: `Cannot delete ${location.name}. It has ${usage} asset(s) assigned. Please reassign them first.`,
+        onConfirm: undefined
+      });
       return;
     }
-
-    if (confirm(`Are you sure you want to delete ${location.name}?`)) {
-      try {
-        await onDelete(location.id);
-      } catch (error) {
-        // Error is already handled in the handler
-        console.error('Error deleting location:', error);
+  
+    setDialogState({
+      isOpen: true,
+      type: DialogType.CONFIRM,
+      title: 'Delete Location',
+      message: `Are you sure you want to delete "${location.name}"? This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await onDelete(location.id);
+        } catch (error) {
+          // Error is already handled in the handler
+          console.error('Error deleting location:', error);
+        }
       }
-    }
+    });
   };
 
   return (
@@ -292,8 +318,18 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
-  );
+      
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        onClose={() => setDialogState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={dialogState.onConfirm}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+      />
+   </div>
+ );
 };
 
 export default LocationManagement;
