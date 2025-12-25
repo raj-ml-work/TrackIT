@@ -5,11 +5,12 @@
  * It can switch between Supabase and local databases based on configuration.
  */
 
-import { Asset, Employee, Location, UserAccount } from '../types';
+import { Asset, Employee, Location, UserAccount, Department } from '../types';
 import * as assetService from './assetService';
 import * as employeeService from './employeeService';
 import * as locationService from './locationService';
 import * as userService from './userService';
+import * as departmentService from './departmentService';
 import { dbConfig, DatabaseType } from './database';
 
 /**
@@ -89,4 +90,14 @@ export {
   deleteUser,
   updateLastLogin
 } from './userService';
+
+export {
+  // Department services
+  getDepartments,
+  getDepartmentById,
+  getDepartmentByName,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment
+} from './departmentService';
 

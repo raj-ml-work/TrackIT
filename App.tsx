@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials, AssetComment, AssetCommentType, Location, Employee, EmployeeStatus } from './types';
+import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials, AssetComment, AssetCommentType, Location, Employee, EmployeeStatus, Department } from './types';
 import Dashboard from './components/Dashboard';
 import AssetManager from './components/AssetManager';
 import Settings from './components/Settings';
 import UserManagement from './components/UserManagement';
 import EmployeeManagement from './components/EmployeeManagement';
 import LocationManagement from './components/LocationManagement';
+import DepartmentManagementPage from './src/pages/DepartmentManagementPage';
 import Login from './components/Login';
 import ProfilePanel from './components/ProfilePanel';
-import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, MapPin, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, MapPin, Briefcase, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as authClient from './services/authClient';
-import { 
-  isDatabaseReady, 
+import ConfirmDialog, { DialogType } from './components/ConfirmDialog';
+import {
+  isDatabaseReady,
   getAssets, createAsset, updateAsset, deleteAsset, addAssetComment,
   getEmployees, createEmployee, updateEmployee, deleteEmployee,
   getLocations, createLocation, updateLocation, deleteLocation,
-  getUsers, createUser, updateUser, deleteUser
+  getUsers, createUser, updateUser, deleteUser,
+  getDepartments, createDepartment, updateDepartment, deleteDepartment
 } from './services/dataService';
 
 // Mock Data
@@ -175,6 +178,7 @@ enum View {
   INVENTORY = 'Inventory',
   EMPLOYEES = 'Employees',
   LOCATIONS = 'Locations',
+  DEPARTMENTS = 'Departments',
   USERS = 'Users',
   SETTINGS = 'Settings'
 }
@@ -237,6 +241,7 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<UserAccount[]>(MOCK_USERS);
   const [employees, setEmployees] = useState<Employee[]>(MOCK_EMPLOYEES);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
@@ -245,8 +250,33 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [useBackend, setUseBackend] = useState(false);
+  
+  // Dialog state
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    type: DialogType;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    type: DialogType.ERROR,
+    title: '',
+    message: '',
+    onConfirm: undefined
+  });
 
   const isAdmin = session?.user.role === UserRole.ADMIN;
+
+  const showDialog = (type: DialogType, title: string, message: string, onConfirm?: () => void) => {
+    setDialogState({
+      isOpen: true,
+      type,
+      title,
+      message,
+      onConfirm: onConfirm || (() => setDialogState(prev => ({ ...prev, isOpen: false })))
+    });
+  };
 
   // Initialize default admin and restore session on mount
   useEffect(() => {
@@ -286,7 +316,7 @@ const App: React.FC = () => {
   const loadDataFromBackend = async () => {
     setIsDataLoading(true);
     try {
-      const [assetsData, employeesData, locationsData, usersData] = await Promise.all([
+      const [assetsData, employeesData, locationsData, usersData, departmentsData] = await Promise.all([
         getAssets().catch(err => {
           console.error('Error loading assets:', err);
           return MOCK_ASSETS;
@@ -302,6 +332,10 @@ const App: React.FC = () => {
         getUsers().catch(err => {
           console.error('Error loading users:', err);
           return MOCK_USERS;
+        }),
+        getDepartments().catch(err => {
+          console.error('Error loading departments:', err);
+          return []; // Fallback to empty array for departments
         })
       ]);
 
@@ -309,6 +343,7 @@ const App: React.FC = () => {
       setEmployees(employeesData);
       setLocations(locationsData);
       setUsers(usersData);
+      setDepartments(departmentsData);
     } catch (error) {
       console.error('Error loading data from backend:', error);
     } finally {
@@ -373,7 +408,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error adding asset:', error);
-      alert('Failed to add asset. Please try again.');
+      showDialog(DialogType.ERROR, 'Add Asset Failed', 'Failed to add asset. Please try again.');
       throw error;
     }
   };
@@ -439,7 +474,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error updating asset:', error);
-      alert('Failed to update asset. Please try again.');
+      showDialog(DialogType.ERROR, 'Update Asset Failed', 'Failed to update asset. Please try again.');
       throw error;
     }
   };
@@ -484,20 +519,37 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error adding comment:', error);
-      alert('Failed to add comment. Please try again.');
+      showDialog(DialogType.ERROR, 'Add Comment Failed', 'Failed to add comment. Please try again.');
       throw error;
     }
   };
 
   const handleDeleteAsset = async (id: string) => {
     if (!isAdmin) {
-      alert('Only administrators can delete assets.');
+      showDialog(DialogType.WARNING, 'Permission Denied', 'Only administrators can delete assets.');
       return;
     }
 
-    if (!confirm('Are you sure you want to delete this asset?')) {
-      return;
-    }
+    showDialog(DialogType.CONFIRM, 'Confirm Deletion', 'Are you sure you want to delete this asset?', () => {
+      // Proceed with deletion after confirmation
+      const proceedWithDeletion = async () => {
+        try {
+          if (useBackend) {
+            await deleteAsset(id);
+          }
+          // Only update state after successful deletion
+          setAssets(prev => prev.filter(a => a.id !== id));
+        } catch (error) {
+          console.error('Error deleting asset:', error);
+          showDialog(DialogType.ERROR, 'Delete Asset Failed', 'Failed to delete asset. Please try again.');
+          // State is not updated, so the asset remains visible in the UI
+          throw error;
+        }
+      };
+      proceedWithDeletion();
+    });
+
+    return;
 
     try {
       if (useBackend) {
@@ -507,7 +559,7 @@ const App: React.FC = () => {
       setAssets(prev => prev.filter(a => a.id !== id));
     } catch (error) {
       console.error('Error deleting asset:', error);
-      alert('Failed to delete asset. Please try again.');
+      showDialog(DialogType.ERROR, 'Delete Asset Failed', 'Failed to delete asset. Please try again.');
       // State is not updated, so the asset remains visible in the UI
       throw error;
     }
@@ -546,7 +598,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error adding user:', error);
-      alert('Failed to add user. Please try again.');
+      showDialog(DialogType.ERROR, 'Add User Failed', 'Failed to add user. Please try again.');
       throw error;
     }
   };
@@ -561,7 +613,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error updating user:', error);
-      alert('Failed to update user. Please try again.');
+      showDialog(DialogType.ERROR, 'Update User Failed', 'Failed to update user. Please try again.');
       throw error;
     }
   };
@@ -581,7 +633,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error toggling user status:', error);
-      alert('Failed to update user status. Please try again.');
+      showDialog(DialogType.ERROR, 'Update User Status Failed', 'Failed to update user status. Please try again.');
       throw error;
     }
   };
@@ -593,7 +645,7 @@ const App: React.FC = () => {
       setLocations(prev => [createdLocation, ...prev]);
     } catch (error) {
       console.error('Error adding location:', error);
-      alert('Failed to add location. Please try again.');
+      showDialog(DialogType.ERROR, 'Add Location Failed', 'Failed to add location. Please try again.');
       throw error;
     }
   };
@@ -604,23 +656,23 @@ const App: React.FC = () => {
       setLocations(prev => prev.map(l => l.id === updatedLocation.id ? updatedLocation : l));
     } catch (error) {
       console.error('Error updating location:', error);
-      alert('Failed to update location. Please try again.');
+      showDialog(DialogType.ERROR, 'Update Location Failed', 'Failed to update location. Please try again.');
       throw error;
     }
   };
 
   const handleDeleteLocation = async (id: string) => {
     if (!isAdmin) {
-      alert('Only administrators can delete locations.');
+      showDialog(DialogType.WARNING, 'Permission Denied', 'Only administrators can delete locations.');
       return;
     }
 
     const location = locations.find(l => l.id === id);
     const assetCount = assets.filter(a => a.location === location?.name).length;
     const employeeCount = employees.filter(e => e.location === location?.name).length;
-    
+
     if (assetCount > 0 || employeeCount > 0) {
-      alert(`Cannot delete ${location?.name || 'this location'}. It has ${assetCount} asset(s) and ${employeeCount} employee(s). Please reassign them first.`);
+      showDialog(DialogType.WARNING, 'Cannot Delete Location', `Cannot delete ${location?.name || 'this location'}. It has ${assetCount} asset(s) and ${employeeCount} employee(s). Please reassign them first.`);
       return;
     }
 
@@ -630,7 +682,7 @@ const App: React.FC = () => {
       setLocations(prev => prev.filter(l => l.id !== id));
     } catch (error) {
       console.error('Error deleting location:', error);
-      alert('Failed to delete location. Please try again.');
+      showDialog(DialogType.ERROR, 'Delete Location Failed', 'Failed to delete location. Please try again.');
       // State is not updated, so the location remains visible in the UI
       throw error;
     }
@@ -643,7 +695,7 @@ const App: React.FC = () => {
       setLocations(freshLocations);
     } catch (error) {
       console.error('Error loading fresh location data:', error);
-      alert('Failed to load latest location data. Please try again.');
+      showDialog(DialogType.ERROR, 'Load Location Data Failed', 'Failed to load latest location data. Please try again.');
     }
   };
 
@@ -670,7 +722,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error adding employee:', error);
-      alert(error instanceof Error ? error.message : 'Failed to add employee. Please try again.');
+      showDialog(DialogType.ERROR, 'Add Employee Failed', error instanceof Error ? error.message : 'Failed to add employee. Please try again.');
       throw error;
     }
   };
@@ -685,38 +737,105 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error updating employee:', error);
-      alert('Failed to update employee. Please try again.');
+      showDialog(DialogType.ERROR, 'Update Employee Failed', 'Failed to update employee. Please try again.');
       throw error;
     }
   };
 
   const handleDeleteEmployee = async (id: string) => {
-    if (!isAdmin) {
-      alert('Only administrators can delete employees.');
-      return;
-    }
+   if (!isAdmin) {
+     showDialog(DialogType.WARNING, 'Permission Denied', 'Only administrators can delete employees.');
+     return;
+   }
 
-    const employee = employees.find(e => e.id === id);
-    const assetCount = assets.filter(a => a.assignedTo === employee?.name).length;
-    
-    if (assetCount > 0) {
-      alert(`Cannot delete ${employee?.name || 'this employee'}. They have ${assetCount} asset(s) assigned. Please reassign or unassign assets first.`);
-      return;
-    }
+   const employee = employees.find(e => e.id === id);
+   const assetCount = assets.filter(a => a.assignedTo === employee?.name).length;
 
-    try {
-      if (useBackend) {
-        await deleteEmployee(id);
-      }
-      // Only update state after successful deletion
-      setEmployees(prev => prev.filter(e => e.id !== id));
-    } catch (error) {
-      console.error('Error deleting employee:', error);
-      alert('Failed to delete employee. Please try again.');
-      // State is not updated, so the employee remains visible in the UI
-      throw error;
-    }
+   if (assetCount > 0) {
+     showDialog(DialogType.WARNING, 'Cannot Delete Employee', `Cannot delete ${employee?.name || 'this employee'}. They have ${assetCount} asset(s) assigned. Please reassign or unassign assets first.`);
+     return;
+   }
+
+   try {
+     if (useBackend) {
+       await deleteEmployee(id);
+     }
+     // Only update state after successful deletion
+     setEmployees(prev => prev.filter(e => e.id !== id));
+   } catch (error) {
+     console.error('Error deleting employee:', error);
+     showDialog(DialogType.ERROR, 'Delete Employee Failed', 'Failed to delete employee. Please try again.');
+     // State is not updated, so the employee remains visible in the UI
+     throw error;
+   }
   };
+
+  // Department handlers
+  const handleAddDepartment = async (department: Omit<Department, 'id'>) => {
+   try {
+     const createdDepartment = await createDepartment(department);
+     setDepartments(prev => [createdDepartment, ...prev]);
+   } catch (error) {
+     console.error('Error adding department:', error);
+     showDialog(DialogType.ERROR, 'Add Department Failed', 'Failed to add department. Please try again.');
+     throw error;
+   }
+  };
+
+  const handleUpdateDepartment = async (updated: Department) => {
+   try {
+     const updatedDepartment = await updateDepartment(updated);
+     setDepartments(prev => prev.map(d => d.id === updatedDepartment.id ? updatedDepartment : d));
+   } catch (error) {
+     console.error('Error updating department:', error);
+     showDialog(DialogType.ERROR, 'Update Department Failed', 'Failed to update department. Please try again.');
+     throw error;
+   }
+  };
+
+  const handleDeleteDepartment = async (id: string) => {
+   if (!isAdmin) {
+     showDialog(DialogType.WARNING, 'Permission Denied', 'Only administrators can delete departments.');
+     return;
+   }
+
+   const department = departments.find(d => d.id === id);
+   const employeeCount = employees.filter(e => e.department === department?.name).length;
+
+   if (employeeCount > 0) {
+     showDialog(DialogType.WARNING, 'Cannot Delete Department', `Cannot delete ${department?.name || 'this department'}. It has ${employeeCount} employee(s). Please reassign them first.`);
+     return;
+   }
+
+   try {
+     await deleteDepartment(id);
+     // Only update state after successful deletion
+     setDepartments(prev => prev.filter(d => d.id !== id));
+   } catch (error) {
+     console.error('Error deleting department:', error);
+     showDialog(DialogType.ERROR, 'Delete Department Failed', 'Failed to delete department. Please try again.');
+     // State is not updated, so the department remains visible in the UI
+     throw error;
+   }
+  };
+
+  // Load fresh department data when navigating to departments view
+  const loadFreshDepartmentData = async () => {
+   try {
+     const freshDepartments = await getDepartments();
+     setDepartments(freshDepartments);
+   } catch (error) {
+     console.error('Error loading fresh department data:', error);
+     showDialog(DialogType.ERROR, 'Load Department Data Failed', 'Failed to load latest department data. Please try again.');
+   }
+  };
+
+  // Refresh department data when navigating to departments view
+  useEffect(() => {
+   if (currentView === View.DEPARTMENTS && useBackend) {
+     loadFreshDepartmentData();
+   }
+  }, [currentView, useBackend]);
 
   const NavItem = ({ view, icon: Icon }: { view: View, icon: any }) => (
     <button
@@ -766,6 +885,7 @@ const App: React.FC = () => {
           <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
           <NavItem view={View.INVENTORY} icon={Box} />
           <NavItem view={View.EMPLOYEES} icon={Briefcase} />
+          <NavItem view={View.DEPARTMENTS} icon={Building2} />
           <NavItem view={View.LOCATIONS} icon={MapPin} />
           {isAdmin && <NavItem view={View.USERS} icon={Users} />}
           {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
@@ -801,6 +921,7 @@ const App: React.FC = () => {
              <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
               <NavItem view={View.INVENTORY} icon={Box} />
               <NavItem view={View.EMPLOYEES} icon={Briefcase} />
+              <NavItem view={View.DEPARTMENTS} icon={Building2} />
               <NavItem view={View.LOCATIONS} icon={MapPin} />
               {isAdmin && <NavItem view={View.USERS} icon={Users} />}
               {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
@@ -819,6 +940,7 @@ const App: React.FC = () => {
                 {currentView === View.DASHBOARD && `Overview of ${assets.length} managed assets.`}
                 {currentView === View.INVENTORY && "Manage and track your corporate equipment."}
                 {currentView === View.EMPLOYEES && "Manage organization employees and asset assignments."}
+                {currentView === View.DEPARTMENTS && "Organize and manage your company departments."}
                 {currentView === View.LOCATIONS && "Manage office locations and standardize addresses."}
                 {currentView === View.USERS && "Admin-only control of teammates, roles, and status."}
                 {currentView === View.SETTINGS && "Configure your workspace."}
@@ -860,12 +982,22 @@ const App: React.FC = () => {
                 />
               )}
               {currentView === View.LOCATIONS && (
-                <LocationManagement 
+                <LocationManagement
                   locations={locations}
                   assets={assets}
                   onAdd={handleAddLocation}
                   onUpdate={handleUpdateLocation}
                   onDelete={handleDeleteLocation}
+                  canDelete={isAdmin}
+                />
+              )}
+              {currentView === View.DEPARTMENTS && (
+                <DepartmentManagementPage
+                  departments={departments}
+                  onAdd={handleAddDepartment}
+                  onUpdate={handleUpdateDepartment}
+                  onDelete={handleDeleteDepartment}
+                  onBack={() => setCurrentView(View.DASHBOARD)}
                   canDelete={isAdmin}
                 />
               )}

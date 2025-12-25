@@ -104,6 +104,12 @@ export interface Location {
   comments?: string;
 }
 
+export interface Department {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export enum EmployeeStatus {
   ACTIVE = 'Active',
   INACTIVE = 'Inactive'
