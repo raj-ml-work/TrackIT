@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Asset, AssetStatus, AssetType, Location } from '../types';
 import GlassCard from './GlassCard';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
-import { Sparkles, TrendingUp, AlertCircle, Package, DollarSign, MapPin } from 'lucide-react';
+import { Sparkles, TrendingUp, AlertCircle, Package, IndianRupee, MapPin } from 'lucide-react';
 import { generateInventoryInsight } from '../services/geminiService';
 import { motion } from 'framer-motion';
 
@@ -94,11 +94,11 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
         <GlassCard hoverEffect>
           <div className="flex items-center space-x-4">
             <div className="p-3 rounded-full bg-emerald-100 text-emerald-600">
-              <DollarSign size={24} />
+              <IndianRupee size={24} />
             </div>
             <div>
               <p className="text-sm text-gray-500 font-medium">Total Value</p>
-              <h3 className="text-2xl font-bold text-gray-800">${totalValue.toLocaleString()}</h3>
+              <h3 className="text-2xl font-bold text-gray-800">₹{totalValue.toLocaleString()}</h3>
             </div>
           </div>
         </GlassCard>

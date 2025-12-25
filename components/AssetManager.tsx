@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType, Location, Employee, EmployeeStatus } from '../types';
 import GlassCard from './GlassCard';
-import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, DollarSign, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, Eye } from 'lucide-react';
+import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, IndianRupee, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AssetManagerProps {
@@ -295,7 +295,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       {/* Financials */}
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Cost ($)</label>
+          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Cost (₹)</label>
           <input type="number" min="0" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
             value={formData.cost} onChange={e => setFormData({...formData, cost: parseFloat(e.target.value)})} />
         </div>
@@ -635,10 +635,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
-                  <DollarSign size={16} className="text-gray-400 mt-1" />
+                  <IndianRupee size={16} className="text-gray-400 mt-1" />
                   <div>
                     <p className="text-xs text-gray-500 uppercase">Cost</p>
-                    <p className="text-sm text-gray-800">${viewingAsset.cost.toLocaleString()}</p>
+                    <p className="text-sm text-gray-800">₹{viewingAsset.cost.toLocaleString()}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
@@ -873,10 +873,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Financials</h3>
                   <div className="grid grid-cols-2 gap-y-6 gap-x-4">
                      <div className="flex items-start gap-3">
-                        <DollarSign className="text-gray-400 mt-0.5" size={18} />
-                        <div>
+                       <IndianRupee className="text-gray-400 mt-0.5" size={18} />
+                       <div>
                           <p className="text-xs text-gray-500 uppercase">Cost</p>
-                          <p className="text-gray-800 font-mono">${selectedAsset.cost.toLocaleString()}</p>
+                          <p className="text-gray-800 font-mono">₹{selectedAsset.cost.toLocaleString()}</p>
                         </div>
                      </div>
                      <div className="flex items-start gap-3">
