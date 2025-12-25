@@ -155,11 +155,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap justify-between items-center gap-4">
-        <div>
-          <h3 className="text-xl font-bold text-gray-800">User Management</h3>
-          <p className="text-gray-500">Control access for admins and team members.</p>
-        </div>
+      <div className="flex justify-end">
         <button
           onClick={openNew}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"

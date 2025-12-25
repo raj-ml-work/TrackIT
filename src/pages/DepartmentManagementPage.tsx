@@ -1,17 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, ArrowLeft, Loader } from 'lucide-react';
+import { Building2, Loader } from 'lucide-react';
 import ConfirmDialog, { DialogType } from '../../components/ConfirmDialog';
 import DepartmentManagement from '../../components/DepartmentManagement';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '../../services/departmentService';
 import { Department } from '../../types';
 
 interface DepartmentManagementPageProps {
-  onBack: () => void;
   canDelete?: boolean;
 }
 
-const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ onBack, canDelete = true }) => {
+const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ canDelete = true }) => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,25 +105,6 @@ const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ onB
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={onBack}
-          className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
-          title="Back"
-        >
-          <ArrowLeft size={20} className="text-gray-700" />
-        </button>
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-blue-100 text-blue-700">
-            <Building2 size={20} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Department Management</h1>
-            <p className="text-gray-600 text-sm">Organize and manage your company departments</p>
-          </div>
-        </div>
-      </div>
-
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <Loader size={32} className="animate-spin text-gray-400" />

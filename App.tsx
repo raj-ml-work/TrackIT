@@ -1002,7 +1002,6 @@ const App: React.FC = () => {
                   onAdd={handleAddDepartment}
                   onUpdate={handleUpdateDepartment}
                   onDelete={handleDeleteDepartment}
-                  onBack={() => setCurrentView(View.DASHBOARD)}
                   canDelete={isAdmin}
                 />
               )}
