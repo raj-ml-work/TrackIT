@@ -232,38 +232,11 @@ const MOCK_EMPLOYEES: Employee[] = [
   }
 ];
 
-const MOCK_LOCATIONS: Location[] = [
-  {
-    id: 'loc-001',
-    name: 'HQ - Building A',
-    city: 'San Francisco',
-    comments: 'Main headquarters building'
-  },
-  {
-    id: 'loc-002',
-    name: 'HQ - Warehouse',
-    city: 'San Francisco',
-    comments: 'Storage and distribution center'
-  },
-  {
-    id: 'loc-003',
-    name: 'Branch Office - NYC',
-    city: 'New York',
-    comments: 'East coast regional office'
-  },
-  {
-    id: 'loc-004',
-    name: 'Remote',
-    city: 'Various',
-    comments: 'Work from home employees'
-  }
-];
-
 const App: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>(MOCK_ASSETS);
   const [users, setUsers] = useState<UserAccount[]>(MOCK_USERS);
   const [employees, setEmployees] = useState<Employee[]>(MOCK_EMPLOYEES);
-  const [locations, setLocations] = useState<Location[]>(MOCK_LOCATIONS);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
@@ -295,10 +268,12 @@ const App: React.FC = () => {
         // Load data from backend if configured
         if (dbReady) {
           await loadDataFromBackend();
+        } else {
+          console.warn('Database not configured. Location data will be unavailable.');
         }
       } catch (error) {
         console.error('Error initializing app:', error);
-        // Fall back to mock data if backend fails
+        // Don't fall back to mock data for locations
         setUseBackend(false);
       } finally {
         setIsLoading(false);
@@ -322,7 +297,7 @@ const App: React.FC = () => {
         }),
         getLocations().catch(err => {
           console.error('Error loading locations:', err);
-          return MOCK_LOCATIONS;
+          throw err; // Don't fallback to mock data for locations
         }),
         getUsers().catch(err => {
           console.error('Error loading users:', err);
@@ -614,17 +589,8 @@ const App: React.FC = () => {
   // Location handlers
   const handleAddLocation = async (location: Omit<Location, 'id'>) => {
     try {
-      if (useBackend) {
-        const createdLocation = await createLocation(location);
-        setLocations(prev => [createdLocation, ...prev]);
-      } else {
-        // Mock data fallback
-        const newLocation: Location = {
-          ...location,
-          id: `loc-${Math.random().toString(36).substr(2, 9)}`
-        };
-        setLocations(prev => [newLocation, ...prev]);
-      }
+      const createdLocation = await createLocation(location);
+      setLocations(prev => [createdLocation, ...prev]);
     } catch (error) {
       console.error('Error adding location:', error);
       alert('Failed to add location. Please try again.');
@@ -634,12 +600,8 @@ const App: React.FC = () => {
 
   const handleUpdateLocation = async (updated: Location) => {
     try {
-      if (useBackend) {
-        const updatedLocation = await updateLocation(updated);
-        setLocations(prev => prev.map(l => l.id === updatedLocation.id ? updatedLocation : l));
-      } else {
-        setLocations(prev => prev.map(l => l.id === updated.id ? updated : l));
-      }
+      const updatedLocation = await updateLocation(updated);
+      setLocations(prev => prev.map(l => l.id === updatedLocation.id ? updatedLocation : l));
     } catch (error) {
       console.error('Error updating location:', error);
       alert('Failed to update location. Please try again.');
@@ -663,9 +625,7 @@ const App: React.FC = () => {
     }
 
     try {
-      if (useBackend) {
-        await deleteLocation(id);
-      }
+      await deleteLocation(id);
       // Only update state after successful deletion
       setLocations(prev => prev.filter(l => l.id !== id));
     } catch (error) {
@@ -675,6 +635,24 @@ const App: React.FC = () => {
       throw error;
     }
   };
+
+  // Load fresh location data when navigating to locations view
+  const loadFreshLocationData = async () => {
+    try {
+      const freshLocations = await getLocations();
+      setLocations(freshLocations);
+    } catch (error) {
+      console.error('Error loading fresh location data:', error);
+      alert('Failed to load latest location data. Please try again.');
+    }
+  };
+
+  // Refresh location data when navigating to locations view
+  useEffect(() => {
+    if (currentView === View.LOCATIONS && useBackend) {
+      loadFreshLocationData();
+    }
+  }, [currentView, useBackend]);
 
   // Employee handlers
   const handleAddEmployee = async (employee: Omit<Employee, 'id'>) => {

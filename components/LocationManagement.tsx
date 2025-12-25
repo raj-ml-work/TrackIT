@@ -129,15 +129,7 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="grid grid-cols-12 text-xs text-gray-400 px-2">
-            <span className="col-span-4">Location Name</span>
-            <span className="col-span-3">City</span>
-            <span className="col-span-3">Comments</span>
-            <span className="col-span-1">Usage</span>
-            <span className="col-span-1"></span>
-          </div>
-
+        <div className="space-y-4">
           <AnimatePresence>
             {filteredLocations.length === 0 && (
               <motion.div
@@ -150,61 +142,57 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
               </motion.div>
             )}
 
-            {filteredLocations.map((location, index) => (
-              <motion.div
-                key={location.id}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ delay: index * 0.05 }}
-                whileHover={{ scale: 1.01 }}
-                className="grid grid-cols-12 items-center px-3 py-3 rounded-xl hover:bg-white/60 transition-all border border-transparent hover:border-gray-100 hover:shadow-sm"
-              >
-                <div className="col-span-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center text-gray-700">
-                      <MapPin size={18} />
+            <div className="flex flex-wrap gap-3">
+              {filteredLocations.map((location, index) => (
+                <motion.div
+                  key={location.id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ scale: 1.05 }}
+                  className="relative"
+                >
+                  <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-all">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center text-gray-700">
+                      <MapPin size={14} />
                     </div>
-                    <div>
-                      <p className="font-semibold text-gray-800 leading-tight">{location.name}</p>
-                    </div>
+                    <span className="font-medium text-gray-800">{location.name}</span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{location.city}</span>
+                    {location.comments && (
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full truncate max-w-[100px]">
+                        {location.comments}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-600 font-semibold bg-gray-100 px-2 py-1 rounded-full">
+                      {locationUsage[location.id] || 0}
+                    </span>
                   </div>
-                </div>
-                <div className="col-span-3">
-                  <p className="text-sm text-gray-700">{location.city}</p>
-                </div>
-                <div className="col-span-3">
-                  <p className="text-sm text-gray-600 truncate">{location.comments || '—'}</p>
-                </div>
-                <div className="col-span-1">
-                  <div className="text-xs text-gray-600 font-semibold">
-                    {locationUsage[location.id] || 0}
-                  </div>
-                </div>
-                <div className="col-span-1 flex items-center gap-2 justify-end">
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => openEdit(location)}
-                    className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                    title="Edit"
-                  >
-                    <Pencil size={16} />
-                  </motion.button>
-                  {canDelete && (
+                  <div className="absolute -top-2 -right-2 flex gap-1">
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => handleDelete(location)}
-                      className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
-                      title="Delete"
+                      onClick={() => openEdit(location)}
+                      className="p-1 bg-blue-50 text-blue-600 rounded-full transition-colors"
+                      title="Edit"
                     >
-                      <Trash2 size={16} />
+                      <Pencil size={14} />
                     </motion.button>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+                    {canDelete && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleDelete(location)}
+                        className="p-1 bg-red-50 text-red-600 rounded-full transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </motion.button>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           </AnimatePresence>
         </div>
       </GlassCard>
