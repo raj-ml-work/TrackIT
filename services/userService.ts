@@ -7,7 +7,7 @@
 import { UserAccount, UserRole, UserStatus } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 import { hashPassword } from './passwordUtil';
-import { canManageUsers, getPermissionError } from './permissionUtil';
+import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'users';
 
@@ -88,7 +88,7 @@ export const getUserByEmail = async (email: string): Promise<UserAccount | null>
 export const createUser = async (user: Omit<UserAccount, 'id' | 'lastLogin'>, password: string, currentUser: UserAccount | null = null): Promise<UserAccount> => {
   try {
     // Check permission - only admins can create users
-    if (!canManageUsers(currentUser)) {
+    if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('manageUsers', currentUser?.role || null));
     }
 
@@ -128,7 +128,7 @@ export const createUser = async (user: Omit<UserAccount, 'id' | 'lastLogin'>, pa
 export const updateUser = async (user: UserAccount, requestingUser: UserAccount | null = null): Promise<UserAccount> => {
   try {
     // Check permission - only admins can update users
-    if (!canManageUsers(requestingUser)) {
+    if (!isAdmin(requestingUser)) {
       throw new Error(getPermissionError('manageUsers', requestingUser?.role || null));
     }
 
@@ -206,7 +206,7 @@ export const resetUserPassword = async (
 ): Promise<string> => {
   try {
     // Check permission - only admins can reset passwords
-    if (!canManageUsers(requestingUser)) {
+    if (!isAdmin(requestingUser)) {
       throw new Error(getPermissionError('manageUsers', requestingUser?.role || null));
     }
 
@@ -277,7 +277,7 @@ const generateSecurePassword = (): string => {
 export const deleteUser = async (id: string, requestingUser: UserAccount | null = null): Promise<void> => {
   try {
     // Check permission - only admins can delete users
-    if (!canManageUsers(requestingUser)) {
+    if (!isAdmin(requestingUser)) {
       throw new Error(getPermissionError('manageUsers', requestingUser?.role || null));
     }
 

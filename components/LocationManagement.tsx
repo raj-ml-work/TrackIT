@@ -124,6 +124,8 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
       onConfirm: async () => {
         try {
           await onDelete(location.id);
+          // Close the dialog after successful deletion
+          setDialogState(prev => ({ ...prev, isOpen: false }));
         } catch (error) {
           // Error is already handled in the handler
           console.error('Error deleting location:', error);

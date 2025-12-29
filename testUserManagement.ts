@@ -1,11 +1,11 @@
 import { UserRole, UserStatus, UserAccount } from './types';
-import { canView, canCreateOrUpdate, canDelete, canManageUsers } from './services/permissionUtil';
+import { canView, canCreate, canUpdate, canDelete, canManageUsers } from './services/permissionUtil';
 
 // Test cases for user management permissions
 const testCases = [
   {
-    name: "Normal User - View Only",
-    user: { id: '1', name: 'Normal User', email: 'normal@example.com', role: UserRole.NORMAL_USER, status: UserStatus.ACTIVE, lastLogin: '' },
+    name: "User - View Only",
+    user: { id: '1', name: 'User', email: 'user@example.com', role: UserRole.USER, status: UserStatus.ACTIVE, lastLogin: '' },
     expected: {
       canView: true,
       canCreate: false,
@@ -15,19 +15,8 @@ const testCases = [
     }
   },
   {
-    name: "Power User - Create and Update",
-    user: { id: '2', name: 'Power User', email: 'power@example.com', role: UserRole.POWER_USER, status: UserStatus.ACTIVE, lastLogin: '' },
-    expected: {
-      canView: true,
-      canCreate: true,
-      canUpdate: true,
-      canDelete: false,
-      canManageUsers: false
-    }
-  },
-  {
     name: "Admin - Full Access",
-    user: { id: '3', name: 'Admin', email: 'admin@example.com', role: UserRole.ADMIN, status: UserStatus.ACTIVE, lastLogin: '' },
+    user: { id: '2', name: 'Admin', email: 'admin@example.com', role: UserRole.ADMIN, status: UserStatus.ACTIVE, lastLogin: '' },
     expected: {
       canView: true,
       canCreate: true,
@@ -38,7 +27,7 @@ const testCases = [
   },
   {
     name: "Inactive User - No Access",
-    user: { id: '4', name: 'Inactive Admin', email: 'inactive@example.com', role: UserRole.ADMIN, status: UserStatus.INACTIVE, lastLogin: '' },
+    user: { id: '3', name: 'Inactive Admin', email: 'inactive@example.com', role: UserRole.ADMIN, status: UserStatus.INACTIVE, lastLogin: '' },
     expected: {
       canView: true, // Inactive users can still view (they're just not active)
       canCreate: false,
@@ -68,8 +57,8 @@ testCases.forEach(testCase => {
   console.log(`User: ${testCase.user ? `${testCase.user.role} (${testCase.user.status})` : 'null'}`);
   
   const canViewResult = canView(testCase.user);
-  const canCreateResult = canCreateOrUpdate(testCase.user);
-  const canUpdateResult = canCreateOrUpdate(testCase.user);
+  const canCreateResult = canCreate(testCase.user);
+  const canUpdateResult = canUpdate(testCase.user);
   const canDeleteResult = canDelete(testCase.user);
   const canManageUsersResult = canManageUsers(testCase.user);
   

@@ -6,7 +6,7 @@
 
 import { Asset, AssetComment, AssetCommentType, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
-import { canCreateOrUpdate, canDelete, getPermissionError } from './permissionUtil';
+import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'assets';
 const COMMENTS_TABLE_NAME = 'asset_comments';
@@ -61,8 +61,8 @@ export const getAssetById = async (id: string): Promise<Asset | null> => {
  */
 export const createAsset = async (asset: Omit<Asset, 'id'>, currentUser: UserAccount | null = null): Promise<Asset> => {
   try {
-    // Check permission
-    if (!canCreateOrUpdate(currentUser)) {
+    // Check permission - only admins can create assets
+    if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('create', currentUser?.role || null));
     }
 
@@ -91,8 +91,8 @@ export const createAsset = async (asset: Omit<Asset, 'id'>, currentUser: UserAcc
  */
 export const updateAsset = async (asset: Asset, currentUser: UserAccount | null = null): Promise<Asset> => {
   try {
-    // Check permission
-    if (!canCreateOrUpdate(currentUser)) {
+    // Check permission - only admins can update assets
+    if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('update', currentUser?.role || null));
     }
 
@@ -212,8 +212,8 @@ const getAssetChanges = (oldAsset: Asset, newAsset: Asset): string[] => {
  */
 export const deleteAsset = async (id: string, currentUser: UserAccount | null = null): Promise<void> => {
   try {
-    // Check permission
-    if (!canDelete(currentUser)) {
+    // Check permission - only admins can delete assets
+    if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('delete', currentUser?.role || null));
     }
 

@@ -13,6 +13,7 @@ import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users
 import { motion, AnimatePresence } from 'framer-motion';
 import * as authClient from './services/authClient';
 import ConfirmDialog, { DialogType } from './components/ConfirmDialog';
+import { canCreate, canUpdate, canDelete, canView, getPermissionError, isAdmin } from './services/permissionUtil';
 import {
   isDatabaseReady,
   getAssets, getAssetById, createAsset, updateAsset, deleteAsset, addAssetComment, getAssetComments,
@@ -159,7 +160,7 @@ const MOCK_USERS: UserAccount[] = [
     id: 'u-1002',
     name: 'Liam Chen',
     email: 'liam@auralis.inc',
-    role: UserRole.NORMAL_USER,
+    role: UserRole.USER,
     status: UserStatus.ACTIVE,
     lastLogin: '1d ago'
   },
@@ -167,7 +168,7 @@ const MOCK_USERS: UserAccount[] = [
     id: 'u-1003',
     name: 'Priya Patel',
     email: 'priya@auralis.inc',
-    role: UserRole.NORMAL_USER,
+    role: UserRole.USER,
     status: UserStatus.INACTIVE,
     lastLogin: '7d ago'
   }
@@ -266,9 +267,6 @@ const App: React.FC = () => {
     onConfirm: undefined
   });
 
-  const isAdmin = session?.user.role === UserRole.ADMIN;
-  const isPowerUser = session?.user.role === UserRole.POWER_USER;
-  const isNormalUser = session?.user.role === UserRole.NORMAL_USER;
 
   const showDialog = (type: DialogType, title: string, message: string, onConfirm?: () => void) => {
     setDialogState({
@@ -355,10 +353,10 @@ const App: React.FC = () => {
 
   // Redirect non-admins away from restricted views
   useEffect(() => {
-    if (session && !isAdmin && (currentView === View.USERS || currentView === View.SETTINGS)) {
+    if (session && !isAdmin(session?.user || null) && (currentView === View.USERS || currentView === View.SETTINGS)) {
       setCurrentView(View.DASHBOARD);
     }
-  }, [isAdmin, currentView, session]);
+  }, [isAdmin(session?.user || null), currentView, session]);
 
   // Auth handlers
   const handleLogin = async (credentials: LoginCredentials) => {
@@ -532,8 +530,8 @@ const App: React.FC = () => {
   };
 
   const handleDeleteAsset = async (id: string) => {
-    if (!isAdmin) {
-      showDialog(DialogType.WARNING, 'Permission Denied', 'Only administrators can delete assets.');
+    if (!canDelete(session?.user || null)) {
+      showDialog(DialogType.WARNING, 'Permission Denied', getPermissionError('delete', session?.user?.role || null));
       return;
     }
 
@@ -693,8 +691,8 @@ const App: React.FC = () => {
   };
 
   const handleDeleteLocation = async (id: string) => {
-    if (!isAdmin) {
-      showDialog(DialogType.WARNING, 'Permission Denied', 'Only administrators can delete locations.');
+    if (!canDelete(session?.user || null)) {
+      showDialog(DialogType.WARNING, 'Permission Denied', getPermissionError('delete', session?.user?.role || null));
       return;
     }
 
@@ -708,7 +706,9 @@ const App: React.FC = () => {
     }
 
     try {
-      await deleteLocation(id);
+      if (useBackend) {
+        await deleteLocation(id, session?.user || null);
+      }
       // Only update state after successful deletion
       setLocations(prev => prev.filter(l => l.id !== id));
     } catch (error) {
@@ -774,8 +774,8 @@ const App: React.FC = () => {
   };
 
   const handleDeleteEmployee = async (id: string) => {
-   if (!isAdmin) {
-     showDialog(DialogType.WARNING, 'Permission Denied', 'Only administrators can delete employees.');
+   if (!canDelete(session?.user || null)) {
+     showDialog(DialogType.WARNING, 'Permission Denied', getPermissionError('delete', session?.user?.role || null));
      return;
    }
 
@@ -825,8 +825,8 @@ const App: React.FC = () => {
   };
 
   const handleDeleteDepartment = async (id: string) => {
-   if (!isAdmin) {
-     showDialog(DialogType.WARNING, 'Permission Denied', 'Only administrators can delete departments.');
+   if (!canDelete(session?.user || null)) {
+     showDialog(DialogType.WARNING, 'Permission Denied', getPermissionError('delete', session?.user?.role || null));
      return;
    }
 
@@ -948,8 +948,8 @@ const App: React.FC = () => {
           <NavItem view={View.EMPLOYEES} icon={Briefcase} />
           <NavItem view={View.DEPARTMENTS} icon={Building2} />
           <NavItem view={View.LOCATIONS} icon={MapPin} />
-          {isAdmin && <NavItem view={View.USERS} icon={Users} />}
-          {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
+          {isAdmin(session?.user || null) && <NavItem view={View.USERS} icon={Users} />}
+          {isAdmin(session?.user || null) && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
         </nav>
 
         <div className="mt-auto px-6 py-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
@@ -984,8 +984,8 @@ const App: React.FC = () => {
               <NavItem view={View.EMPLOYEES} icon={Briefcase} />
               <NavItem view={View.DEPARTMENTS} icon={Building2} />
               <NavItem view={View.LOCATIONS} icon={MapPin} />
-              {isAdmin && <NavItem view={View.USERS} icon={Users} />}
-              {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
+              {canDelete(session?.user || null) && <NavItem view={View.USERS} icon={Users} />}
+              {canDelete(session?.user || null) && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
             </nav>
           </motion.div>
         )}
@@ -1028,9 +1028,9 @@ const App: React.FC = () => {
                   onUpdate={handleUpdateAsset}
                   onDelete={handleDeleteAsset}
                   onAddComment={handleAddComment}
-                  canCreate={!isNormalUser}
-                  canUpdate={!isNormalUser}
-                  canDelete={isAdmin}
+                  canCreate={canCreate(session?.user || null)}
+                  canUpdate={canUpdate(session?.user || null)}
+                  canDelete={canDelete(session?.user || null)}
                 />
               )}
               {currentView === View.EMPLOYEES && (
@@ -1042,9 +1042,9 @@ const App: React.FC = () => {
                   onAdd={handleAddEmployee}
                   onUpdate={handleUpdateEmployee}
                   onDelete={handleDeleteEmployee}
-                  canCreate={!isNormalUser}
-                  canUpdate={!isNormalUser}
-                  canDelete={isAdmin}
+                  canCreate={canCreate(session?.user || null)}
+                  canUpdate={canUpdate(session?.user || null)}
+                  canDelete={canDelete(session?.user || null)}
                 />
               )}
               {currentView === View.LOCATIONS && (
@@ -1054,9 +1054,9 @@ const App: React.FC = () => {
                   onAdd={handleAddLocation}
                   onUpdate={handleUpdateLocation}
                   onDelete={handleDeleteLocation}
-                  canCreate={!isNormalUser}
-                  canUpdate={!isNormalUser}
-                  canDelete={isAdmin}
+                  canCreate={canCreate(session?.user || null)}
+                  canUpdate={canUpdate(session?.user || null)}
+                  canDelete={canDelete(session?.user || null)}
                 />
               )}
               {currentView === View.DEPARTMENTS && (
@@ -1065,13 +1065,13 @@ const App: React.FC = () => {
                   onAdd={handleAddDepartment}
                   onUpdate={handleUpdateDepartment}
                   onDelete={handleDeleteDepartment}
-                  canCreate={!isNormalUser}
-                  canUpdate={!isNormalUser}
-                  canDelete={isAdmin}
+                  canCreate={canCreate(session?.user || null)}
+                  canUpdate={canUpdate(session?.user || null)}
+                  canDelete={canDelete(session?.user || null)}
                   currentUser={session?.user || null}
                 />
               )}
-              {currentView === View.USERS && isAdmin && (
+              {currentView === View.USERS && canDelete(session?.user || null) && (
                 <UserManagement
                   users={users}
                   onAdd={handleAddUser}
@@ -1080,7 +1080,7 @@ const App: React.FC = () => {
                   onResetPassword={handleResetUserPassword}
                 />
               )}
-              {currentView === View.SETTINGS && isAdmin && <Settings />}
+              {currentView === View.SETTINGS && canDelete(session?.user || null) && <Settings />}
             </motion.div>
           </AnimatePresence>
         </div>

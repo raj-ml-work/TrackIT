@@ -16,7 +16,7 @@ interface UserManagementProps {
 const initialForm: Omit<UserAccount, 'id' | 'lastLogin'> = {
   name: '',
   email: '',
-  role: UserRole.NORMAL_USER,
+  role: UserRole.USER,
   status: UserStatus.ACTIVE
 };
 
@@ -24,8 +24,6 @@ const roleBadge = (role: UserRole) => {
   const base = 'text-xs px-3 py-1 rounded-full font-semibold';
   if (role === UserRole.ADMIN) {
     return `${base} bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-sm`;
-  } else if (role === UserRole.POWER_USER) {
-    return `${base} bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-sm`;
   } else {
     return `${base} bg-gray-100 text-gray-700`;
   }
@@ -260,7 +258,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                 </div>
                 <div className="col-span-2">
                   <span className={roleBadge(user.role)}>
-                    {user.role === UserRole.ADMIN ? <ShieldCheck size={12} className="inline mr-1" /> : user.role === UserRole.POWER_USER ? <ShieldCheck size={12} className="inline mr-1" /> : <Shield size={12} className="inline mr-1" />}
+                    {user.role === UserRole.ADMIN ? <ShieldCheck size={12} className="inline mr-1" /> : <Shield size={12} className="inline mr-1" />}
                     {user.role}
                   </span>
                 </div>

@@ -4,9 +4,9 @@
  * Handles all database operations for Departments
  */
 
-import { Department, UserAccount } from '../types';
+import { Department, UserAccount, Employee } from '../types';
 import { getSupabaseClient } from './supabaseClient';
-import { canCreateOrUpdate, canDelete, getPermissionError } from './permissionUtil';
+import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'departments';
 
@@ -81,8 +81,8 @@ export const getDepartmentByName = async (name: string): Promise<Department | nu
  */
 export const createDepartment = async (department: Omit<Department, 'id'>, currentUser: UserAccount | null = null): Promise<Department> => {
   try {
-    // Check permission
-    if (!canCreateOrUpdate(currentUser)) {
+    // Check permission - only admins can create departments
+    if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('create', currentUser?.role || null));
     }
 
@@ -111,8 +111,8 @@ export const createDepartment = async (department: Omit<Department, 'id'>, curre
  */
 export const updateDepartment = async (department: Department, currentUser: UserAccount | null = null): Promise<Department> => {
   try {
-    // Check permission
-    if (!canCreateOrUpdate(currentUser)) {
+    // Check permission - only admins can update departments
+    if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('update', currentUser?.role || null));
     }
 
@@ -142,12 +142,24 @@ export const updateDepartment = async (department: Department, currentUser: User
  */
 export const deleteDepartment = async (id: string, currentUser: UserAccount | null = null): Promise<void> => {
   try {
-    // Check permission
-    if (!canDelete(currentUser)) {
+    // Check permission - only admins can delete departments
+    if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('delete', currentUser?.role || null));
     }
 
+    // Check foreign key constraints - ensure no employees are assigned to this department
     const supabase = await getSupabaseClient();
+    const { data: employees, error: employeesError } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('department', id);
+
+    if (employeesError) throw employeesError;
+
+    if (employees && employees.length > 0) {
+      throw new Error(`Cannot delete department. It has ${employees.length} employee(s) assigned. Please reassign them first.`);
+    }
+
     const { error } = await supabase
       .from(TABLE_NAME)
       .delete()

@@ -13,19 +13,6 @@ export const isAdmin = (user: UserAccount | null): boolean => {
   return !!user && user.role === UserRole.ADMIN;
 };
 
-/**
- * Check if user has power user role
- */
-export const isPowerUser = (user: UserAccount | null): boolean => {
-  return !!user && user.role === UserRole.POWER_USER;
-};
-
-/**
- * Check if user has normal user role
- */
-export const isNormalUser = (user: UserAccount | null): boolean => {
-  return !!user && user.role === UserRole.NORMAL_USER;
-};
 
 /**
  * Check if user is active
@@ -35,10 +22,17 @@ export const isActiveUser = (user: UserAccount | null): boolean => {
 };
 
 /**
- * Check if user can create/update resources (Power User or Admin, and active)
+ * Check if user can create resources (Admin only, and active)
  */
-export const canCreateOrUpdate = (user: UserAccount | null): boolean => {
-  return isActiveUser(user) && (isAdmin(user) || isPowerUser(user));
+export const canCreate = (user: UserAccount | null): boolean => {
+  return isActiveUser(user) && isAdmin(user);
+};
+
+/**
+ * Check if user can update resources (Admin only, and active)
+ */
+export const canUpdate = (user: UserAccount | null): boolean => {
+  return isActiveUser(user) && isAdmin(user);
 };
 
 /**
@@ -46,6 +40,62 @@ export const canCreateOrUpdate = (user: UserAccount | null): boolean => {
  */
 export const canDelete = (user: UserAccount | null): boolean => {
   return isActiveUser(user) && isAdmin(user);
+};
+
+/**
+ * Check if user can manage departments (Admin only, and active)
+ */
+export const canManageDepartments = (user: UserAccount | null): boolean => {
+  return isActiveUser(user) && isAdmin(user);
+};
+
+/**
+ * Check if user can manage locations (Admin only, and active)
+ */
+export const canManageLocations = (user: UserAccount | null): boolean => {
+  return isActiveUser(user) && isAdmin(user);
+};
+
+/**
+ * Check if user can manage employees (Admin only, and active)
+ */
+export const canManageEmployees = (user: UserAccount | null): boolean => {
+  return isActiveUser(user) && isAdmin(user);
+};
+
+/**
+ * Check if user can manage assets (Admin only, and active)
+ */
+export const canManageAssets = (user: UserAccount | null): boolean => {
+  return isActiveUser(user) && isAdmin(user);
+};
+
+/**
+ * Check if user can perform any management operation
+ */
+export const canManage = (user: UserAccount | null): boolean => {
+  return canCreate(user) || canUpdate(user) || canDelete(user);
+};
+
+/**
+ * Get detailed permission status for a user
+ */
+export const getPermissionStatus = (user: UserAccount | null) => {
+  return {
+    isAuthenticated: !!user,
+    isActive: isActiveUser(user),
+    isAdmin: isAdmin(user),
+    canView: canView(user),
+    canCreate: canCreate(user),
+    canUpdate: canUpdate(user),
+    canDelete: canDelete(user),
+    canManageUsers: canManageUsers(user),
+    canManageDepartments: canManageDepartments(user),
+    canManageLocations: canManageLocations(user),
+    canManageEmployees: canManageEmployees(user),
+    canManageAssets: canManageAssets(user),
+    canManage: canManage(user)
+  };
 };
 
 /**
@@ -72,12 +122,21 @@ export const getPermissionError = (operation: string, userRole: UserRole | null)
   
   switch (operation) {
     case 'create':
+      return `Unauthorized: ${userRole} cannot create resources`;
     case 'update':
-      return `Unauthorized: ${userRole} cannot ${operation} resources`;
+      return `Unauthorized: ${userRole} cannot update resources`;
     case 'delete':
       return `Unauthorized: ${userRole} cannot delete resources`;
     case 'manageUsers':
       return `Unauthorized: ${userRole} cannot manage users`;
+    case 'manageDepartments':
+      return `Unauthorized: ${userRole} cannot manage departments`;
+    case 'manageLocations':
+      return `Unauthorized: ${userRole} cannot manage locations`;
+    case 'manageEmployees':
+      return `Unauthorized: ${userRole} cannot manage employees`;
+    case 'manageAssets':
+      return `Unauthorized: ${userRole} cannot manage assets`;
     default:
       return `Unauthorized: ${userRole} cannot perform ${operation}`;
   }

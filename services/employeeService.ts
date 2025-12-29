@@ -6,7 +6,7 @@
 
 import { Employee, EmployeeStatus, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
-import { canCreateOrUpdate, canDelete, getPermissionError } from './permissionUtil';
+import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'employees';
 
@@ -81,8 +81,8 @@ export const getEmployeeByEmployeeId = async (employeeId: string): Promise<Emplo
  */
 export const createEmployee = async (employee: Omit<Employee, 'id'>, currentUser: UserAccount | null = null): Promise<Employee> => {
   try {
-    // Check permission
-    if (!canCreateOrUpdate(currentUser)) {
+    // Check permission - only admins can create employees
+    if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('create', currentUser?.role || null));
     }
 
@@ -117,8 +117,8 @@ export const createEmployee = async (employee: Omit<Employee, 'id'>, currentUser
  */
 export const updateEmployee = async (employee: Employee, currentUser: UserAccount | null = null): Promise<Employee> => {
   try {
-    // Check permission
-    if (!canCreateOrUpdate(currentUser)) {
+    // Check permission - only admins can update employees
+    if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('update', currentUser?.role || null));
     }
 
@@ -168,8 +168,8 @@ export const updateEmployee = async (employee: Employee, currentUser: UserAccoun
  */
 export const deleteEmployee = async (id: string, currentUser: UserAccount | null = null): Promise<void> => {
   try {
-    // Check permission
-    if (!canDelete(currentUser)) {
+    // Check permission - only admins can delete employees
+    if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('delete', currentUser?.role || null));
     }
 

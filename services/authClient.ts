@@ -20,7 +20,7 @@ const DEFAULT_USERS = [
     name: 'Liam Chen',
     email: 'user@auralis.inc',
     password: 'user123',
-    role: UserRole.NORMAL_USER,
+    role: UserRole.USER,
     status: UserStatus.ACTIVE,
     lastLogin: 'Just now'
   }
