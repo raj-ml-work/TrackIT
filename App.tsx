@@ -1038,6 +1038,7 @@ const App: React.FC = () => {
                   canCreate={!isNormalUser}
                   canUpdate={!isNormalUser}
                   canDelete={isAdmin}
+                  currentUser={session?.user || null}
                 />
               )}
               {currentView === View.USERS && isAdmin && (

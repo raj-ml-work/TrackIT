@@ -4,18 +4,23 @@ import { Building2, Loader } from 'lucide-react';
 import ConfirmDialog, { DialogType } from '../../components/ConfirmDialog';
 import DepartmentManagement from '../../components/DepartmentManagement';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '../../services/departmentService';
-import { Department } from '../../types';
+import { Department, UserAccount } from '../../types';
 import * as authClient from '../../services/authClient';
 
 interface DepartmentManagementPageProps {
+  departments: Department[];
+  onAdd: (department: Omit<Department, 'id'>) => Promise<void>;
+  onUpdate: (department: Department) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   canCreate?: boolean;
   canUpdate?: boolean;
   canDelete?: boolean;
+  currentUser?: UserAccount | null;
 }
 
-const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ canCreate = true, canUpdate = true, canDelete = true }) => {
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(true);
+const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ departments: initialDepartments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, currentUser = null }) => {
+  const [departments, setDepartments] = useState<Department[]>(initialDepartments);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
@@ -52,14 +57,15 @@ const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ can
   };
 
   useEffect(() => {
-    fetchDepartments();
-  }, []);
+    if (initialDepartments.length === 0) {
+      fetchDepartments();
+    }
+  }, [initialDepartments]);
 
   const handleAdd = async (department: Omit<Department, 'id'>) => {
     try {
-      // Get current user from session
-      const session = await authClient.restoreSession();
-      await createDepartment(department, session?.user || null);
+      // Use the currentUser prop instead of restoring session
+      await createDepartment(department, currentUser);
       await fetchDepartments();
     } catch (err) {
       console.error('Error creating department:', err);
@@ -76,9 +82,8 @@ const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ can
 
   const handleUpdate = async (department: Department) => {
     try {
-      // Get current user from session
-      const session = await authClient.restoreSession();
-      await updateDepartment(department, session?.user || null);
+      // Use the currentUser prop instead of restoring session
+      await updateDepartment(department, currentUser);
       await fetchDepartments();
     } catch (err) {
       console.error('Error updating department:', err);
