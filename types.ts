@@ -122,13 +122,6 @@ export interface Location {
   comments?: string;
 }
 
-export interface Client {
-  id: string;
-  name: string;
-  code?: string;
-  status: 'Active' | 'Inactive';
-}
-
 export interface Department {
   id: string;
   name: string;

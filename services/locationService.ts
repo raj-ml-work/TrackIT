@@ -1,11 +1,12 @@
 /**
  * Location Service
- * 
+ *
  * Handles all database operations for Locations
  */
 
-import { Location } from '../types';
+import { Location, UserAccount, Asset, Employee } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'locations';
 
@@ -75,9 +76,16 @@ export const getLocationByName = async (name: string): Promise<Location | null> 
 
 /**
  * Create a new location
+ * @param location Location data to create
+ * @param currentUser Current authenticated user for permission check
  */
-export const createLocation = async (location: Omit<Location, 'id'>): Promise<Location> => {
+export const createLocation = async (location: Omit<Location, 'id'>, currentUser: UserAccount | null = null): Promise<Location> => {
   try {
+    // Check permission - only admins can create locations
+    if (!isAdmin(currentUser)) {
+      throw new Error(getPermissionError('create', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const locationData = transformLocationToDB(location);
     
@@ -98,9 +106,16 @@ export const createLocation = async (location: Omit<Location, 'id'>): Promise<Lo
 
 /**
  * Update an existing location
+ * @param location Location data to update
+ * @param currentUser Current authenticated user for permission check
  */
-export const updateLocation = async (location: Location): Promise<Location> => {
+export const updateLocation = async (location: Location, currentUser: UserAccount | null = null): Promise<Location> => {
   try {
+    // Check permission - only admins can update locations
+    if (!isAdmin(currentUser)) {
+      throw new Error(getPermissionError('update', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const locationData = transformLocationToDB(location);
     
@@ -122,10 +137,40 @@ export const updateLocation = async (location: Location): Promise<Location> => {
 
 /**
  * Delete a location
+ * @param id Location ID to delete
+ * @param currentUser Current authenticated user for permission check
  */
-export const deleteLocation = async (id: string): Promise<void> => {
+export const deleteLocation = async (id: string, currentUser: UserAccount | null = null): Promise<void> => {
   try {
+    // Check permission - only admins can delete locations
+    if (!isAdmin(currentUser)) {
+      throw new Error(getPermissionError('delete', currentUser?.role || null));
+    }
+
+    // Check foreign key constraints - ensure no assets or employees are assigned to this location
     const supabase = await getSupabaseClient();
+
+    // Check for assets assigned to this location
+    const { data: assets, error: assetsError } = await supabase
+      .from('assets')
+      .select('id')
+      .eq('location_id', id);
+
+    if (assetsError) throw assetsError;
+
+    // Check for employees assigned to this location
+    const { data: employees, error: employeesError } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('location_id', id);
+
+    if (employeesError) throw employeesError;
+
+    const totalDependencies = (assets?.length || 0) + (employees?.length || 0);
+    if (totalDependencies > 0) {
+      throw new Error(`Cannot delete location. It has ${assets?.length || 0} asset(s) and ${employees?.length || 0} employee(s) assigned. Please reassign them first.`);
+    }
+
     const { error } = await supabase
       .from(TABLE_NAME)
       .delete()

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
+import ConfirmDialog, { DialogType } from './ConfirmDialog';
 import { Location, Asset } from '../types';
 import { MapPin, Plus, X, Trash2, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +11,8 @@ interface LocationManagementProps {
   onAdd: (location: Omit<Location, 'id'>) => Promise<void>;
   onUpdate: (location: Location) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  canCreate?: boolean;
+  canUpdate?: boolean;
   canDelete?: boolean;
 }
 
@@ -19,32 +22,24 @@ const initialForm: Omit<Location, 'id'> = {
   comments: ''
 };
 
-// Color palette for tags
-const tagColors = [
-  'bg-blue-100 text-blue-700 border-blue-200',
-  'bg-green-100 text-green-700 border-green-200',
-  'bg-purple-100 text-purple-700 border-purple-200',
-  'bg-orange-100 text-orange-700 border-orange-200',
-  'bg-pink-100 text-pink-700 border-pink-200',
-  'bg-indigo-100 text-indigo-700 border-indigo-200',
-  'bg-teal-100 text-teal-700 border-teal-200',
-  'bg-amber-100 text-amber-700 border-amber-200',
-  'bg-rose-100 text-rose-700 border-rose-200',
-  'bg-cyan-100 text-cyan-700 border-cyan-200',
-];
-
-const LocationManagement: React.FC<LocationManagementProps> = ({ 
-  locations, 
-  assets, 
-  onAdd, 
-  onDelete, 
-  canDelete = true 
-}) => {
+const LocationManagement: React.FC<LocationManagementProps> = ({ locations, assets, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true }) => {
+  const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<Omit<Location, 'id'>>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formErrors, setFormErrors] = useState<{ name?: string; city?: string }>({});
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    type: DialogType;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    type: DialogType.CONFIRM,
+    title: '',
+    message: '',
+    onConfirm: undefined
+  });
 
   // Compute usage counts
   const locationUsage = useMemo(() => {
@@ -119,38 +114,47 @@ const LocationManagement: React.FC<LocationManagementProps> = ({
   const handleDelete = async (location: Location) => {
     const usageCount = locationUsage[location.id] || 0;
     
-    if (usageCount > 0) {
-      alert(`Cannot delete "${location.name}". It is being used by ${usageCount} asset(s). Please reassign or remove assets first.`);
+    if (usage > 0) {
+      setDialogState({
+        isOpen: true,
+        type: DialogType.ERROR,
+        title: 'Cannot Delete Location',
+        message: `Cannot delete ${location.name}. It has ${usage} asset(s) assigned. Please reassign them first.`,
+        onConfirm: undefined
+      });
       return;
     }
-
-    if (confirm(`Are you sure you want to delete "${location.name}"?`)) {
-      setDeletingId(location.id);
-      try {
-        await onDelete(location.id);
-      } catch (error) {
-        // Error is already handled in the handler
-        console.error('Error deleting location:', error);
-      } finally {
-        setDeletingId(null);
+  
+    setDialogState({
+      isOpen: true,
+      type: DialogType.CONFIRM,
+      title: 'Delete Location',
+      message: `Are you sure you want to delete "${location.name}"? This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await onDelete(location.id);
+          // Close the dialog after successful deletion
+          setDialogState(prev => ({ ...prev, isOpen: false }));
+        } catch (error) {
+          // Error is already handled in the handler
+          console.error('Error deleting location:', error);
+        }
       }
-    }
+    });
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">Office Locations</h3>
-          <p className="text-sm text-gray-600">Manage locations as tags. Click to delete unused locations.</p>
-        </div>
-        <button
-          onClick={openNew}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 transition-all duration-300"
-        >
-          <Plus size={18} />
-          Add Location
-        </button>
+      <div className="flex justify-end">
+        {canCreate && (
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+          >
+            <Plus size={18} />
+            Add Location
+          </button>
+        )}
       </div>
 
       <GlassCard>
@@ -160,57 +164,76 @@ const LocationManagement: React.FC<LocationManagementProps> = ({
             <p className="text-gray-600 font-medium mb-2">No locations yet</p>
             <p className="text-sm text-gray-500">Add your first location to get started</p>
           </div>
-        ) : (
-          <div className="flex flex-wrap gap-3">
-            <AnimatePresence>
-              {locations.map((location, index) => {
-                const usageCount = locationUsage[location.id] || 0;
-                const isDeleting = deletingId === location.id;
-                const canDeleteLocation = canDelete && usageCount === 0;
-                
-                return (
-                  <motion.div
-                    key={location.id}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    className={`relative group inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
-                      getTagColor(index)
-                    } ${canDeleteLocation ? 'cursor-pointer hover:shadow-md' : 'cursor-default'}`}
-                    onClick={() => canDeleteLocation && !isDeleting && handleDelete(location)}
-                    title={
-                      usageCount > 0 
-                        ? `Used by ${usageCount} asset(s) - cannot delete`
-                        : canDelete 
-                          ? 'Click to delete'
-                          : 'No permission to delete'
-                    }
-                  >
-                    <MapPin size={16} />
-                    <span className="font-medium">
-                      {location.name}
-                      {location.city && `, ${location.city}`}
-                    </span>
-                    {usageCount > 0 && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-white/50 font-semibold">
-                        {usageCount}
+        </div>
+
+        <div className="space-y-4">
+          <AnimatePresence>
+            {filteredLocations.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-8 text-center border border-dashed border-gray-200 rounded-2xl bg-gray-50/60"
+              >
+                <p className="text-gray-700 font-semibold mb-1">No locations yet</p>
+                <p className="text-gray-500 text-sm">Add your first location to standardize asset locations.</p>
+              </motion.div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              {filteredLocations.map((location, index) => (
+                <motion.div
+                  key={location.id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ scale: 1.05 }}
+                  className="relative"
+                >
+                  <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-all">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center text-gray-700">
+                      <MapPin size={14} />
+                    </div>
+                    <span className="font-medium text-gray-800">{location.name}</span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{location.city}</span>
+                    {location.comments && (
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full truncate max-w-[100px]">
+                        {location.comments}
                       </span>
                     )}
-                    {canDeleteLocation && !isDeleting && (
-                      <X 
-                        size={14} 
-                        className="opacity-60 group-hover:opacity-100 transition-opacity"
-                      />
+                    <span className="text-xs text-gray-600 font-semibold bg-gray-100 px-2 py-1 rounded-full">
+                      {locationUsage[location.id] || 0}
+                    </span>
+                  </div>
+                  <div className="absolute -top-2 -right-2 flex gap-1">
+                    {canUpdate && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => openEdit(location)}
+                        className="p-1 bg-blue-50 text-blue-600 rounded-full transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </motion.button>
                     )}
-                    {isDeleting && (
-                      <Loader size={14} className="animate-spin" />
+                    {canDelete && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleDelete(location)}
+                        className="p-1 bg-red-50 text-red-600 rounded-full transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </motion.button>
                     )}
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
-        )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </AnimatePresence>
+        </div>
       </GlassCard>
 
       {/* Add Location Modal */}
@@ -332,8 +355,18 @@ const LocationManagement: React.FC<LocationManagementProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
-  );
+      
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        onClose={() => setDialogState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={dialogState.onConfirm}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+      />
+   </div>
+ );
 };
 
 export default LocationManagement;

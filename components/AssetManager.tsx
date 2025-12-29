@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType, Location, Employee, EmployeeStatus } from '../types';
 import GlassCard from './GlassCard';
-import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, DollarSign, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, Eye } from 'lucide-react';
+import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, IndianRupee, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AssetManagerProps {
@@ -12,6 +12,8 @@ interface AssetManagerProps {
   onUpdate: (asset: Asset) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onAddComment: (assetId: string, message: string) => Promise<void>;
+  canCreate?: boolean;
+  canUpdate?: boolean;
   canDelete?: boolean;
 }
 
@@ -50,7 +52,7 @@ const getIcon = (type: AssetType) => {
   }
 };
 
-const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], locations, onAdd, onUpdate, onDelete, onAddComment, canDelete = true }) => {
+const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], locations, onAdd, onUpdate, onDelete, onAddComment, canCreate = true, canUpdate = true, canDelete = true }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<AssetType | 'All'>('All');
   
@@ -71,8 +73,11 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     cost?: string;
   }>({});
 
-  // Details Drawer State
+  // Details Drawer State (for backward compatibility, but we'll use modal)
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  
+  // Modal-based view state (new approach)
+  const [viewingAsset, setViewingAsset] = useState<Asset | null>(null);
   
   // Comment State
   const [commentText, setCommentText] = useState('');
@@ -414,24 +419,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       {/* Financials */}
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Cost ($) *</label>
-          <input 
-            type="number" 
-            min="0" 
-            step="0.01"
-            className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-              formErrors.cost ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
-            }`}
-            value={formData.cost || ''} 
-            onChange={e => {
-              const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-              setFormData({...formData, cost: isNaN(value) ? 0 : value});
-              if (formErrors.cost) setFormErrors(prev => ({ ...prev, cost: undefined }));
-            }} 
-          />
-          {formErrors.cost && (
-            <p className="mt-1 text-xs text-red-600">{formErrors.cost}</p>
-          )}
+          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Cost (₹)</label>
+          <input type="number" min="0" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+            value={formData.cost} onChange={e => setFormData({...formData, cost: parseFloat(e.target.value)})} />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Purchase Date *</label>
@@ -596,15 +586,17 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <button 
-          onClick={() => { setCurrentStep(1); setIsModalOpen(true); }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 transition-all duration-300"
-        >
-          <Plus size={18} />
-          Add Asset
-        </button>
-      </div>
+      {canCreate && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => { setCurrentStep(1); setIsModalOpen(true); }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+          >
+            <Plus size={18} />
+            Add Asset
+          </button>
+        </div>
+      )}
 
       <GlassCard>
         <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
@@ -637,7 +629,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
             <span className="col-span-2">Location</span>
             <span className="col-span-2">Status</span>
             <span className="col-span-2">Assigned To</span>
-            <span className="col-span-2"></span>
+            <span className="col-span-2 text-right">Actions</span>
           </div>
 
           <AnimatePresence>
@@ -706,32 +698,31 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => setSelectedAsset(asset)}
+                    onClick={() => setViewingAsset(asset)}
                     className="p-2 hover:bg-green-50 text-green-600 rounded-lg transition-colors"
                     title="View Details"
                   >
                     <Eye size={16} />
                   </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => openEdit(asset)} 
-                    className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                    title="Edit"
-                  >
-                    <Edit2 size={16} />
-                  </motion.button>
+                  {canUpdate && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openEdit(asset); }}
+                      className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                  )}
                   {canDelete && (
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={async () => { 
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
                         try {
                           await onDelete(asset.id);
                         } catch (error) {
                           console.error('Error deleting asset:', error);
                         }
-                      }} 
+                      }}
                       className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
                       title="Delete"
                     >
@@ -745,7 +736,200 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         </div>
       </GlassCard>
 
-      {/* Asset Details Modal */}
+      {/* Asset Detail Modal (New Modal-based Approach) */}
+      <AnimatePresence>
+        {viewingAsset && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setViewingAsset(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl relative max-h-[90vh] overflow-y-auto"
+            >
+              <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-600" onClick={() => setViewingAsset(null)}>
+                <X size={18} />
+              </button>
+
+              {/* Asset Header */}
+              <div className="mb-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-4 bg-gray-100 rounded-2xl text-gray-700">
+                    {getIcon(viewingAsset.type)}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold text-gray-900">{viewingAsset.name}</h3>
+                    <p className="text-sm font-mono text-gray-600">Serial: {viewingAsset.serialNumber}</p>
+                  </div>
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                    viewingAsset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-800' :
+                    viewingAsset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-800' :
+                    viewingAsset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {viewingAsset.status}
+                  </span>
+                </div>
+
+              {/* Asset Details Grid */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-xl">
+                <div className="flex items-start gap-2">
+                  <MapPin size={16} className="text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase">Location</p>
+                    <p className="text-sm text-gray-800">{viewingAsset.location}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <User size={16} className="text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase">Assigned To</p>
+                    <p className="text-sm text-gray-800">{viewingAsset.assignedTo || 'Unassigned'}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <IndianRupee size={16} className="text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase">Cost</p>
+                    <p className="text-sm text-gray-800">₹{viewingAsset.cost.toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Calendar size={16} className="text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase">Purchased</p>
+                    <p className="text-sm text-gray-800">{viewingAsset.purchaseDate}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+              {/* Specs Section */}
+              {viewingAsset.specs && (
+                <div className="border-t pt-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Cpu size={20} className="text-gray-600" />
+                    <h4 className="text-lg font-bold text-gray-900">Hardware Specs</h4>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-xl">
+                    {viewingAsset.specs.brand && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-gray-500 uppercase">Brand</span>
+                        <p className="text-sm text-gray-800">{viewingAsset.specs.brand}</p>
+                      </div>
+                    )}
+                    {viewingAsset.specs.model && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-gray-500 uppercase">Model</span>
+                        <p className="text-sm text-gray-800">{viewingAsset.specs.model}</p>
+                      </div>
+                    )}
+                    {viewingAsset.specs.cpu && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-gray-500 uppercase">Processor</span>
+                        <p className="text-sm text-gray-800">{viewingAsset.specs.cpu}</p>
+                      </div>
+                    )}
+                    {viewingAsset.specs.ram && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-gray-500 uppercase">Memory</span>
+                        <p className="text-sm text-gray-800">{viewingAsset.specs.ram}</p>
+                      </div>
+                    )}
+                    {viewingAsset.specs.storage && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-gray-500 uppercase">Storage</span>
+                        <p className="text-sm text-gray-800">{viewingAsset.specs.storage}</p>
+                      </div>
+                    )}
+                    {viewingAsset.specs.screenSize && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-gray-500 uppercase">Display</span>
+                        <p className="text-sm text-gray-800">{viewingAsset.specs.screenSize}</p>
+                      </div>
+                    )}
+                    {viewingAsset.specs.printerType && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-gray-500 uppercase">Type</span>
+                        <p className="text-sm text-gray-800">{viewingAsset.specs.printerType}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Comments Section */}
+              <div className="border-t pt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <MessageSquare size={20} className="text-gray-600" />
+                  <h4 className="text-lg font-bold text-gray-900">Comments & Activity</h4>
+                  <span className="text-sm text-gray-500">({viewingAsset.comments?.length || 0})</span>
+                </div>
+
+                {viewingAsset.comments && viewingAsset.comments.length > 0 ? (
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    {viewingAsset.comments
+                      .slice()
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .map((comment) => (
+                        <motion.div
+                          key={comment.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`p-4 rounded-xl border ${
+                            comment.type === AssetCommentType.SYSTEM
+                              ? 'bg-blue-50/50 border-blue-100'
+                              : 'bg-white border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold ${
+                                comment.type === AssetCommentType.SYSTEM
+                                  ? 'bg-blue-200 text-blue-700'
+                                  : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+                              }`}>
+                                {comment.type === AssetCommentType.SYSTEM ? 'S' : comment.authorName.substring(0, 1)}
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{comment.authorName}</p>
+                                <p className="text-xs text-gray-500">{getRelativeTime(comment.createdAt)}</p>
+                              </div>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              comment.type === AssetCommentType.SYSTEM
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {comment.type}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-700 leading-relaxed">{comment.message}</p>
+                        </motion.div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 border border-dashed border-gray-200 rounded-xl bg-gray-50">
+                    <MessageSquare size={32} className="mx-auto text-gray-300 mb-2 opacity-50" />
+                    <p className="text-sm text-gray-600">No comments yet</p>
+                    <p className="text-xs text-gray-500">Start a conversation about this asset</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Detail Drawer (Old Approach - Keeping for backward compatibility) */}
       <AnimatePresence>
         {selectedAsset && (
           <>
@@ -756,17 +940,37 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
               onClick={() => setSelectedAsset(null)}
             >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl relative max-h-[90vh] overflow-y-auto"
-              >
-              <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-600" onClick={() => setSelectedAsset(null)}>
-                <X size={18} />
-              </button>
+              <div className="p-8 space-y-8">
+                {/* Header */}
+                <div className="flex justify-between items-start">
+                   <button onClick={() => setSelectedAsset(null)} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500">
+                     <X size={24} />
+                   </button>
+                   <div className="flex gap-2">
+                      {canUpdate && (
+                        <button onClick={() => openEdit(selectedAsset)} className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors">
+                          <Edit2 size={20} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={async () => {
+                            if(confirm('Delete this asset?')) {
+                              try {
+                                await onDelete(selectedAsset.id);
+                                setSelectedAsset(null);
+                              } catch (error) {
+                                console.error('Error deleting asset:', error);
+                              }
+                            }
+                          }}
+                          className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      )}
+                   </div>
+                </div>
 
               {/* Asset Header */}
               <div className="mb-6">
@@ -783,6 +987,122 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                     <h3 className="text-2xl font-bold text-gray-900">{selectedAsset.name}</h3>
                     <p className="text-sm text-gray-600">{selectedAsset.type}</p>
                   </div>
+                </div>
+
+                <div className="h-px bg-gray-100 w-full" />
+
+                {/* Main Info */}
+                <div className="space-y-6">
+                  <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Primary Details</h3>
+                  <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+                     <div className="flex items-start gap-3">
+                        <Hash className="text-gray-400 mt-0.5" size={18} />
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">Serial</p>
+                          <p className="font-mono text-gray-800">{selectedAsset.serialNumber}</p>
+                        </div>
+                     </div>
+                     <div className="flex items-start gap-3">
+                        <MapPin className="text-gray-400 mt-0.5" size={18} />
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">Location</p>
+                          <p className="text-gray-800">{selectedAsset.location}</p>
+                        </div>
+                     </div>
+                     <div className="flex items-start gap-3 col-span-2">
+                        <User className="text-gray-400 mt-0.5" size={18} />
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">Assigned To</p>
+                          <p className="text-gray-800 font-medium">{selectedAsset.assignedTo || 'Unassigned'}</p>
+                        </div>
+                     </div>
+                  </div>
+                </div>
+
+                {/* Financials */}
+                <div className="space-y-6">
+                  <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Financials</h3>
+                  <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+                     <div className="flex items-start gap-3">
+                       <IndianRupee className="text-gray-400 mt-0.5" size={18} />
+                       <div>
+                          <p className="text-xs text-gray-500 uppercase">Cost</p>
+                          <p className="text-gray-800 font-mono">₹{selectedAsset.cost.toLocaleString()}</p>
+                        </div>
+                     </div>
+                     <div className="flex items-start gap-3">
+                        <Calendar className="text-gray-400 mt-0.5" size={18} />
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">Purchased</p>
+                          <p className="text-gray-800">{selectedAsset.purchaseDate}</p>
+                        </div>
+                     </div>
+                     <div className="flex items-start gap-3 col-span-2">
+                        <FileText className="text-gray-400 mt-0.5" size={18} />
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">Warranty Expiry</p>
+                          <p className="text-gray-800">{selectedAsset.warrantyExpiry}</p>
+                        </div>
+                     </div>
+                  </div>
+                </div>
+
+                {/* Specs */}
+                {selectedAsset.specs && (
+                  <div className="bg-gray-50 rounded-2xl p-6 space-y-4">
+                     <div className="flex items-center gap-2 mb-2">
+                        <Cpu className="text-gray-500" size={18} />
+                        <h3 className="text-sm font-bold text-gray-700">Hardware Specs</h3>
+                     </div>
+                     <div className="space-y-3">
+                        {selectedAsset.specs.brand && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-500">Brand</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.brand}</span>
+                          </div>
+                        )}
+                        {selectedAsset.specs.model && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-500">Model</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.model}</span>
+                          </div>
+                        )}
+                        {selectedAsset.specs.cpu && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-500">Processor</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.cpu}</span>
+                          </div>
+                        )}
+                        {selectedAsset.specs.ram && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-500">Memory</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.ram}</span>
+                          </div>
+                        )}
+                        {selectedAsset.specs.storage && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-500">Storage</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.storage}</span>
+                          </div>
+                        )}
+                        {selectedAsset.specs.screenSize && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-500">Display</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.screenSize}</span>
+                          </div>
+                        )}
+                        {selectedAsset.specs.printerType && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-500">Type</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.printerType}</span>
+                          </div>
+                        )}
+                     </div>
+                  </div>
+                )}
+
+                {/* Comments & Activity */}
+                <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                       selectedAsset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-800' :

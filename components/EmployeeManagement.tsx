@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
-import { Employee, EmployeeStatus, Asset, Location, Department, EmployeePersonalInfo, EmployeeOfficialInfo } from '../types';
-import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package, ArrowRight, ArrowLeft, User, FileText, Phone, Calendar, Shield, Hash, Link as LinkIcon, CheckCircle, UserCircle, Info } from 'lucide-react';
+import { Employee, EmployeeStatus, Asset, Location, Department } from '../types';
+import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ConfirmDialog, { DialogType } from './ConfirmDialog';
 
 interface EmployeeManagementProps {
   employees: Employee[];
@@ -12,7 +13,10 @@ interface EmployeeManagementProps {
   onAdd: (employee: Omit<Employee, 'id'>) => Promise<void>;
   onUpdate: (employee: Employee) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  canCreate?: boolean;
+  canUpdate?: boolean;
   canDelete?: boolean;
+  currentUser?: any; // Add current user for authentication
 }
 
 interface EmployeeFormData {
@@ -78,9 +82,7 @@ const statusBadge = (status: EmployeeStatus) => {
     : `${base} bg-amber-100 text-amber-700`;
 };
 
-const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ 
-  employees, assets, locations, departments, onAdd, onUpdate, onDelete, canDelete = true 
-}) => {
+const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, currentUser }) => {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<EmployeeStatus | 'All'>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -92,7 +94,19 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string>(''); // General submission error
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'personal' | 'official' | 'assets'>('overview');
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    type: DialogType;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    type: DialogType.WARNING,
+    title: '',
+    message: '',
+    onConfirm: undefined
+  });
 
   // Compute assigned asset counts
   const assetCounts = useMemo(() => {
@@ -189,29 +203,19 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
     setSubmitError('');
   };
 
-  // Validation functions
-  const validateStep1 = (): boolean => {
-    const errors: Record<string, string> = {};
-    
-    if (!formData.employeeId || formData.employeeId.trim() === '') {
-      errors.employeeId = 'Employee ID is required';
-    } else if (formData.employeeId.length < 3) {
-      errors.employeeId = 'Employee ID must be at least 3 characters';
-    }
-    
-    // Check uniqueness (only for new employees)
-    if (!editingEmployee && formData.employeeId) {
-      const existing = employees.find(emp => 
-        emp.employeeId.toLowerCase() === formData.employeeId.toLowerCase()
-      );
-      if (existing) {
-        errors.employeeId = `Employee ID "${formData.employeeId}" already exists`;
-      }
-    }
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+  const showDialog = (type: DialogType, title: string, message: string, onConfirm?: () => void) => {
+    setDialogState({
+      isOpen: true,
+      type,
+      title,
+      message,
+      onConfirm: onConfirm || (() => setDialogState(prev => ({ ...prev, isOpen: false })))
+    });
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmployeeIdError('');
 
   const validateStep2 = (): boolean => {
     const errors: Record<string, string> = {};
@@ -390,14 +394,11 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
   const handleDelete = async (employee: Employee) => {
     const assignedCount = assetCounts[employee.id] || 0;
     if (assignedCount > 0) {
-      // Show error in a non-blocking way (could use a toast notification in the future)
-      const errorMsg = `Cannot delete ${employee.name || employee.employeeId}. They have ${assignedCount} asset(s) assigned. Please reassign or unassign assets first.`;
-      setSubmitError(errorMsg);
-      setTimeout(() => setSubmitError(''), 5000);
+      showDialog(DialogType.WARNING, 'Cannot Delete Employee', `Cannot delete ${employee.name}. They have ${assignedCount} asset(s) assigned. Please reassign or unassign assets first.`);
       return;
     }
 
-    if (window.confirm(`Are you sure you want to delete ${employee.name || employee.employeeId}?`)) {
+    showDialog(DialogType.CONFIRM, 'Confirm Deletion', `Are you sure you want to delete ${employee.name}?`, async () => {
       try {
         await onDelete(employee.id);
       } catch (error: any) {
@@ -406,7 +407,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
         setSubmitError(errorMsg);
         setTimeout(() => setSubmitError(''), 5000);
       }
-    }
+    });
   };
 
   // Render Step 1: Basic Information
@@ -833,13 +834,15 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <button
-          onClick={openNew}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 transition-all duration-300"
-        >
-          <UserPlus size={18} />
-          Add Employee
-        </button>
+        {canCreate && (
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+          >
+            <UserPlus size={18} />
+            Add Employee
+          </button>
+        )}
       </div>
 
       <GlassCard>
@@ -938,15 +941,17 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
                   >
                     <Eye size={16} />
                   </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => openEdit(employee)}
-                    className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                    title="Edit"
-                  >
-                    <Pencil size={16} />
-                  </motion.button>
+                  {canUpdate && (
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => openEdit(employee)}
+                      className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Pencil size={16} />
+                    </motion.button>
+                  )}
                   {canDelete && (
                     <motion.button
                       whileHover={{ scale: 1.1 }}
@@ -1081,13 +1086,133 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({
                     </button>
                   )}
                 </div>
-              </GlassCard>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase block mb-1">Full Name *</label>
+                  <input
+                    required
+                    disabled={isSubmitting}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                    value={form.name}
+                    onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase block mb-1">Email</label>
+                  <input
+                    type="email"
+                    disabled={isSubmitting}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                    value={form.email}
+                    onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase block mb-1">Department</label>
+                    <select
+                      disabled={isSubmitting}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                      value={form.department}
+                      onChange={e => setForm(prev => ({ ...prev, department: e.target.value }))}
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.name}>{dept.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase block mb-1">Location</label>
+                    <select
+                      disabled={isSubmitting}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                      value={form.location}
+                      onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))}
+                    >
+                      <option value="">Select Location</option>
+                      {locations.map(loc => (
+                        <option key={loc.id} value={loc.name}>{loc.name} - {loc.city}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase block mb-1">Title</label>
+                    <input
+                      disabled={isSubmitting}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                      value={form.title}
+                      onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="e.g. Senior Designer"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase block mb-1">Status</label>
+                    <select
+                      disabled={isSubmitting}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                      value={form.status}
+                      onChange={e => setForm(prev => ({ ...prev, status: e.target.value as EmployeeStatus }))}
+                    >
+                      {Object.values(EmployeeStatus).map(status => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {editingEmployee && assetCounts[editingEmployee.id] > 0 && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-800">
+                      This employee has <strong>{assetCounts[editingEmployee.id]} asset(s)</strong> assigned.
+                      They cannot be deleted until assets are reassigned.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-4 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:-translate-y-0.5 transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader size={16} className="animate-spin" />
+                        {editingEmployee ? 'Saving...' : 'Creating...'}
+                      </>
+                    ) : (
+                      <>{editingEmployee ? 'Save Changes' : 'Create Employee'}</>
+                    )}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* Enhanced Employee Detail Modal with Tabs */}
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        onClose={() => setDialogState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={dialogState.onConfirm}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+      />
+
+      {/* Employee Detail Modal */}
       <AnimatePresence>
         {viewingEmployee && (
           <motion.div

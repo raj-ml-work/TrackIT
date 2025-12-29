@@ -289,13 +289,35 @@ export const updatePassword = async (
   if (newPassword.length < 6) {
     throw new Error('Password must be at least 6 characters');
   }
-
+ 
   if (isSupabaseConfigured()) {
     if (!userId) throw new Error('User ID required to update password');
+    
+    // First, verify the current password is correct
+    const user = await userService.getUserById(userId);
+    if (!user || !user.passwordHash) {
+      throw new Error('User not found');
+    }
+    
+    // Validate current password
+    let isCurrentPasswordValid = false;
+    if (isSha256Hash(user.passwordHash)) {
+      const hashedInput = await hashPassword(currentPassword);
+      isCurrentPasswordValid = user.passwordHash === hashedInput;
+    } else {
+      // Fallback for legacy plain text passwords
+      isCurrentPasswordValid = user.passwordHash === currentPassword;
+    }
+    
+    if (!isCurrentPasswordValid) {
+      throw new Error('Current password is incorrect');
+    }
+    
+    // Update to the new password
     await userService.updateUserPassword(userId, newPassword);
     return;
   }
-
+ 
   // Fallback for development
   await new Promise(resolve => setTimeout(resolve, 800));
   console.log('Password updated successfully (mock)');

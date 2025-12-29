@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
 import { UserAccount, UserRole, UserStatus } from '../types';
-import { UserPlus, Search, ShieldCheck, Shield, Mail, Clock, X, Pencil, Power, RefreshCw, Loader, Eye, EyeOff, Key } from 'lucide-react';
+import { UserPlus, Search, ShieldCheck, Shield, Mail, Clock, X, Pencil, Power, RefreshCw, Loader, Eye, EyeOff, Key, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserManagementProps {
@@ -9,6 +9,8 @@ interface UserManagementProps {
   onAdd: (user: Omit<UserAccount, 'id' | 'lastLogin'>) => Promise<void>;
   onUpdate: (user: UserAccount) => Promise<void>;
   onToggleStatus: (id: string) => Promise<void>;
+  onResetPassword: (id: string, passwordOption?: string) => Promise<string>; // Returns temporary password
+  canManageUsers?: boolean;
 }
 
 const initialForm: Omit<UserAccount, 'id' | 'lastLogin'> = {
@@ -20,9 +22,11 @@ const initialForm: Omit<UserAccount, 'id' | 'lastLogin'> = {
 
 const roleBadge = (role: UserRole) => {
   const base = 'text-xs px-3 py-1 rounded-full font-semibold';
-  return role === UserRole.ADMIN
-    ? `${base} bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-sm`
-    : `${base} bg-gray-100 text-gray-700`;
+  if (role === UserRole.ADMIN) {
+    return `${base} bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-sm`;
+  } else {
+    return `${base} bg-gray-100 text-gray-700`;
+  }
 };
 
 const statusBadge = (status: UserStatus) => {
@@ -32,13 +36,24 @@ const statusBadge = (status: UserStatus) => {
     : `${base} bg-amber-100 text-amber-700`;
 };
 
-const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate, onToggleStatus }) => {
+const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate, onToggleStatus, onResetPassword, canManageUsers = true }) => {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<UserRole | 'All'>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [form, setForm] = useState<Omit<UserAccount, 'id' | 'lastLogin'>>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resetDialog, setResetDialog] = useState<{
+    isOpen: boolean;
+    userId?: string;
+    userName?: string;
+    temporaryPassword?: string;
+    isSuccess?: boolean;
+    errorMessage?: string;
+    useManualPassword?: boolean;
+    manualPassword?: string;
+    confirmManualPassword?: string;
+  }>({ isOpen: false });
   
   // Password fields for new user creation
   const [password, setPassword] = useState('');
@@ -75,6 +90,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
   };
 
   const passwordStrength = getPasswordStrength(password);
+  const manualPasswordStrength = getPasswordStrength(resetDialog.manualPassword || '');
 
   const generateRandomPassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
@@ -177,19 +193,17 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap justify-between items-center gap-4">
-        <div>
-          <h3 className="text-xl font-bold text-gray-800">User Management</h3>
-          <p className="text-gray-500">Control access for admins and team members.</p>
+      {canManageUsers && (
+        <div className="flex justify-end">
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+          >
+            <UserPlus size={18} />
+            Add User
+          </button>
         </div>
-        <button
-          onClick={openNew}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 transition-all duration-300"
-        >
-          <UserPlus size={18} />
-          Add User
-        </button>
-      </div>
+      )}
 
       <GlassCard>
         <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
@@ -224,7 +238,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
             <span className="col-span-2">Role</span>
             <span className="col-span-2">Status</span>
             <span className="col-span-1 text-right">Last Login</span>
-            <span className="col-span-1"></span>
+            <span className="col-span-1 text-right">Actions</span>
           </div>
 
           <AnimatePresence>
@@ -273,40 +287,58 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                 <div className="col-span-2">
                   <span className={statusBadge(user.status)}>{user.status}</span>
                 </div>
-                <div className="col-span-1 flex items-center gap-2 justify-end text-sm text-gray-500">
-                  <Clock size={14} className="hidden md:block" />
+                <div className="col-span-1 flex items-center justify-end text-sm text-gray-500">
+                  <Clock size={14} className="hidden md:block mr-1" />
                   <span className="text-xs md:text-sm">{user.lastLogin}</span>
                 </div>
-                <div className="col-span-1 flex items-center gap-2 justify-end">
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => openEdit(user)}
-                    className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                    title="Edit"
-                  >
-                    <Pencil size={16} />
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={async () => {
-                      try {
-                        await onToggleStatus(user.id);
-                      } catch (error) {
-                        console.error('Error toggling user status:', error);
-                      }
-                    }}
-                    className={`p-2 rounded-lg transition-colors ${
-                      user.status === UserStatus.ACTIVE 
-                        ? 'hover:bg-amber-50 text-amber-600' 
-                        : 'hover:bg-emerald-50 text-emerald-600'
-                    }`}
-                    title={user.status === UserStatus.ACTIVE ? 'Deactivate' : 'Reactivate'}
-                  >
-                    {user.status === UserStatus.ACTIVE ? <Power size={16} /> : <RefreshCw size={16} />}
-                  </motion.button>
-                </div>
+                {canManageUsers && (
+                  <div className="col-span-1 flex items-center justify-end gap-1">
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => openEdit(user)}
+                      className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Pencil size={16} />
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        setResetDialog({
+                          isOpen: true,
+                          userId: user.id,
+                          userName: user.name,
+                          isSuccess: false
+                        });
+                      }}
+                      className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                      title="Reset Password"
+                    >
+                      <Key size={16} />
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={async () => {
+                        try {
+                          await onToggleStatus(user.id);
+                        } catch (error) {
+                          console.error('Error toggling user status:', error);
+                        }
+                      }}
+                      className={`p-2 rounded-lg transition-colors ${
+                        user.status === UserStatus.ACTIVE
+                          ? 'hover:bg-amber-50 text-amber-600'
+                          : 'hover:bg-emerald-50 text-emerald-600'
+                      }`}
+                      title={user.status === UserStatus.ACTIVE ? 'Deactivate' : 'Reactivate'}
+                    >
+                      {user.status === UserStatus.ACTIVE ? <Power size={16} /> : <RefreshCw size={16} />}
+                    </motion.button>
+                  </div>
+                )}
               </motion.div>
             ))}
           </AnimatePresence>
@@ -515,7 +547,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                 {editingUser && (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
                     <p className="text-xs text-blue-800">
-                      <span className="font-semibold">Note:</span> To change this user's password, they should use the "Change Password" option in their profile menu after logging in.
+                      <span className="font-semibold">Note:</span> To change this user's password, they should use the "Change Password" option in their profile menu after logging in. Admins can also use the "Reset Password" button in the user list to generate a temporary password.
                     </p>
                   </div>
                 )}
@@ -548,8 +580,320 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Password Reset Dialog */}
+      <AnimatePresence>
+        {resetDialog.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md relative"
+            >
+              <button
+                className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
+                onClick={() => setResetDialog({ isOpen: false })}
+              >
+                <X size={18} />
+              </button>
+
+              {!resetDialog.isSuccess ? (
+               <>
+                 <div className="flex items-center gap-3 mb-4">
+                   <div className="p-2 rounded-lg bg-yellow-100 text-yellow-600">
+                     <AlertTriangle size={18} />
+                   </div>
+                   <div>
+                     <p className="text-xs text-gray-500 uppercase tracking-wide">Reset Password</p>
+                     <h4 className="text-lg font-bold text-gray-800">Password Reset Options</h4>
+                   </div>
+                 </div>
+
+                 <div className="mb-6">
+                   {resetDialog.errorMessage && (
+                     <motion.div
+                       initial={{ opacity: 0, y: -10 }}
+                       animate={{ opacity: 1, y: 0 }}
+                       className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 mb-4"
+                     >
+                       <X size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+                       <p className="text-sm text-red-700">{resetDialog.errorMessage}</p>
+                     </motion.div>
+                   )}
+                   <p className="text-gray-600 mb-4">
+                     You are about to reset the password for:
+                     <span className="font-semibold text-gray-900">{resetDialog.userName}</span>
+                   </p>
+
+                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl mb-4">
+                     <p className="text-xs text-yellow-800">
+                       <span className="font-semibold">⚠️ Important Security Notice:</span>
+                     </p>
+                     <ul className="text-xs text-yellow-700 mt-2 space-y-1">
+                       <li>• You can choose to generate a secure password or set one manually</li>
+                       <li>• You must provide this password to the user securely</li>
+                       <li>• The user should change their password immediately after logging in</li>
+                       <li>• This action will be logged for audit purposes</li>
+                     </ul>
+                   </div>
+
+                   {/* Password Option Selection */}
+                   <div className="mb-4">
+                     <label className="text-xs text-gray-500 uppercase block mb-2">Password Reset Method</label>
+                     <div className="flex gap-3">
+                       <button
+                         type="button"
+                         onClick={() => setResetDialog(prev => ({ ...prev, useManualPassword: false }))}
+                         className={`flex-1 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                           !resetDialog.useManualPassword
+                             ? 'bg-indigo-100 border-indigo-300 text-indigo-800'
+                             : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                         }`}
+                       >
+                         Generate Secure Password
+                       </button>
+                       <button
+                         type="button"
+                         onClick={() => setResetDialog(prev => ({ ...prev, useManualPassword: true }))}
+                         className={`flex-1 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                           resetDialog.useManualPassword
+                             ? 'bg-indigo-100 border-indigo-300 text-indigo-800'
+                             : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                         }`}
+                       >
+                         Set Manual Password
+                       </button>
+                     </div>
+                   </div>
+
+                   {/* Manual Password Fields */}
+                   {resetDialog.useManualPassword && (
+                     <div className="space-y-3 mb-4">
+                       <div>
+                         <label className="text-xs text-gray-500 uppercase block mb-1">New Password *</label>
+                         <div className="relative">
+                           <input
+                             type={showPassword ? 'text' : 'password'}
+                             required
+                             className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none"
+                             value={resetDialog.manualPassword || ''}
+                             onChange={e => setResetDialog(prev => ({ ...prev, manualPassword: e.target.value }))}
+                             placeholder="Minimum 6 characters"
+                           />
+                           <button
+                             type="button"
+                             onClick={() => setShowPassword(!showPassword)}
+                             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                           >
+                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                           </button>
+                         </div>
+                         {resetDialog.manualPassword && (
+                           <motion.div
+                             initial={{ opacity: 0 }}
+                             animate={{ opacity: 1 }}
+                             className="mt-2"
+                           >
+                             <div className="flex items-center gap-2 mb-1">
+                               <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                 <motion.div
+                                   initial={{ width: 0 }}
+                                   animate={{ width: `${(manualPasswordStrength.strength / 5) * 100}%` }}
+                                   className={`h-full ${manualPasswordStrength.color} transition-all`}
+                                 />
+                               </div>
+                               <span className="text-xs font-medium text-gray-600">{manualPasswordStrength.label}</span>
+                             </div>
+                           </motion.div>
+                         )}
+                       </div>
+
+                       <div>
+                         <label className="text-xs text-gray-500 uppercase block mb-1">Confirm Password *</label>
+                         <div className="relative">
+                           <input
+                             type={showConfirmPassword ? 'text' : 'password'}
+                             required
+                             className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none"
+                             value={resetDialog.confirmManualPassword || ''}
+                             onChange={e => setResetDialog(prev => ({ ...prev, confirmManualPassword: e.target.value }))}
+                             placeholder="Re-enter password"
+                           />
+                           <button
+                             type="button"
+                             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                           >
+                             {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                           </button>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+
+                   <p className="text-gray-600 text-sm">
+                     Are you sure you want to proceed with resetting this user's password?
+                   </p>
+                 </div>
+
+                 <div className="flex items-center justify-end gap-3">
+                   <button
+                     type="button"
+                     onClick={() => setResetDialog({ isOpen: false })}
+                     className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                   >
+                     Cancel
+                   </button>
+                   <button
+                     type="button"
+                     onClick={async () => {
+                       try {
+                         if (!resetDialog.userId) return;
+                         
+                         // Validate manual password if used
+                         if (resetDialog.useManualPassword) {
+                           if (!resetDialog.manualPassword) {
+                             setResetDialog(prev => ({
+                               ...prev,
+                               errorMessage: 'Password is required'
+                             }));
+                             return;
+                           }
+                           if (resetDialog.manualPassword.length < 6) {
+                             setResetDialog(prev => ({
+                               ...prev,
+                               errorMessage: 'Password must be at least 6 characters'
+                             }));
+                             return;
+                           }
+                           if (resetDialog.manualPassword !== resetDialog.confirmManualPassword) {
+                             setResetDialog(prev => ({
+                               ...prev,
+                               errorMessage: 'Passwords do not match'
+                             }));
+                             return;
+                           }
+                         }
+                         
+                         const tempPassword = await onResetPassword(
+                           resetDialog.userId,
+                           resetDialog.useManualPassword ? resetDialog.manualPassword : undefined
+                         );
+                         
+                         // Show success dialog with temporary password
+                         setResetDialog({
+                           isOpen: true,
+                           userId: resetDialog.userId,
+                           userName: resetDialog.userName,
+                           temporaryPassword: tempPassword,
+                           isSuccess: true,
+                           useManualPassword: resetDialog.useManualPassword,
+                           manualPassword: resetDialog.manualPassword,
+                           confirmManualPassword: resetDialog.confirmManualPassword
+                         });
+                       } catch (error) {
+                         console.error('Error resetting password:', error);
+                         
+                         // Show error dialog
+                         setResetDialog({
+                           isOpen: true,
+                           userName: resetDialog.userName,
+                           errorMessage: error instanceof Error ? error.message : 'Unknown error occurred',
+                           isSuccess: false
+                         });
+                       }
+                     }}
+                     className="px-4 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors flex items-center gap-2"
+                   >
+                     Reset Password
+                   </button>
+                 </div>
+               </>
+             ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-green-100 text-green-600">
+                      <Key size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Password Reset</p>
+                      <h4 className="text-lg font-bold text-gray-800">Password Reset Successful</h4>
+                    </div>
+                  </div>
+
+                  <div className="mb-6">
+                    <p className="text-gray-600 mb-4">
+                      The password for <span className="font-semibold text-gray-900">{resetDialog.userName}</span> has been reset successfully.
+                    </p>
+
+                    {/* Show temporary password only when random password was generated */}
+                    {!resetDialog.useManualPassword && resetDialog.temporaryPassword && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl mb-4">
+                        <p className="text-xs text-blue-800 font-semibold mb-2">TEMPORARY PASSWORD:</p>
+                        <div className="flex items-center gap-2">
+                          <code className="bg-gray-100 px-3 py-1 rounded text-blue-600 font-mono text-sm">
+                            {resetDialog.temporaryPassword}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (resetDialog.temporaryPassword) {
+                                navigator.clipboard.writeText(resetDialog.temporaryPassword);
+                              }
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-sm"
+                            title="Copy to clipboard"
+                          >
+                            📋 Copy
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                      <p className="text-xs text-gray-700 font-semibold mb-2">NEXT STEPS:</p>
+                      <ul className="text-xs text-gray-600 space-y-1">
+                        {!resetDialog.useManualPassword ? (
+                          <>
+                            <li>• Provide this temporary password to the user securely</li>
+                            <li>• Instruct the user to change their password immediately after logging in</li>
+                            <li>• Consider using encrypted communication for sharing sensitive information</li>
+                          </>
+                        ) : (
+                          <>
+                            <li>• The user can now log in with their new password</li>
+                            <li>• Instruct the user to change their password immediately after logging in</li>
+                            <li>• Consider using encrypted communication for sharing sensitive information</li>
+                          </>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setResetDialog({ isOpen: false })}
+                      className="px-4 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:bg-gray-800 transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
-  );
+   );
 };
 
 export default UserManagement;

@@ -1,13 +1,12 @@
 /**
  * Employee Service
- * 
+ *
  * Handles all database operations for Employees
  */
 
-import { Employee, EmployeeStatus, EmployeePersonalInfo, EmployeeOfficialInfo } from '../types';
+import { Employee, EmployeeStatus, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
-import { createEmployeePersonalInfo, updateEmployeePersonalInfo } from './employeePersonalInfoService';
-import { createEmployeeOfficialInfo, updateEmployeeOfficialInfo } from './employeeOfficialInfoService';
+import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'employees';
 
@@ -95,9 +94,16 @@ export const getEmployeeByEmployeeId = async (employeeId: string): Promise<Emplo
 
 /**
  * Create a new employee
+ * @param employee Employee data to create
+ * @param currentUser Current authenticated user for permission check
  */
-export const createEmployee = async (employee: Omit<Employee, 'id'>): Promise<Employee> => {
+export const createEmployee = async (employee: Omit<Employee, 'id'>, currentUser: UserAccount | null = null): Promise<Employee> => {
   try {
+    // Check permission - only admins can create employees
+    if (!isAdmin(currentUser)) {
+      throw new Error(getPermissionError('create', currentUser?.role || null));
+    }
+
     // Check if employee ID already exists
     const existing = await getEmployeeByEmployeeId(employee.employeeId);
     if (existing) {
@@ -170,37 +176,29 @@ export const createEmployee = async (employee: Omit<Employee, 'id'>): Promise<Em
 
 /**
  * Update an existing employee
+ * @param employee Employee data to update
+ * @param currentUser Current authenticated user for permission check
  */
-export const updateEmployee = async (employee: Employee): Promise<Employee> => {
+export const updateEmployee = async (employee: Employee, currentUser: UserAccount | null = null): Promise<Employee> => {
   try {
+    // Check permission - only admins can update employees
+    if (!isAdmin(currentUser)) {
+      throw new Error(getPermissionError('update', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     
-    // Update personal info if provided
-    if (employee.personalInfo) {
-      if (employee.personalInfoId && employee.personalInfo.id) {
-        // Update existing personal info
-        await updateEmployeePersonalInfo(employee.personalInfo);
-      } else if (!employee.personalInfoId) {
-        // Create new personal info if it doesn't exist
-        const { id, ...personalInfoData } = employee.personalInfo;
-        const personalInfo = await createEmployeePersonalInfo(personalInfoData);
-        employee.personalInfoId = personalInfo.id;
-      }
-    }
+    // First, get the current employee data to compare changes
+    const { data: currentEmployeeData, error: fetchError } = await supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .eq('id', employee.id)
+      .single();
 
-    // Update official info if provided
-    if (employee.officialInfo) {
-      if (employee.officialInfoId && employee.officialInfo.id) {
-        // Update existing official info
-        await updateEmployeeOfficialInfo(employee.officialInfo);
-      } else if (!employee.officialInfoId) {
-        // Create new official info if it doesn't exist
-        const { id, ...officialInfoData } = employee.officialInfo;
-        const officialInfo = await createEmployeeOfficialInfo(officialInfoData);
-        employee.officialInfoId = officialInfo.id;
-      }
-    }
-
+    if (fetchError) throw fetchError;
+    
+    const currentEmployee = transformEmployeeFromDB(currentEmployeeData);
+    
     const employeeData = transformEmployeeToDB(employee);
     
     const { data, error } = await supabase
@@ -218,7 +216,15 @@ export const updateEmployee = async (employee: Employee): Promise<Employee> => {
 
     if (error) throw error;
 
-    return transformEmployeeFromDB(data);
+    const updatedEmployee = transformEmployeeFromDB(data);
+    
+    // Log changes for audit purposes
+    const changes = getEmployeeChanges(currentEmployee, updatedEmployee);
+    if (changes.length > 0) {
+      console.log(`Employee update audit: ${changes.join(', ')}`);
+    }
+
+    return updatedEmployee;
   } catch (error) {
     console.error('Error updating employee:', error);
     throw error;
@@ -227,9 +233,16 @@ export const updateEmployee = async (employee: Employee): Promise<Employee> => {
 
 /**
  * Delete an employee
+ * @param id Employee ID to delete
+ * @param currentUser Current authenticated user for permission check
  */
-export const deleteEmployee = async (id: string): Promise<void> => {
+export const deleteEmployee = async (id: string, currentUser: UserAccount | null = null): Promise<void> => {
   try {
+    // Check permission - only admins can delete employees
+    if (!isAdmin(currentUser)) {
+      throw new Error(getPermissionError('delete', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const { error } = await supabase
       .from(TABLE_NAME)
@@ -307,6 +320,39 @@ const transformEmployeeFromDB = (dbEmployee: any): Employee => {
 };
 
 /**
+ * Compare two employees and return a list of changes
+ */
+const getEmployeeChanges = (oldEmployee: Employee, newEmployee: Employee): string[] => {
+  const changes: string[] = [];
+  
+  if (oldEmployee.name !== newEmployee.name) {
+    changes.push(`name changed from "${oldEmployee.name}" to "${newEmployee.name}"`);
+  }
+  
+  if (oldEmployee.status !== newEmployee.status) {
+    changes.push(`status changed from "${oldEmployee.status}" to "${newEmployee.status}"`);
+  }
+  
+  if (oldEmployee.email !== newEmployee.email) {
+    changes.push(`email changed from "${oldEmployee.email || 'N/A'}" to "${newEmployee.email || 'N/A'}"`);
+  }
+  
+  if (oldEmployee.department !== newEmployee.department) {
+    changes.push(`department changed from "${oldEmployee.department || 'N/A'}" to "${newEmployee.department || 'N/A'}"`);
+  }
+  
+  if (oldEmployee.location !== newEmployee.location) {
+    changes.push(`location changed from "${oldEmployee.location || 'N/A'}" to "${newEmployee.location || 'N/A'}"`);
+  }
+  
+  if (oldEmployee.title !== newEmployee.title) {
+    changes.push(`title changed from "${oldEmployee.title || 'N/A'}" to "${newEmployee.title || 'N/A'}"`);
+  }
+  
+  return changes;
+};
+
+/**
  * Transform app format to database format
  */
 const transformEmployeeToDB = (employee: Employee | Omit<Employee, 'id'>): any => {
@@ -328,4 +374,7 @@ const transformEmployeeToDB = (employee: Employee | Omit<Employee, 'id'>): any =
     status: employee.status
   };
 };
+
+// Export the helper function for testing
+export { getEmployeeChanges };
 

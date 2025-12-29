@@ -1,24 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials, AssetComment, AssetCommentType, Location, Department, Employee, EmployeeStatus } from './types';
+import { Asset, AssetType, AssetStatus, UserAccount, UserRole, UserStatus, AuthSession, LoginCredentials, AssetComment, AssetCommentType, Location, Employee, EmployeeStatus, Department } from './types';
 import Dashboard from './components/Dashboard';
 import AssetManager from './components/AssetManager';
 import Settings from './components/Settings';
 import UserManagement from './components/UserManagement';
 import EmployeeManagement from './components/EmployeeManagement';
 import LocationManagement from './components/LocationManagement';
-import DepartmentManagement from './components/DepartmentManagement';
 import DepartmentManagementPage from './src/pages/DepartmentManagementPage';
 import Login from './components/Login';
 import ProfilePanel from './components/ProfilePanel';
 import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, MapPin, Briefcase, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as authClient from './services/authClient';
-import { 
-  isDatabaseReady, 
-  getAssets, createAsset, updateAsset, deleteAsset, addAssetComment,
+import ConfirmDialog, { DialogType } from './components/ConfirmDialog';
+import { canCreate, canUpdate, canDelete, canView, getPermissionError, isAdmin } from './services/permissionUtil';
+import {
+  isDatabaseReady,
+  getAssets, getAssetById, createAsset, updateAsset, deleteAsset, addAssetComment, getAssetComments,
   getEmployees, createEmployee, updateEmployee, deleteEmployee,
   getLocations, createLocation, updateLocation, deleteLocation,
-  getUsers, createUser, updateUser, deleteUser
+  getUsers, createUser, updateUser, deleteUser, resetUserPassword,
+  getDepartments, createDepartment, updateDepartment, deleteDepartment
 } from './services/dataService';
 
 // Mock Data
@@ -235,67 +237,12 @@ const MOCK_EMPLOYEES: Employee[] = [
   }
 ];
 
-const MOCK_LOCATIONS: Location[] = [
-  {
-    id: 'loc-001',
-    name: 'HQ - Building A',
-    city: 'San Francisco',
-    comments: 'Main headquarters building'
-  },
-  {
-    id: 'loc-002',
-    name: 'HQ - Warehouse',
-    city: 'San Francisco',
-    comments: 'Storage and distribution center'
-  },
-  {
-    id: 'loc-003',
-    name: 'Branch Office - NYC',
-    city: 'New York',
-    comments: 'East coast regional office'
-  },
-  {
-    id: 'loc-004',
-    name: 'Remote',
-    city: 'Various',
-    comments: 'Work from home employees'
-  }
-];
-
-const MOCK_DEPARTMENTS: Department[] = [
-  {
-    id: 'dept-001',
-    name: 'Engineering',
-    description: 'Software development and technical teams'
-  },
-  {
-    id: 'dept-002',
-    name: 'Sales',
-    description: 'Sales and business development'
-  },
-  {
-    id: 'dept-003',
-    name: 'Marketing',
-    description: 'Marketing and communications'
-  },
-  {
-    id: 'dept-004',
-    name: 'HR',
-    description: 'Human resources and talent management'
-  },
-  {
-    id: 'dept-005',
-    name: 'Operations',
-    description: 'Operations and logistics'
-  }
-];
-
 const App: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>(MOCK_ASSETS);
   const [users, setUsers] = useState<UserAccount[]>(MOCK_USERS);
   const [employees, setEmployees] = useState<Employee[]>(MOCK_EMPLOYEES);
-  const [locations, setLocations] = useState<Location[]>(MOCK_LOCATIONS);
-  const [departments, setDepartments] = useState<Department[]>(MOCK_DEPARTMENTS);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
@@ -304,8 +251,32 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [useBackend, setUseBackend] = useState(false);
+  
+  // Dialog state
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    type: DialogType;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    type: DialogType.ERROR,
+    title: '',
+    message: '',
+    onConfirm: undefined
+  });
 
-  const isAdmin = session?.user.role === UserRole.ADMIN;
+
+  const showDialog = (type: DialogType, title: string, message: string, onConfirm?: () => void) => {
+    setDialogState({
+      isOpen: true,
+      type,
+      title,
+      message,
+      onConfirm: onConfirm || (() => setDialogState(prev => ({ ...prev, isOpen: false })))
+    });
+  };
 
   // Initialize default admin and restore session on mount
   useEffect(() => {
@@ -327,10 +298,12 @@ const App: React.FC = () => {
         // Load data from backend if configured
         if (dbReady) {
           await loadDataFromBackend();
+        } else {
+          console.warn('Database not configured. Location data will be unavailable.');
         }
       } catch (error) {
         console.error('Error initializing app:', error);
-        // Fall back to mock data if backend fails
+        // Don't fall back to mock data for locations
         setUseBackend(false);
       } finally {
         setIsLoading(false);
@@ -343,7 +316,7 @@ const App: React.FC = () => {
   const loadDataFromBackend = async () => {
     setIsDataLoading(true);
     try {
-      const [assetsData, employeesData, locationsData, usersData] = await Promise.all([
+      const [assetsData, employeesData, locationsData, usersData, departmentsData] = await Promise.all([
         getAssets().catch(err => {
           console.error('Error loading assets:', err);
           return MOCK_ASSETS;
@@ -354,11 +327,15 @@ const App: React.FC = () => {
         }),
         getLocations().catch(err => {
           console.error('Error loading locations:', err);
-          return MOCK_LOCATIONS;
+          throw err; // Don't fallback to mock data for locations
         }),
         getUsers().catch(err => {
           console.error('Error loading users:', err);
           return MOCK_USERS;
+        }),
+        getDepartments().catch(err => {
+          console.error('Error loading departments:', err);
+          return []; // Fallback to empty array for departments
         })
       ]);
 
@@ -366,6 +343,7 @@ const App: React.FC = () => {
       setEmployees(employeesData);
       setLocations(locationsData);
       setUsers(usersData);
+      setDepartments(departmentsData);
     } catch (error) {
       console.error('Error loading data from backend:', error);
     } finally {
@@ -375,10 +353,10 @@ const App: React.FC = () => {
 
   // Redirect non-admins away from restricted views
   useEffect(() => {
-    if (session && !isAdmin && (currentView === View.USERS || currentView === View.SETTINGS)) {
+    if (session && !isAdmin(session?.user || null) && (currentView === View.USERS || currentView === View.SETTINGS)) {
       setCurrentView(View.DASHBOARD);
     }
-  }, [isAdmin, currentView, session]);
+  }, [isAdmin(session?.user || null), currentView, session]);
 
   // Auth handlers
   const handleLogin = async (credentials: LoginCredentials) => {
@@ -397,7 +375,7 @@ const App: React.FC = () => {
   const handleAddAsset = async (newAsset: Omit<Asset, 'id'>) => {
     try {
       if (useBackend) {
-        const createdAsset = await createAsset(newAsset);
+        const createdAsset = await createAsset(newAsset, session?.user || null);
         // Add creation comment
         const creationComment = await addAssetComment({
           assetId: createdAsset.id,
@@ -434,7 +412,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error adding asset:', error);
-      alert('Failed to add asset. Please try again.');
+      showDialog(DialogType.ERROR, 'Add Asset Failed', 'Failed to add asset. Please try again.');
       throw error;
     }
   };
@@ -444,65 +422,57 @@ const App: React.FC = () => {
       const oldAsset = assets.find(a => a.id === updatedAsset.id);
       if (!oldAsset) return;
 
-      // Generate audit trail for changes
-      const auditComments: Omit<AssetComment, 'id'>[] = [];
-      const now = new Date().toISOString();
-      
-      if (oldAsset.status !== updatedAsset.status) {
-        auditComments.push({
-          assetId: oldAsset.id,
-          authorName: session?.user.name || 'System',
-          authorId: session?.user.id,
-          message: `Status changed from "${oldAsset.status}" to "${updatedAsset.status}"`,
-          type: AssetCommentType.SYSTEM,
-          createdAt: now
-        });
-      }
-      
-      if (oldAsset.assignedTo !== updatedAsset.assignedTo) {
-        auditComments.push({
-          assetId: oldAsset.id,
-          authorName: session?.user.name || 'System',
-          authorId: session?.user.id,
-          message: `Assigned to changed from "${oldAsset.assignedTo || 'Unassigned'}" to "${updatedAsset.assignedTo || 'Unassigned'}"`,
-          type: AssetCommentType.SYSTEM,
-          createdAt: now
-        });
-      }
-      
-      if (oldAsset.location !== updatedAsset.location) {
-        auditComments.push({
-          assetId: oldAsset.id,
-          authorName: session?.user.name || 'System',
-          authorId: session?.user.id,
-          message: `Location changed from "${oldAsset.location}" to "${updatedAsset.location}"`,
-          type: AssetCommentType.SYSTEM,
-          createdAt: now
-        });
-      }
-
       if (useBackend) {
-        const updated = await updateAsset(updatedAsset);
-        // Add audit comments to backend and collect created comments
-        const createdComments: AssetComment[] = [];
-        for (const comment of auditComments) {
-          const createdComment = await addAssetComment(comment);
-          createdComments.push(createdComment);
-        }
-        // Update local state with the updated asset and new comments
-        // Use updated.comments as base (which has all existing comments from DB)
-        // and append the newly created audit comments
-        setAssets(prev => prev.map(a => {
-          if (a.id === updated.id) {
-            return {
-              ...updated,
-              comments: [...(updated.comments || []), ...createdComments]
-            };
-          }
-          return a;
-        }));
+        const updated = await updateAsset(updatedAsset, session?.user || null);
+        
+        // Load the updated asset with all comments from the backend
+        const updatedAssetWithComments = await getAssetById(updated.id);
+        
+        // Also get all comments for this asset
+        const comments = await getAssetComments(updated.id);
+        
+        setAssets(prev => prev.map(a =>
+          a.id === updated.id ? { ...updatedAssetWithComments, comments } : a
+        ));
       } else {
-        // Mock data fallback
+        // Mock data fallback - keep existing audit logic
+        // Generate audit trail for changes
+        const auditComments: Omit<AssetComment, 'id'>[] = [];
+        const now = new Date().toISOString();
+        
+        if (oldAsset.status !== updatedAsset.status) {
+          auditComments.push({
+            assetId: oldAsset.id,
+            authorName: session?.user.name || 'System',
+            authorId: session?.user.id,
+            message: `Status changed from "${oldAsset.status}" to "${updatedAsset.status}"`,
+            type: AssetCommentType.SYSTEM,
+            createdAt: now
+          });
+        }
+        
+        if (oldAsset.assignedTo !== updatedAsset.assignedTo) {
+          auditComments.push({
+            assetId: oldAsset.id,
+            authorName: session?.user.name || 'System',
+            authorId: session?.user.id,
+            message: `Assigned to changed from "${oldAsset.assignedTo || 'Unassigned'}" to "${updatedAsset.assignedTo || 'Unassigned'}"`,
+            type: AssetCommentType.SYSTEM,
+            createdAt: now
+          });
+        }
+        
+        if (oldAsset.location !== updatedAsset.location) {
+          auditComments.push({
+            assetId: oldAsset.id,
+            authorName: session?.user.name || 'System',
+            authorId: session?.user.id,
+            message: `Location changed from "${oldAsset.location}" to "${updatedAsset.location}"`,
+            type: AssetCommentType.SYSTEM,
+            createdAt: now
+          });
+        }
+
         setAssets(prev => prev.map(a => {
           if (a.id === updatedAsset.id) {
             const allComments = [...(updatedAsset.comments || []), ...auditComments.map(c => ({ ...c, id: Math.random().toString(36).substr(2, 9) }))];
@@ -513,7 +483,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error updating asset:', error);
-      alert('Failed to update asset. Please try again.');
+      showDialog(DialogType.ERROR, 'Update Asset Failed', 'Failed to update asset. Please try again.');
       throw error;
     }
   };
@@ -558,33 +528,43 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error adding comment:', error);
-      alert('Failed to add comment. Please try again.');
+      showDialog(DialogType.ERROR, 'Add Comment Failed', 'Failed to add comment. Please try again.');
       throw error;
     }
   };
 
   const handleDeleteAsset = async (id: string) => {
-    if (!isAdmin) {
-      alert('Only administrators can delete assets.');
+    console.log('Delete asset clicked for ID:', id);
+    console.log('Current session user:', session?.user);
+    console.log('Can delete check:', canDelete(session?.user || null));
+    
+    if (!canDelete(session?.user || null)) {
+      console.log('Permission denied - showing warning dialog');
+      showDialog(DialogType.WARNING, 'Permission Denied', getPermissionError('delete', session?.user?.role || null));
       return;
     }
 
-    if (!confirm('Are you sure you want to delete this asset?')) {
-      return;
-    }
-
-    try {
-      if (useBackend) {
-        await deleteAsset(id);
+    console.log('Showing confirmation dialog');
+    showDialog(DialogType.CONFIRM, 'Confirm Deletion', 'Are you sure you want to delete this asset?', async () => {
+      console.log('User confirmed deletion - proceeding');
+      // Proceed with deletion after confirmation
+      try {
+        if (useBackend) {
+          console.log('Calling deleteAsset with backend');
+          await deleteAsset(id, session?.user || null);
+        } else {
+          console.log('Using mock data - removing from state');
+        }
+        // Only update state after successful deletion
+        setAssets(prev => prev.filter(a => a.id !== id));
+        console.log('Asset deleted successfully');
+      } catch (error) {
+        console.error('Error deleting asset:', error);
+        showDialog(DialogType.ERROR, 'Delete Asset Failed', 'Failed to delete asset. Please try again.');
+        // State is not updated, so the asset remains visible in the UI
+        throw error;
       }
-      // Only update state after successful deletion
-      setAssets(prev => prev.filter(a => a.id !== id));
-    } catch (error) {
-      console.error('Error deleting asset:', error);
-      alert('Failed to delete asset. Please try again.');
-      // State is not updated, so the asset remains visible in the UI
-      throw error;
-    }
+    });
   };
 
   // User handlers
@@ -599,7 +579,7 @@ const App: React.FC = () => {
           email: user.email,
           role: user.role,
           status: user.status
-        }, user.password);
+        }, user.password, session?.user);
         setUsers(prev => [createdUser, ...prev]);
       } else {
         // Mock data fallback
@@ -620,7 +600,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error adding user:', error);
-      alert('Failed to add user. Please try again.');
+      showDialog(DialogType.ERROR, 'Add User Failed', 'Failed to add user. Please try again.');
       throw error;
     }
   };
@@ -635,7 +615,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error updating user:', error);
-      alert('Failed to update user. Please try again.');
+      showDialog(DialogType.ERROR, 'Update User Failed', 'Failed to update user. Please try again.');
       throw error;
     }
   };
@@ -646,7 +626,7 @@ const App: React.FC = () => {
       if (!user) return;
 
       const newStatus = user.status === UserStatus.ACTIVE ? UserStatus.INACTIVE : UserStatus.ACTIVE;
-      
+
       if (useBackend) {
         const updatedUser = await updateUser({ ...user, status: newStatus });
         setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
@@ -655,7 +635,31 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error toggling user status:', error);
-      alert('Failed to update user status. Please try again.');
+      showDialog(DialogType.ERROR, 'Update User Status Failed', 'Failed to update user status. Please try again.');
+      throw error;
+    }
+  };
+
+  const handleResetUserPassword = async (id: string): Promise<string> => {
+    try {
+      if (!session?.user) {
+        throw new Error('Not authenticated');
+      }
+
+      const temporaryPassword = await resetUserPassword(id, session.user);
+      
+      // Update the user list to reflect the password change (though we can't see the password)
+      // Just ensure the user is still active and refresh the list
+      if (useBackend) {
+        const updatedUsers = await getUsers();
+        setUsers(updatedUsers);
+      }
+
+      return temporaryPassword;
+    } catch (error) {
+      console.error('Error resetting user password:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reset password. Please try again.';
+      showDialog(DialogType.ERROR, 'Reset Password Failed', errorMessage);
       throw error;
     }
   };
@@ -663,111 +667,78 @@ const App: React.FC = () => {
   // Location handlers
   const handleAddLocation = async (location: Omit<Location, 'id'>) => {
     try {
-      if (useBackend) {
-        const createdLocation = await createLocation(location);
-        setLocations(prev => [createdLocation, ...prev]);
-      } else {
-        // Mock data fallback
-        const newLocation: Location = {
-          ...location,
-          id: `loc-${Math.random().toString(36).substr(2, 9)}`
-        };
-        setLocations(prev => [newLocation, ...prev]);
-      }
+      const createdLocation = await createLocation(location, session?.user || null);
+      setLocations(prev => [createdLocation, ...prev]);
     } catch (error) {
       console.error('Error adding location:', error);
-      alert('Failed to add location. Please try again.');
+      showDialog(DialogType.ERROR, 'Add Location Failed', 'Failed to add location. Please try again.');
       throw error;
     }
   };
 
   const handleUpdateLocation = async (updated: Location) => {
     try {
-      if (useBackend) {
-        const updatedLocation = await updateLocation(updated);
-        setLocations(prev => prev.map(l => l.id === updatedLocation.id ? updatedLocation : l));
-      } else {
-        setLocations(prev => prev.map(l => l.id === updated.id ? updated : l));
-      }
+      const updatedLocation = await updateLocation(updated, session?.user || null);
+      setLocations(prev => prev.map(l => l.id === updatedLocation.id ? updatedLocation : l));
     } catch (error) {
       console.error('Error updating location:', error);
-      alert('Failed to update location. Please try again.');
+      showDialog(DialogType.ERROR, 'Update Location Failed', 'Failed to update location. Please try again.');
       throw error;
     }
   };
 
   const handleDeleteLocation = async (id: string) => {
-    if (!isAdmin) {
-      alert('Only administrators can delete locations.');
+    if (!canDelete(session?.user || null)) {
+      showDialog(DialogType.WARNING, 'Permission Denied', getPermissionError('delete', session?.user?.role || null));
       return;
     }
 
     const location = locations.find(l => l.id === id);
     const assetCount = assets.filter(a => a.location === location?.name).length;
     const employeeCount = employees.filter(e => e.location === location?.name).length;
-    
+
     if (assetCount > 0 || employeeCount > 0) {
-      alert(`Cannot delete ${location?.name || 'this location'}. It has ${assetCount} asset(s) and ${employeeCount} employee(s). Please reassign them first.`);
+      showDialog(DialogType.WARNING, 'Cannot Delete Location', `Cannot delete ${location?.name || 'this location'}. It has ${assetCount} asset(s) and ${employeeCount} employee(s). Please reassign them first.`);
       return;
     }
 
     try {
       if (useBackend) {
-        await deleteLocation(id);
+        await deleteLocation(id, session?.user || null);
       }
       // Only update state after successful deletion
       setLocations(prev => prev.filter(l => l.id !== id));
     } catch (error) {
       console.error('Error deleting location:', error);
-      alert('Failed to delete location. Please try again.');
+      showDialog(DialogType.ERROR, 'Delete Location Failed', 'Failed to delete location. Please try again.');
       // State is not updated, so the location remains visible in the UI
       throw error;
     }
   };
 
-  // Department handlers
-  const handleAddDepartment = async (department: Omit<Department, 'id'>) => {
+  // Load fresh location data when navigating to locations view
+  const loadFreshLocationData = async () => {
     try {
-      // For now, using mock data. Backend integration can be added later
-      const newDepartment: Department = {
-        ...department,
-        id: `dept-${Math.random().toString(36).substr(2, 9)}`
-      };
-      setDepartments(prev => [newDepartment, ...prev]);
+      const freshLocations = await getLocations();
+      setLocations(freshLocations);
     } catch (error) {
-      console.error('Error adding department:', error);
-      alert('Failed to add department. Please try again.');
-      throw error;
+      console.error('Error loading fresh location data:', error);
+      showDialog(DialogType.ERROR, 'Load Location Data Failed', 'Failed to load latest location data. Please try again.');
     }
   };
 
-  const handleDeleteDepartment = async (id: string) => {
-    try {
-      const department = departments.find(d => d.id === id);
-      if (!department) return;
-
-      // Check if department is used by any employees
-      const employeesUsingDepartment = employees.filter(e => e.department === department.name);
-      if (employeesUsingDepartment.length > 0) {
-        alert(`Cannot delete "${department.name}". It is being used by ${employeesUsingDepartment.length} employee(s). Please reassign employees first.`);
-        return;
-      }
-
-      // Only update state after successful deletion
-      setDepartments(prev => prev.filter(d => d.id !== id));
-    } catch (error) {
-      console.error('Error deleting department:', error);
-      alert('Failed to delete department. Please try again.');
-      // State is not updated, so the department remains visible in the UI
-      throw error;
+  // Refresh location data when navigating to locations view
+  useEffect(() => {
+    if (currentView === View.LOCATIONS && useBackend) {
+      loadFreshLocationData();
     }
-  };
+  }, [currentView, useBackend]);
 
   // Employee handlers
   const handleAddEmployee = async (employee: Omit<Employee, 'id'>) => {
     try {
       if (useBackend) {
-        const createdEmployee = await createEmployee(employee);
+        const createdEmployee = await createEmployee(employee, session?.user || null);
         setEmployees(prev => [createdEmployee, ...prev]);
       } else {
         // Mock data fallback
@@ -779,7 +750,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error adding employee:', error);
-      alert(error instanceof Error ? error.message : 'Failed to add employee. Please try again.');
+      showDialog(DialogType.ERROR, 'Add Employee Failed', error instanceof Error ? error.message : 'Failed to add employee. Please try again.');
       throw error;
     }
   };
@@ -787,45 +758,144 @@ const App: React.FC = () => {
   const handleUpdateEmployee = async (updated: Employee) => {
     try {
       if (useBackend) {
-        const updatedEmployee = await updateEmployee(updated);
+        const updatedEmployee = await updateEmployee(updated, session?.user || null);
         setEmployees(prev => prev.map(e => e.id === updatedEmployee.id ? updatedEmployee : e));
       } else {
         setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e));
       }
     } catch (error) {
       console.error('Error updating employee:', error);
-      alert('Failed to update employee. Please try again.');
+      showDialog(DialogType.ERROR, 'Update Employee Failed', 'Failed to update employee. Please try again.');
       throw error;
     }
   };
 
   const handleDeleteEmployee = async (id: string) => {
-    if (!isAdmin) {
-      alert('Only administrators can delete employees.');
-      return;
-    }
+   if (!canDelete(session?.user || null)) {
+     showDialog(DialogType.WARNING, 'Permission Denied', getPermissionError('delete', session?.user?.role || null));
+     return;
+   }
 
-    const employee = employees.find(e => e.id === id);
-    const assetCount = assets.filter(a => a.assignedTo === employee?.name).length;
-    
-    if (assetCount > 0) {
-      alert(`Cannot delete ${employee?.name || 'this employee'}. They have ${assetCount} asset(s) assigned. Please reassign or unassign assets first.`);
-      return;
-    }
+   const employee = employees.find(e => e.id === id);
+   const assetCount = assets.filter(a => a.assignedTo === employee?.name).length;
 
-    try {
-      if (useBackend) {
-        await deleteEmployee(id);
-      }
-      // Only update state after successful deletion
-      setEmployees(prev => prev.filter(e => e.id !== id));
-    } catch (error) {
-      console.error('Error deleting employee:', error);
-      alert('Failed to delete employee. Please try again.');
-      // State is not updated, so the employee remains visible in the UI
-      throw error;
-    }
+   if (assetCount > 0) {
+     showDialog(DialogType.WARNING, 'Cannot Delete Employee', `Cannot delete ${employee?.name || 'this employee'}. They have ${assetCount} asset(s) assigned. Please reassign or unassign assets first.`);
+     return;
+   }
+
+   try {
+     if (useBackend) {
+       await deleteEmployee(id, session?.user || null);
+     }
+     // Only update state after successful deletion
+     setEmployees(prev => prev.filter(e => e.id !== id));
+   } catch (error) {
+     console.error('Error deleting employee:', error);
+     showDialog(DialogType.ERROR, 'Delete Employee Failed', 'Failed to delete employee. Please try again.');
+     // State is not updated, so the employee remains visible in the UI
+     throw error;
+   }
   };
+
+  // Department handlers
+  const handleAddDepartment = async (department: Omit<Department, 'id'>) => {
+   try {
+     const createdDepartment = await createDepartment(department, session?.user || null);
+     setDepartments(prev => [createdDepartment, ...prev]);
+   } catch (error) {
+     console.error('Error adding department:', error);
+     showDialog(DialogType.ERROR, 'Add Department Failed', 'Failed to add department. Please try again.');
+     throw error;
+   }
+  };
+
+  const handleUpdateDepartment = async (updated: Department) => {
+   try {
+     const updatedDepartment = await updateDepartment(updated, session?.user || null);
+     setDepartments(prev => prev.map(d => d.id === updatedDepartment.id ? updatedDepartment : d));
+   } catch (error) {
+     console.error('Error updating department:', error);
+     showDialog(DialogType.ERROR, 'Update Department Failed', 'Failed to update department. Please try again.');
+     throw error;
+   }
+  };
+
+  const handleDeleteDepartment = async (id: string) => {
+   if (!canDelete(session?.user || null)) {
+     showDialog(DialogType.WARNING, 'Permission Denied', getPermissionError('delete', session?.user?.role || null));
+     return;
+   }
+
+   const department = departments.find(d => d.id === id);
+   const employeeCount = employees.filter(e => e.department === department?.name).length;
+
+   if (employeeCount > 0) {
+     showDialog(DialogType.WARNING, 'Cannot Delete Department', `Cannot delete ${department?.name || 'this department'}. It has ${employeeCount} employee(s). Please reassign them first.`);
+     return;
+   }
+
+   try {
+     if (useBackend) {
+       await deleteDepartment(id, session?.user || null);
+     }
+     // Only update state after successful deletion
+     setDepartments(prev => prev.filter(d => d.id !== id));
+   } catch (error) {
+     console.error('Error deleting department:', error);
+     showDialog(DialogType.ERROR, 'Delete Department Failed', 'Failed to delete department. Please try again.');
+     // State is not updated, so the department remains visible in the UI
+     throw error;
+   }
+  };
+
+  // Load fresh department data when navigating to departments view
+  const loadFreshDepartmentData = async () => {
+   try {
+     const freshDepartments = await getDepartments();
+     setDepartments(freshDepartments);
+   } catch (error) {
+     console.error('Error loading fresh department data:', error);
+     showDialog(DialogType.ERROR, 'Load Department Data Failed', 'Failed to load latest department data. Please try again.');
+   }
+  };
+
+  // Refresh department data when navigating to departments view
+  useEffect(() => {
+   if (currentView === View.DEPARTMENTS && useBackend) {
+     loadFreshDepartmentData();
+   }
+  }, [currentView, useBackend]);
+
+  // Load fresh department data when navigating to employees view
+  const loadFreshDepartmentDataForEmployees = async () => {
+   try {
+     const freshDepartments = await getDepartments();
+     setDepartments(freshDepartments);
+   } catch (error) {
+     console.error('Error loading fresh department data for employees:', error);
+     showDialog(DialogType.ERROR, 'Load Department Data Failed', 'Failed to load latest department data. Please try again.');
+   }
+  };
+
+  // Load fresh location data when navigating to employees view
+  const loadFreshLocationDataForEmployees = async () => {
+   try {
+     const freshLocations = await getLocations();
+     setLocations(freshLocations);
+   } catch (error) {
+     console.error('Error loading fresh location data for employees:', error);
+     showDialog(DialogType.ERROR, 'Load Location Data Failed', 'Failed to load latest location data. Please try again.');
+   }
+  };
+
+  // Refresh department and location data when navigating to employees view
+  useEffect(() => {
+   if (currentView === View.EMPLOYEES && useBackend) {
+     loadFreshDepartmentDataForEmployees();
+     loadFreshLocationDataForEmployees();
+   }
+  }, [currentView, useBackend]);
 
   const NavItem = ({ view, icon: Icon }: { view: View, icon: any }) => (
     <button
@@ -880,10 +950,10 @@ const App: React.FC = () => {
           <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
           <NavItem view={View.INVENTORY} icon={Box} />
           <NavItem view={View.EMPLOYEES} icon={Briefcase} />
-          <NavItem view={View.LOCATIONS} icon={MapPin} />
           <NavItem view={View.DEPARTMENTS} icon={Building2} />
-          {isAdmin && <NavItem view={View.USERS} icon={Users} />}
-          {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
+          <NavItem view={View.LOCATIONS} icon={MapPin} />
+          {isAdmin(session?.user || null) && <NavItem view={View.USERS} icon={Users} />}
+          {isAdmin(session?.user || null) && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
         </nav>
 
         <div className="p-4 border-t border-gray-200">
@@ -920,10 +990,10 @@ const App: React.FC = () => {
              <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
               <NavItem view={View.INVENTORY} icon={Box} />
               <NavItem view={View.EMPLOYEES} icon={Briefcase} />
-              <NavItem view={View.LOCATIONS} icon={MapPin} />
               <NavItem view={View.DEPARTMENTS} icon={Building2} />
-              {isAdmin && <NavItem view={View.USERS} icon={Users} />}
-              {isAdmin && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
+              <NavItem view={View.LOCATIONS} icon={MapPin} />
+              {canDelete(session?.user || null) && <NavItem view={View.USERS} icon={Users} />}
+              {canDelete(session?.user || null) && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
             </nav>
           </motion.div>
         )}
@@ -948,6 +1018,7 @@ const App: React.FC = () => {
                 {currentView === View.DASHBOARD && `Overview of ${assets.length} managed assets.`}
                 {currentView === View.INVENTORY && "Manage and track your corporate equipment."}
                 {currentView === View.EMPLOYEES && "Manage organization employees and asset assignments."}
+                {currentView === View.DEPARTMENTS && "Organize and manage your company departments."}
                 {currentView === View.LOCATIONS && "Manage office locations and standardize addresses."}
                 {currentView === View.USERS && "Admin-only control of teammates, roles, and status."}
                 {currentView === View.SETTINGS && "Configure your workspace."}
@@ -964,19 +1035,21 @@ const App: React.FC = () => {
             >
               {currentView === View.DASHBOARD && <Dashboard assets={assets} locations={locations} />}
               {currentView === View.INVENTORY && (
-                <AssetManager 
+                <AssetManager
                   assets={assets}
                   employees={employees}
                   locations={locations}
-                  onAdd={handleAddAsset} 
-                  onUpdate={handleUpdateAsset} 
+                  onAdd={handleAddAsset}
+                  onUpdate={handleUpdateAsset}
                   onDelete={handleDeleteAsset}
                   onAddComment={handleAddComment}
-                  canDelete={isAdmin}
+                  canCreate={canCreate(session?.user || null)}
+                  canUpdate={canUpdate(session?.user || null)}
+                  canDelete={canDelete(session?.user || null)}
                 />
               )}
               {currentView === View.EMPLOYEES && (
-                <EmployeeManagement 
+                <EmployeeManagement
                   employees={employees}
                   assets={assets}
                   locations={locations}
@@ -984,39 +1057,63 @@ const App: React.FC = () => {
                   onAdd={handleAddEmployee}
                   onUpdate={handleUpdateEmployee}
                   onDelete={handleDeleteEmployee}
-                  canDelete={isAdmin}
+                  canCreate={canCreate(session?.user || null)}
+                  canUpdate={canUpdate(session?.user || null)}
+                  canDelete={canDelete(session?.user || null)}
+                  currentUser={session?.user || null}
                 />
               )}
               {currentView === View.LOCATIONS && (
-                <LocationManagement 
+                <LocationManagement
                   locations={locations}
                   assets={assets}
                   onAdd={handleAddLocation}
                   onUpdate={handleUpdateLocation}
                   onDelete={handleDeleteLocation}
-                  canDelete={isAdmin}
+                  canCreate={canCreate(session?.user || null)}
+                  canUpdate={canUpdate(session?.user || null)}
+                  canDelete={canDelete(session?.user || null)}
                 />
               )}
               {currentView === View.DEPARTMENTS && (
                 <DepartmentManagementPage
-                  onAddDepartment={handleAddDepartment}
-                  onDeleteDepartment={handleDeleteDepartment}
+                  departments={departments}
+                  assets={assets}
+                  employees={employees}
+                  onAdd={handleAddDepartment}
+                  onUpdate={handleUpdateDepartment}
+                  onDelete={handleDeleteDepartment}
+                  canCreate={canCreate(session?.user || null)}
+                  canUpdate={canUpdate(session?.user || null)}
+                  canDelete={canDelete(session?.user || null)}
+                  currentUser={session?.user || null}
                 />
               )}
-              {currentView === View.USERS && isAdmin && (
-                <UserManagement 
-                  users={users} 
-                  onAdd={handleAddUser} 
-                  onUpdate={handleUpdateUser} 
-                  onToggleStatus={handleToggleUserStatus} 
+              {currentView === View.USERS && canDelete(session?.user || null) && (
+                <UserManagement
+                  users={users}
+                  onAdd={handleAddUser}
+                  onUpdate={handleUpdateUser}
+                  onToggleStatus={handleToggleUserStatus}
+                  onResetPassword={handleResetUserPassword}
                 />
               )}
-              {currentView === View.SETTINGS && isAdmin && <Settings />}
+              {currentView === View.SETTINGS && canDelete(session?.user || null) && <Settings />}
             </motion.div>
           </AnimatePresence>
           </div>
         </div>
       </main>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        onClose={() => setDialogState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={dialogState.onConfirm}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+      />
     </div>
   );
 };
