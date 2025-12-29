@@ -868,6 +868,36 @@ const App: React.FC = () => {
    }
   }, [currentView, useBackend]);
 
+  // Load fresh department data when navigating to employees view
+  const loadFreshDepartmentDataForEmployees = async () => {
+   try {
+     const freshDepartments = await getDepartments();
+     setDepartments(freshDepartments);
+   } catch (error) {
+     console.error('Error loading fresh department data for employees:', error);
+     showDialog(DialogType.ERROR, 'Load Department Data Failed', 'Failed to load latest department data. Please try again.');
+   }
+  };
+
+  // Load fresh location data when navigating to employees view
+  const loadFreshLocationDataForEmployees = async () => {
+   try {
+     const freshLocations = await getLocations();
+     setLocations(freshLocations);
+   } catch (error) {
+     console.error('Error loading fresh location data for employees:', error);
+     showDialog(DialogType.ERROR, 'Load Location Data Failed', 'Failed to load latest location data. Please try again.');
+   }
+  };
+
+  // Refresh department and location data when navigating to employees view
+  useEffect(() => {
+   if (currentView === View.EMPLOYEES && useBackend) {
+     loadFreshDepartmentDataForEmployees();
+     loadFreshLocationDataForEmployees();
+   }
+  }, [currentView, useBackend]);
+
   const NavItem = ({ view, icon: Icon }: { view: View, icon: any }) => (
     <button
       onClick={() => { setCurrentView(view); setIsMobileMenuOpen(false); }}
