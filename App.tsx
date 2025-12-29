@@ -375,7 +375,7 @@ const App: React.FC = () => {
   const handleAddAsset = async (newAsset: Omit<Asset, 'id'>) => {
     try {
       if (useBackend) {
-        const createdAsset = await createAsset(newAsset);
+        const createdAsset = await createAsset(newAsset, session?.user || null);
         // Add creation comment
         await addAssetComment({
           assetId: createdAsset.id,
@@ -419,7 +419,7 @@ const App: React.FC = () => {
       if (!oldAsset) return;
 
       if (useBackend) {
-        const updated = await updateAsset(updatedAsset);
+        const updated = await updateAsset(updatedAsset, session?.user || null);
         
         // Load the updated asset with all comments from the backend
         const updatedAssetWithComments = await getAssetById(updated.id);
@@ -530,44 +530,37 @@ const App: React.FC = () => {
   };
 
   const handleDeleteAsset = async (id: string) => {
+    console.log('Delete asset clicked for ID:', id);
+    console.log('Current session user:', session?.user);
+    console.log('Can delete check:', canDelete(session?.user || null));
+    
     if (!canDelete(session?.user || null)) {
+      console.log('Permission denied - showing warning dialog');
       showDialog(DialogType.WARNING, 'Permission Denied', getPermissionError('delete', session?.user?.role || null));
       return;
     }
 
-    showDialog(DialogType.CONFIRM, 'Confirm Deletion', 'Are you sure you want to delete this asset?', () => {
+    console.log('Showing confirmation dialog');
+    showDialog(DialogType.CONFIRM, 'Confirm Deletion', 'Are you sure you want to delete this asset?', async () => {
+      console.log('User confirmed deletion - proceeding');
       // Proceed with deletion after confirmation
-      const proceedWithDeletion = async () => {
-        try {
-          if (useBackend) {
-            await deleteAsset(id);
-          }
-          // Only update state after successful deletion
-          setAssets(prev => prev.filter(a => a.id !== id));
-        } catch (error) {
-          console.error('Error deleting asset:', error);
-          showDialog(DialogType.ERROR, 'Delete Asset Failed', 'Failed to delete asset. Please try again.');
-          // State is not updated, so the asset remains visible in the UI
-          throw error;
+      try {
+        if (useBackend) {
+          console.log('Calling deleteAsset with backend');
+          await deleteAsset(id, session?.user || null);
+        } else {
+          console.log('Using mock data - removing from state');
         }
-      };
-      proceedWithDeletion();
-    });
-
-    return;
-
-    try {
-      if (useBackend) {
-        await deleteAsset(id);
+        // Only update state after successful deletion
+        setAssets(prev => prev.filter(a => a.id !== id));
+        console.log('Asset deleted successfully');
+      } catch (error) {
+        console.error('Error deleting asset:', error);
+        showDialog(DialogType.ERROR, 'Delete Asset Failed', 'Failed to delete asset. Please try again.');
+        // State is not updated, so the asset remains visible in the UI
+        throw error;
       }
-      // Only update state after successful deletion
-      setAssets(prev => prev.filter(a => a.id !== id));
-    } catch (error) {
-      console.error('Error deleting asset:', error);
-      showDialog(DialogType.ERROR, 'Delete Asset Failed', 'Failed to delete asset. Please try again.');
-      // State is not updated, so the asset remains visible in the UI
-      throw error;
-    }
+    });
   };
 
   // User handlers
@@ -1090,6 +1083,16 @@ const App: React.FC = () => {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        onClose={() => setDialogState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={dialogState.onConfirm}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+      />
     </div>
   );
 };

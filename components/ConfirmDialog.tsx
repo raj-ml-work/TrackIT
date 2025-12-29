@@ -126,7 +126,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               {type !== DialogType.CONFIRM && (
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={() => {
+                    onConfirm?.();
+                    onClose();
+                  }}
                   className={`${config.buttonColor} px-4 py-2 rounded-lg text-white font-semibold hover:-translate-y-0.5 transition-transform`}
                 >
                   OK

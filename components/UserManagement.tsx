@@ -216,7 +216,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
             <span className="col-span-2">Role</span>
             <span className="col-span-2">Status</span>
             <span className="col-span-1 text-right">Last Login</span>
-            <span className="col-span-1"></span>
+            <span className="col-span-1 text-right">Actions</span>
           </div>
 
           <AnimatePresence>
@@ -265,12 +265,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                 <div className="col-span-2">
                   <span className={statusBadge(user.status)}>{user.status}</span>
                 </div>
-                <div className="col-span-1 flex items-center gap-2 justify-end text-sm text-gray-500">
-                  <Clock size={14} className="hidden md:block" />
+                <div className="col-span-1 flex items-center justify-end text-sm text-gray-500">
+                  <Clock size={14} className="hidden md:block mr-1" />
                   <span className="text-xs md:text-sm">{user.lastLogin}</span>
                 </div>
                 {canManageUsers && (
-                  <div className="col-span-1 flex items-center gap-2 justify-end">
+                  <div className="col-span-1 flex items-center justify-end gap-1">
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.95 }}
