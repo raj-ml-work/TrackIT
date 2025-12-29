@@ -672,7 +672,7 @@ const App: React.FC = () => {
   // Location handlers
   const handleAddLocation = async (location: Omit<Location, 'id'>) => {
     try {
-      const createdLocation = await createLocation(location);
+      const createdLocation = await createLocation(location, session?.user || null);
       setLocations(prev => [createdLocation, ...prev]);
     } catch (error) {
       console.error('Error adding location:', error);
@@ -683,7 +683,7 @@ const App: React.FC = () => {
 
   const handleUpdateLocation = async (updated: Location) => {
     try {
-      const updatedLocation = await updateLocation(updated);
+      const updatedLocation = await updateLocation(updated, session?.user || null);
       setLocations(prev => prev.map(l => l.id === updatedLocation.id ? updatedLocation : l));
     } catch (error) {
       console.error('Error updating location:', error);
@@ -741,7 +741,7 @@ const App: React.FC = () => {
   const handleAddEmployee = async (employee: Omit<Employee, 'id'>) => {
     try {
       if (useBackend) {
-        const createdEmployee = await createEmployee(employee);
+        const createdEmployee = await createEmployee(employee, session?.user || null);
         setEmployees(prev => [createdEmployee, ...prev]);
       } else {
         // Mock data fallback
@@ -761,7 +761,7 @@ const App: React.FC = () => {
   const handleUpdateEmployee = async (updated: Employee) => {
     try {
       if (useBackend) {
-        const updatedEmployee = await updateEmployee(updated);
+        const updatedEmployee = await updateEmployee(updated, session?.user || null);
         setEmployees(prev => prev.map(e => e.id === updatedEmployee.id ? updatedEmployee : e));
       } else {
         setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e));
@@ -804,7 +804,7 @@ const App: React.FC = () => {
   // Department handlers
   const handleAddDepartment = async (department: Omit<Department, 'id'>) => {
    try {
-     const createdDepartment = await createDepartment(department);
+     const createdDepartment = await createDepartment(department, session?.user || null);
      setDepartments(prev => [createdDepartment, ...prev]);
    } catch (error) {
      console.error('Error adding department:', error);
@@ -815,7 +815,7 @@ const App: React.FC = () => {
 
   const handleUpdateDepartment = async (updated: Department) => {
    try {
-     const updatedDepartment = await updateDepartment(updated);
+     const updatedDepartment = await updateDepartment(updated, session?.user || null);
      setDepartments(prev => prev.map(d => d.id === updatedDepartment.id ? updatedDepartment : d));
    } catch (error) {
      console.error('Error updating department:', error);
@@ -990,25 +990,29 @@ const App: React.FC = () => {
             >
               {currentView === View.DASHBOARD && <Dashboard assets={assets} locations={locations} />}
               {currentView === View.INVENTORY && (
-                <AssetManager 
+                <AssetManager
                   assets={assets}
                   employees={employees}
                   locations={locations}
-                  onAdd={handleAddAsset} 
-                  onUpdate={handleUpdateAsset} 
+                  onAdd={handleAddAsset}
+                  onUpdate={handleUpdateAsset}
                   onDelete={handleDeleteAsset}
                   onAddComment={handleAddComment}
+                  canCreate={!isNormalUser}
+                  canUpdate={!isNormalUser}
                   canDelete={isAdmin}
                 />
               )}
               {currentView === View.EMPLOYEES && (
-                <EmployeeManagement 
+                <EmployeeManagement
                   employees={employees}
                   assets={assets}
                   locations={locations}
                   onAdd={handleAddEmployee}
                   onUpdate={handleUpdateEmployee}
                   onDelete={handleDeleteEmployee}
+                  canCreate={!isNormalUser}
+                  canUpdate={!isNormalUser}
                   canDelete={isAdmin}
                 />
               )}
@@ -1019,6 +1023,8 @@ const App: React.FC = () => {
                   onAdd={handleAddLocation}
                   onUpdate={handleUpdateLocation}
                   onDelete={handleDeleteLocation}
+                  canCreate={!isNormalUser}
+                  canUpdate={!isNormalUser}
                   canDelete={isAdmin}
                 />
               )}
@@ -1028,6 +1034,8 @@ const App: React.FC = () => {
                   onAdd={handleAddDepartment}
                   onUpdate={handleUpdateDepartment}
                   onDelete={handleDeleteDepartment}
+                  canCreate={!isNormalUser}
+                  canUpdate={!isNormalUser}
                   canDelete={isAdmin}
                 />
               )}

@@ -5,12 +5,15 @@ import ConfirmDialog, { DialogType } from '../../components/ConfirmDialog';
 import DepartmentManagement from '../../components/DepartmentManagement';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '../../services/departmentService';
 import { Department } from '../../types';
+import * as authClient from '../../services/authClient';
 
 interface DepartmentManagementPageProps {
+  canCreate?: boolean;
+  canUpdate?: boolean;
   canDelete?: boolean;
 }
 
-const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ canDelete = true }) => {
+const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ canCreate = true, canUpdate = true, canDelete = true }) => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +57,9 @@ const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ can
 
   const handleAdd = async (department: Omit<Department, 'id'>) => {
     try {
-      await createDepartment(department);
+      // Get current user from session
+      const session = await authClient.restoreSession();
+      await createDepartment(department, session?.user || null);
       await fetchDepartments();
     } catch (err) {
       console.error('Error creating department:', err);
@@ -71,7 +76,9 @@ const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ can
 
   const handleUpdate = async (department: Department) => {
     try {
-      await updateDepartment(department);
+      // Get current user from session
+      const session = await authClient.restoreSession();
+      await updateDepartment(department, session?.user || null);
       await fetchDepartments();
     } catch (err) {
       console.error('Error updating department:', err);
@@ -115,6 +122,8 @@ const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ can
           onAdd={handleAdd}
           onUpdate={handleUpdate}
           onDelete={handleDelete}
+          canCreate={canCreate}
+          canUpdate={canUpdate}
           canDelete={canDelete}
         />
       )}
