@@ -1008,6 +1008,7 @@ const App: React.FC = () => {
                   employees={employees}
                   assets={assets}
                   locations={locations}
+                  departments={departments}
                   onAdd={handleAddEmployee}
                   onUpdate={handleUpdateEmployee}
                   onDelete={handleDeleteEmployee}
