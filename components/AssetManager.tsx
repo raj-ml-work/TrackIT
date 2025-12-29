@@ -12,6 +12,8 @@ interface AssetManagerProps {
   onUpdate: (asset: Asset) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onAddComment: (assetId: string, message: string) => Promise<void>;
+  canCreate?: boolean;
+  canUpdate?: boolean;
   canDelete?: boolean;
 }
 
@@ -50,7 +52,7 @@ const getIcon = (type: AssetType) => {
   }
 };
 
-const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], locations, onAdd, onUpdate, onDelete, onAddComment, canDelete = true }) => {
+const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], locations, onAdd, onUpdate, onDelete, onAddComment, canCreate = true, canUpdate = true, canDelete = true }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<AssetType | 'All'>('All');
   
@@ -430,15 +432,17 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <button 
-          onClick={() => { setCurrentStep(1); setIsModalOpen(true); }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
-        >
-          <Plus size={18} />
-          Add Asset
-        </button>
-      </div>
+      {canCreate && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => { setCurrentStep(1); setIsModalOpen(true); }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+          >
+            <Plus size={18} />
+            Add Asset
+          </button>
+        </div>
+      )}
 
       <GlassCard>
         <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
@@ -546,13 +550,15 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   >
                     <Eye size={16} />
                   </motion.button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); openEdit(asset); }}
-                    className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                    title="Edit"
-                  >
-                    <Edit2 size={16} />
-                  </button>
+                  {canUpdate && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openEdit(asset); }}
+                      className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                  )}
                   {canDelete && (
                     <button
                       onClick={async (e) => {
@@ -794,21 +800,23 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                      <X size={24} />
                    </button>
                    <div className="flex gap-2">
-                      <button onClick={() => openEdit(selectedAsset)} className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors">
-                        <Edit2 size={20} />
-                      </button>
+                      {canUpdate && (
+                        <button onClick={() => openEdit(selectedAsset)} className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors">
+                          <Edit2 size={20} />
+                        </button>
+                      )}
                       {canDelete && (
-                        <button 
-                          onClick={async () => { 
-                            if(confirm('Delete this asset?')) { 
+                        <button
+                          onClick={async () => {
+                            if(confirm('Delete this asset?')) {
                               try {
-                                await onDelete(selectedAsset.id); 
+                                await onDelete(selectedAsset.id);
                                 setSelectedAsset(null);
                               } catch (error) {
                                 console.error('Error deleting asset:', error);
                               }
                             }
-                          }} 
+                          }}
                           className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
                         >
                           <Trash2 size={20} />

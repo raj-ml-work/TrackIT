@@ -11,6 +11,8 @@ interface LocationManagementProps {
   onAdd: (location: Omit<Location, 'id'>) => Promise<void>;
   onUpdate: (location: Location) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  canCreate?: boolean;
+  canUpdate?: boolean;
   canDelete?: boolean;
 }
 
@@ -20,7 +22,7 @@ const initialForm: Omit<Location, 'id'> = {
   comments: ''
 };
 
-const LocationManagement: React.FC<LocationManagementProps> = ({ locations, assets, onAdd, onUpdate, onDelete, canDelete = true }) => {
+const LocationManagement: React.FC<LocationManagementProps> = ({ locations, assets, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true }) => {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
@@ -133,13 +135,15 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <button
-          onClick={openNew}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
-        >
-          <Plus size={18} />
-          Add Location
-        </button>
+        {canCreate && (
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+          >
+            <Plus size={18} />
+            Add Location
+          </button>
+        )}
       </div>
 
       <GlassCard>
@@ -195,15 +199,17 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
                     </span>
                   </div>
                   <div className="absolute -top-2 -right-2 flex gap-1">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => openEdit(location)}
-                      className="p-1 bg-blue-50 text-blue-600 rounded-full transition-colors"
-                      title="Edit"
-                    >
-                      <Pencil size={14} />
-                    </motion.button>
+                    {canUpdate && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => openEdit(location)}
+                        className="p-1 bg-blue-50 text-blue-600 rounded-full transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </motion.button>
+                    )}
                     {canDelete && (
                       <motion.button
                         whileHover={{ scale: 1.1 }}

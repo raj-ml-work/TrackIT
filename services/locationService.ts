@@ -1,11 +1,12 @@
 /**
  * Location Service
- * 
+ *
  * Handles all database operations for Locations
  */
 
-import { Location } from '../types';
+import { Location, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { canCreateOrUpdate, canDelete, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'locations';
 
@@ -75,9 +76,16 @@ export const getLocationByName = async (name: string): Promise<Location | null> 
 
 /**
  * Create a new location
+ * @param location Location data to create
+ * @param currentUser Current authenticated user for permission check
  */
-export const createLocation = async (location: Omit<Location, 'id'>): Promise<Location> => {
+export const createLocation = async (location: Omit<Location, 'id'>, currentUser: UserAccount | null = null): Promise<Location> => {
   try {
+    // Check permission
+    if (!canCreateOrUpdate(currentUser)) {
+      throw new Error(getPermissionError('create', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const locationData = transformLocationToDB(location);
     
@@ -98,9 +106,16 @@ export const createLocation = async (location: Omit<Location, 'id'>): Promise<Lo
 
 /**
  * Update an existing location
+ * @param location Location data to update
+ * @param currentUser Current authenticated user for permission check
  */
-export const updateLocation = async (location: Location): Promise<Location> => {
+export const updateLocation = async (location: Location, currentUser: UserAccount | null = null): Promise<Location> => {
   try {
+    // Check permission
+    if (!canCreateOrUpdate(currentUser)) {
+      throw new Error(getPermissionError('update', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const locationData = transformLocationToDB(location);
     
@@ -122,9 +137,16 @@ export const updateLocation = async (location: Location): Promise<Location> => {
 
 /**
  * Delete a location
+ * @param id Location ID to delete
+ * @param currentUser Current authenticated user for permission check
  */
-export const deleteLocation = async (id: string): Promise<void> => {
+export const deleteLocation = async (id: string, currentUser: UserAccount | null = null): Promise<void> => {
   try {
+    // Check permission
+    if (!canDelete(currentUser)) {
+      throw new Error(getPermissionError('delete', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const { error } = await supabase
       .from(TABLE_NAME)

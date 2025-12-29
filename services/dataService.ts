@@ -87,6 +87,7 @@ export {
   createUser,
   updateUser,
   updateUserPassword,
+  resetUserPassword,
   deleteUser,
   updateLastLogin
 } from './userService';

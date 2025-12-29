@@ -1,11 +1,12 @@
 /**
  * Department Service
- * 
+ *
  * Handles all database operations for Departments
  */
 
-import { Department } from '../types';
+import { Department, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { canCreateOrUpdate, canDelete, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'departments';
 
@@ -75,9 +76,16 @@ export const getDepartmentByName = async (name: string): Promise<Department | nu
 
 /**
  * Create a new department
+ * @param department Department data to create
+ * @param currentUser Current authenticated user for permission check
  */
-export const createDepartment = async (department: Omit<Department, 'id'>): Promise<Department> => {
+export const createDepartment = async (department: Omit<Department, 'id'>, currentUser: UserAccount | null = null): Promise<Department> => {
   try {
+    // Check permission
+    if (!canCreateOrUpdate(currentUser)) {
+      throw new Error(getPermissionError('create', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const departmentData = transformDepartmentToDB(department);
     
@@ -98,9 +106,16 @@ export const createDepartment = async (department: Omit<Department, 'id'>): Prom
 
 /**
  * Update an existing department
+ * @param department Department data to update
+ * @param currentUser Current authenticated user for permission check
  */
-export const updateDepartment = async (department: Department): Promise<Department> => {
+export const updateDepartment = async (department: Department, currentUser: UserAccount | null = null): Promise<Department> => {
   try {
+    // Check permission
+    if (!canCreateOrUpdate(currentUser)) {
+      throw new Error(getPermissionError('update', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const departmentData = transformDepartmentToDB(department);
     
@@ -122,9 +137,16 @@ export const updateDepartment = async (department: Department): Promise<Departme
 
 /**
  * Delete a department
+ * @param id Department ID to delete
+ * @param currentUser Current authenticated user for permission check
  */
-export const deleteDepartment = async (id: string): Promise<void> => {
+export const deleteDepartment = async (id: string, currentUser: UserAccount | null = null): Promise<void> => {
   try {
+    // Check permission
+    if (!canDelete(currentUser)) {
+      throw new Error(getPermissionError('delete', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const { error } = await supabase
       .from(TABLE_NAME)

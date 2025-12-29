@@ -11,6 +11,8 @@ interface EmployeeManagementProps {
   onAdd: (employee: Omit<Employee, 'id'>) => Promise<void>;
   onUpdate: (employee: Employee) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  canCreate?: boolean;
+  canUpdate?: boolean;
   canDelete?: boolean;
 }
 
@@ -31,7 +33,7 @@ const statusBadge = (status: EmployeeStatus) => {
     : `${base} bg-amber-100 text-amber-700`;
 };
 
-const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, onAdd, onUpdate, onDelete, canDelete = true }) => {
+const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true }) => {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<EmployeeStatus | 'All'>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -146,13 +148,15 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <button
-          onClick={openNew}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
-        >
-          <UserPlus size={18} />
-          Add Employee
-        </button>
+        {canCreate && (
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+          >
+            <UserPlus size={18} />
+            Add Employee
+          </button>
+        )}
       </div>
 
       <GlassCard>
@@ -251,15 +255,17 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   >
                     <Eye size={16} />
                   </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => openEdit(employee)}
-                    className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                    title="Edit"
-                  >
-                    <Pencil size={16} />
-                  </motion.button>
+                  {canUpdate && (
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => openEdit(employee)}
+                      className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Pencil size={16} />
+                    </motion.button>
+                  )}
                   {canDelete && (
                     <motion.button
                       whileHover={{ scale: 1.1 }}

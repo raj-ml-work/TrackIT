@@ -18,7 +18,7 @@ import {
   getAssets, getAssetById, createAsset, updateAsset, deleteAsset, addAssetComment, getAssetComments,
   getEmployees, createEmployee, updateEmployee, deleteEmployee,
   getLocations, createLocation, updateLocation, deleteLocation,
-  getUsers, createUser, updateUser, deleteUser,
+  getUsers, createUser, updateUser, deleteUser, resetUserPassword,
   getDepartments, createDepartment, updateDepartment, deleteDepartment
 } from './services/dataService';
 
@@ -159,7 +159,7 @@ const MOCK_USERS: UserAccount[] = [
     id: 'u-1002',
     name: 'Liam Chen',
     email: 'liam@auralis.inc',
-    role: UserRole.USER,
+    role: UserRole.NORMAL_USER,
     status: UserStatus.ACTIVE,
     lastLogin: '1d ago'
   },
@@ -167,7 +167,7 @@ const MOCK_USERS: UserAccount[] = [
     id: 'u-1003',
     name: 'Priya Patel',
     email: 'priya@auralis.inc',
-    role: UserRole.USER,
+    role: UserRole.NORMAL_USER,
     status: UserStatus.INACTIVE,
     lastLogin: '7d ago'
   }
@@ -267,6 +267,8 @@ const App: React.FC = () => {
   });
 
   const isAdmin = session?.user.role === UserRole.ADMIN;
+  const isPowerUser = session?.user.role === UserRole.POWER_USER;
+  const isNormalUser = session?.user.role === UserRole.NORMAL_USER;
 
   const showDialog = (type: DialogType, title: string, message: string, onConfirm?: () => void) => {
     setDialogState({
@@ -582,7 +584,7 @@ const App: React.FC = () => {
           email: user.email,
           role: user.role,
           status: user.status
-        }, user.password);
+        }, user.password, session?.user);
         setUsers(prev => [createdUser, ...prev]);
       } else {
         // Mock data fallback
@@ -629,7 +631,7 @@ const App: React.FC = () => {
       if (!user) return;
 
       const newStatus = user.status === UserStatus.ACTIVE ? UserStatus.INACTIVE : UserStatus.ACTIVE;
-      
+
       if (useBackend) {
         const updatedUser = await updateUser({ ...user, status: newStatus });
         setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
@@ -639,6 +641,30 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Error toggling user status:', error);
       showDialog(DialogType.ERROR, 'Update User Status Failed', 'Failed to update user status. Please try again.');
+      throw error;
+    }
+  };
+
+  const handleResetUserPassword = async (id: string): Promise<string> => {
+    try {
+      if (!session?.user) {
+        throw new Error('Not authenticated');
+      }
+
+      const temporaryPassword = await resetUserPassword(id, session.user);
+      
+      // Update the user list to reflect the password change (though we can't see the password)
+      // Just ensure the user is still active and refresh the list
+      if (useBackend) {
+        const updatedUsers = await getUsers();
+        setUsers(updatedUsers);
+      }
+
+      return temporaryPassword;
+    } catch (error) {
+      console.error('Error resetting user password:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reset password. Please try again.';
+      showDialog(DialogType.ERROR, 'Reset Password Failed', errorMessage);
       throw error;
     }
   };
@@ -1006,11 +1032,12 @@ const App: React.FC = () => {
                 />
               )}
               {currentView === View.USERS && isAdmin && (
-                <UserManagement 
-                  users={users} 
-                  onAdd={handleAddUser} 
-                  onUpdate={handleUpdateUser} 
-                  onToggleStatus={handleToggleUserStatus} 
+                <UserManagement
+                  users={users}
+                  onAdd={handleAddUser}
+                  onUpdate={handleUpdateUser}
+                  onToggleStatus={handleToggleUserStatus}
+                  onResetPassword={handleResetUserPassword}
                 />
               )}
               {currentView === View.SETTINGS && isAdmin && <Settings />}

@@ -1,12 +1,13 @@
 /**
  * User Service
- * 
+ *
  * Handles all database operations for Users (system users, not employees)
  */
 
 import { UserAccount, UserRole, UserStatus } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 import { hashPassword } from './passwordUtil';
+import { canManageUsers, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'users';
 
@@ -40,7 +41,7 @@ export const getUserById = async (id: string): Promise<UserAccount | null> => {
       .from(TABLE_NAME)
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle(); // Use maybeSingle() to handle 0 or 1 rows
 
     if (error) throw error;
     if (!data) return null;
@@ -62,7 +63,7 @@ export const getUserByEmail = async (email: string): Promise<UserAccount | null>
       .from(TABLE_NAME)
       .select('*')
       .eq('email', email.toLowerCase())
-      .single();
+      .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 or 1 rows
 
     if (error && error.code !== 'PGRST116') throw error;
     if (!data) return null;
@@ -77,12 +78,20 @@ export const getUserByEmail = async (email: string): Promise<UserAccount | null>
 /**
  * Create a new user
  * Creates user in both Supabase Auth and the users table
- * 
+ *
  * Note: This uses signUp which may require email confirmation unless disabled in Supabase settings.
  * For production, consider using a server-side endpoint with service role key for admin user creation.
+ * @param user User data to create
+ * @param password User password
+ * @param currentUser Current authenticated user for permission check
  */
-export const createUser = async (user: Omit<UserAccount, 'id' | 'lastLogin'>, password: string): Promise<UserAccount> => {
+export const createUser = async (user: Omit<UserAccount, 'id' | 'lastLogin'>, password: string, currentUser: UserAccount | null = null): Promise<UserAccount> => {
   try {
+    // Check permission - only admins can create users
+    if (!canManageUsers(currentUser)) {
+      throw new Error(getPermissionError('manageUsers', currentUser?.role || null));
+    }
+
     // Check if email already exists in users table
     const existing = await getUserByEmail(user.email);
     if (existing) {
@@ -113,13 +122,20 @@ export const createUser = async (user: Omit<UserAccount, 'id' | 'lastLogin'>, pa
 
 /**
  * Update an existing user
+ * @param user User data to update
+ * @param requestingUser Current authenticated user for permission check
  */
-export const updateUser = async (user: UserAccount): Promise<UserAccount> => {
+export const updateUser = async (user: UserAccount, requestingUser: UserAccount | null = null): Promise<UserAccount> => {
   try {
+    // Check permission - only admins can update users
+    if (!canManageUsers(requestingUser)) {
+      throw new Error(getPermissionError('manageUsers', requestingUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     
     // First, get the current user data to compare changes
-    const { data: currentUserData, error: fetchError } = await supabase
+    const { data: existingUserData, error: fetchError } = await supabase
       .from(TABLE_NAME)
       .select('*')
       .eq('id', user.id)
@@ -127,7 +143,7 @@ export const updateUser = async (user: UserAccount): Promise<UserAccount> => {
 
     if (fetchError) throw fetchError;
     
-    const currentUser = transformUserFromDB(currentUserData);
+    const existingUser = transformUserFromDB(existingUserData);
     
     const userData = transformUserToDB(user);
     
@@ -143,7 +159,7 @@ export const updateUser = async (user: UserAccount): Promise<UserAccount> => {
     const updatedUser = transformUserFromDB(data);
     
     // Log changes for audit purposes
-    const changes = getUserChanges(currentUser, updatedUser);
+    const changes = getUserChanges(existingUser, updatedUser);
     if (changes.length > 0) {
       console.log(`User update audit: ${changes.join(', ')}`);
     }
@@ -167,7 +183,7 @@ export const updateUserPassword = async (userId: string, newPassword: string): P
       .from(TABLE_NAME)
       .update({ password_hash: hashedPassword })
       .eq('id', userId);
-
+  
     if (error) throw error;
   } catch (error) {
     console.error('Error updating password:', error);
@@ -176,10 +192,95 @@ export const updateUserPassword = async (userId: string, newPassword: string): P
 };
 
 /**
- * Delete a user
+ * Reset user password - supports both generated and manual password options
+ * This function is designed for admin-use only to help users who have forgotten their passwords
+ * @param userId The ID of the user whose password should be reset
+ * @param requestingUser The admin user requesting the password reset
+ * @param passwordOption Optional password to set manually (if not provided, generates a temporary password)
+ * @returns The password that was set (either the provided one or the generated temporary password)
  */
-export const deleteUser = async (id: string): Promise<void> => {
+export const resetUserPassword = async (
+  userId: string,
+  requestingUser: UserAccount | null = null,
+  passwordOption?: string
+): Promise<string> => {
   try {
+    // Check permission - only admins can reset passwords
+    if (!canManageUsers(requestingUser)) {
+      throw new Error(getPermissionError('manageUsers', requestingUser?.role || null));
+    }
+
+    // Prevent admins from resetting their own password (security measure)
+    if (requestingUser && requestingUser.id === userId) {
+      throw new Error('Admins cannot reset their own password. Please ask another admin for assistance.');
+    }
+
+    // Get the target user
+    const targetUser = await getUserById(userId);
+    if (!targetUser) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+
+    // Use provided password or generate a temporary one
+    const passwordToSet = passwordOption || generateSecurePassword();
+    const hashedPassword = await hashPassword(passwordToSet);
+
+    // Update the user's password
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase
+      .from(TABLE_NAME)
+      .update({ password_hash: hashedPassword })
+      .eq('id', userId);
+
+    if (error) throw error;
+
+    // Log the password reset action for audit purposes
+    console.log(`Password reset by admin ${requestingUser?.name || 'unknown'} for user ${targetUser.name} (${targetUser.email})`);
+
+    return passwordToSet;
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    throw error;
+  }
+};
+
+/**
+ * Generate a secure temporary password
+ * @returns A randomly generated secure password
+ */
+const generateSecurePassword = (): string => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*()_+';
+  let password = '';
+  
+  // Ensure password contains at least one of each character type
+  const getRandomChar = (charSet: string) => charSet.charAt(Math.floor(Math.random() * charSet.length));
+  
+  password += getRandomChar('ABCDEFGHJKLMNPQRSTUVWXYZ'); // Uppercase
+  password += getRandomChar('abcdefghijkmnpqrstuvwxyz'); // Lowercase
+  password += getRandomChar('23456789'); // Number
+  password += getRandomChar('!@#$%^&*()_+'); // Special
+  
+  // Fill the rest to make 12 characters total
+  for (let i = password.length; i < 12; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  // Shuffle the characters to avoid predictable patterns
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+};
+
+/**
+ * Delete a user
+ * @param id User ID to delete
+ * @param requestingUser Current authenticated user for permission check
+ */
+export const deleteUser = async (id: string, requestingUser: UserAccount | null = null): Promise<void> => {
+  try {
+    // Check permission - only admins can delete users
+    if (!canManageUsers(requestingUser)) {
+      throw new Error(getPermissionError('manageUsers', requestingUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const { error } = await supabase
       .from(TABLE_NAME)

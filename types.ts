@@ -66,7 +66,8 @@ export interface DashboardStats {
 
 export enum UserRole {
   ADMIN = 'Admin',
-  USER = 'User'
+  POWER_USER = 'Power User',
+  NORMAL_USER = 'Normal User'
 }
 
 export enum UserStatus {

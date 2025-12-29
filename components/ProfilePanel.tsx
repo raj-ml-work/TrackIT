@@ -75,7 +75,8 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
     setIsUpdatingPassword(true);
 
     try {
-      await authClient.updatePassword(currentPassword, newPassword);
+      // Pass the user ID to the updatePassword function
+      await authClient.updatePassword(currentPassword, newPassword, user.id);
       setPasswordSuccess(true);
       
       // Show success animation then close

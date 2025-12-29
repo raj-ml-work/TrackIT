@@ -1,11 +1,12 @@
 /**
  * Asset Service
- * 
+ *
  * Handles all database operations for Assets
  */
 
-import { Asset, AssetComment, AssetCommentType } from '../types';
+import { Asset, AssetComment, AssetCommentType, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { canCreateOrUpdate, canDelete, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'assets';
 const COMMENTS_TABLE_NAME = 'asset_comments';
@@ -55,9 +56,16 @@ export const getAssetById = async (id: string): Promise<Asset | null> => {
 
 /**
  * Create a new asset
+ * @param asset Asset data to create
+ * @param currentUser Current authenticated user for permission check
  */
-export const createAsset = async (asset: Omit<Asset, 'id'>): Promise<Asset> => {
+export const createAsset = async (asset: Omit<Asset, 'id'>, currentUser: UserAccount | null = null): Promise<Asset> => {
   try {
+    // Check permission
+    if (!canCreateOrUpdate(currentUser)) {
+      throw new Error(getPermissionError('create', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const assetData = transformAssetToDB(asset);
     
@@ -78,9 +86,16 @@ export const createAsset = async (asset: Omit<Asset, 'id'>): Promise<Asset> => {
 
 /**
  * Update an existing asset
+ * @param asset Asset data to update
+ * @param currentUser Current authenticated user for permission check
  */
-export const updateAsset = async (asset: Asset): Promise<Asset> => {
+export const updateAsset = async (asset: Asset, currentUser: UserAccount | null = null): Promise<Asset> => {
   try {
+    // Check permission
+    if (!canCreateOrUpdate(currentUser)) {
+      throw new Error(getPermissionError('update', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const assetData = transformAssetToDB(asset);
     
@@ -118,7 +133,7 @@ export const updateAsset = async (asset: Asset): Promise<Asset> => {
         type: AssetCommentType.SYSTEM,
         createdAt: new Date().toISOString()
       };
-      
+     
       await addAssetComment(systemComment);
     }
 
@@ -192,9 +207,16 @@ const getAssetChanges = (oldAsset: Asset, newAsset: Asset): string[] => {
 
 /**
  * Delete an asset
+ * @param id Asset ID to delete
+ * @param currentUser Current authenticated user for permission check
  */
-export const deleteAsset = async (id: string): Promise<void> => {
+export const deleteAsset = async (id: string, currentUser: UserAccount | null = null): Promise<void> => {
   try {
+    // Check permission
+    if (!canDelete(currentUser)) {
+      throw new Error(getPermissionError('delete', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     
     // Delete associated comments first

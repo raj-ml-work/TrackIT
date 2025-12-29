@@ -1,11 +1,12 @@
 /**
  * Employee Service
- * 
+ *
  * Handles all database operations for Employees
  */
 
-import { Employee, EmployeeStatus } from '../types';
+import { Employee, EmployeeStatus, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { canCreateOrUpdate, canDelete, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'employees';
 
@@ -75,9 +76,16 @@ export const getEmployeeByEmployeeId = async (employeeId: string): Promise<Emplo
 
 /**
  * Create a new employee
+ * @param employee Employee data to create
+ * @param currentUser Current authenticated user for permission check
  */
-export const createEmployee = async (employee: Omit<Employee, 'id'>): Promise<Employee> => {
+export const createEmployee = async (employee: Omit<Employee, 'id'>, currentUser: UserAccount | null = null): Promise<Employee> => {
   try {
+    // Check permission
+    if (!canCreateOrUpdate(currentUser)) {
+      throw new Error(getPermissionError('create', currentUser?.role || null));
+    }
+
     // Check if employee ID already exists
     const existing = await getEmployeeByEmployeeId(employee.employeeId);
     if (existing) {
@@ -104,9 +112,16 @@ export const createEmployee = async (employee: Omit<Employee, 'id'>): Promise<Em
 
 /**
  * Update an existing employee
+ * @param employee Employee data to update
+ * @param currentUser Current authenticated user for permission check
  */
-export const updateEmployee = async (employee: Employee): Promise<Employee> => {
+export const updateEmployee = async (employee: Employee, currentUser: UserAccount | null = null): Promise<Employee> => {
   try {
+    // Check permission
+    if (!canCreateOrUpdate(currentUser)) {
+      throw new Error(getPermissionError('update', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     
     // First, get the current employee data to compare changes
@@ -148,9 +163,16 @@ export const updateEmployee = async (employee: Employee): Promise<Employee> => {
 
 /**
  * Delete an employee
+ * @param id Employee ID to delete
+ * @param currentUser Current authenticated user for permission check
  */
-export const deleteEmployee = async (id: string): Promise<void> => {
+export const deleteEmployee = async (id: string, currentUser: UserAccount | null = null): Promise<void> => {
   try {
+    // Check permission
+    if (!canDelete(currentUser)) {
+      throw new Error(getPermissionError('delete', currentUser?.role || null));
+    }
+
     const supabase = await getSupabaseClient();
     const { error } = await supabase
       .from(TABLE_NAME)

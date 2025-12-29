@@ -10,6 +10,8 @@ interface DepartmentManagementProps {
   onAdd: (department: Omit<Department, 'id'>) => Promise<void>;
   onUpdate: (department: Department) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  canCreate?: boolean;
+  canUpdate?: boolean;
   canDelete?: boolean;
 }
 
@@ -18,7 +20,7 @@ const initialForm: Omit<Department, 'id'> = {
   description: ''
 };
 
-const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments, onAdd, onUpdate, onDelete, canDelete = true }) => {
+const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true }) => {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
@@ -107,13 +109,15 @@ const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <button
-          onClick={openNew}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
-        >
-          <Plus size={18} />
-          Add Department
-        </button>
+        {canCreate && (
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+          >
+            <Plus size={18} />
+            Add Department
+          </button>
+        )}
       </div>
 
       <GlassCard>
@@ -165,15 +169,17 @@ const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments
                     )}
                   </div>
                   <div className="absolute -top-2 -right-2 flex gap-1">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => openEdit(department)}
-                      className="p-1 bg-blue-50 text-blue-600 rounded-full transition-colors"
-                      title="Edit"
-                    >
-                      <Pencil size={14} />
-                    </motion.button>
+                    {canUpdate && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => openEdit(department)}
+                        className="p-1 bg-blue-50 text-blue-600 rounded-full transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </motion.button>
+                    )}
                     {canDelete && (
                       <motion.button
                         whileHover={{ scale: 1.1 }}
