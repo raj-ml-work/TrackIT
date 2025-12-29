@@ -3,6 +3,7 @@ import GlassCard from './GlassCard';
 import { Employee, EmployeeStatus, Asset, Location, Department } from '../types';
 import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ConfirmDialog, { DialogType } from './ConfirmDialog';
 
 interface EmployeeManagementProps {
   employees: Employee[];
@@ -15,6 +16,7 @@ interface EmployeeManagementProps {
   canCreate?: boolean;
   canUpdate?: boolean;
   canDelete?: boolean;
+  currentUser?: any; // Add current user for authentication
 }
 
 const initialForm: Omit<Employee, 'id'> = {
@@ -34,7 +36,7 @@ const statusBadge = (status: EmployeeStatus) => {
     : `${base} bg-amber-100 text-amber-700`;
 };
 
-const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true }) => {
+const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, currentUser }) => {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<EmployeeStatus | 'All'>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,6 +45,19 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [employeeIdError, setEmployeeIdError] = useState('');
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    type: DialogType;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    type: DialogType.WARNING,
+    title: '',
+    message: '',
+    onConfirm: undefined
+  });
 
   // Compute assigned asset counts
   const assetCounts = useMemo(() => {
@@ -97,6 +112,16 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     setEmployeeIdError('');
   };
 
+  const showDialog = (type: DialogType, title: string, message: string, onConfirm?: () => void) => {
+    setDialogState({
+      isOpen: true,
+      type,
+      title,
+      message,
+      onConfirm: onConfirm || (() => setDialogState(prev => ({ ...prev, isOpen: false })))
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmployeeIdError('');
@@ -132,18 +157,18 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const handleDelete = async (employee: Employee) => {
     const assignedCount = assetCounts[employee.id] || 0;
     if (assignedCount > 0) {
-      alert(`Cannot delete ${employee.name}. They have ${assignedCount} asset(s) assigned. Please reassign or unassign assets first.`);
+      showDialog(DialogType.WARNING, 'Cannot Delete Employee', `Cannot delete ${employee.name}. They have ${assignedCount} asset(s) assigned. Please reassign or unassign assets first.`);
       return;
     }
 
-    if (confirm(`Are you sure you want to delete ${employee.name}?`)) {
+    showDialog(DialogType.CONFIRM, 'Confirm Deletion', `Are you sure you want to delete ${employee.name}?`, async () => {
       try {
         await onDelete(employee.id);
       } catch (error) {
         // Error is already handled in the handler
         console.error('Error deleting employee:', error);
       }
-    }
+    });
   };
 
   return (
@@ -422,7 +447,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
                     <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
                     <p className="text-xs text-amber-800">
-                      This employee has <strong>{assetCounts[editingEmployee.id]} asset(s)</strong> assigned. 
+                      This employee has <strong>{assetCounts[editingEmployee.id]} asset(s)</strong> assigned.
                       They cannot be deleted until assets are reassigned.
                     </p>
                   </div>
@@ -457,6 +482,16 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        onClose={() => setDialogState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={dialogState.onConfirm}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+      />
 
       {/* Employee Detail Modal */}
       <AnimatePresence>

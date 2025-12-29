@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
-import { Department } from '../types';
+import { Department, Asset, Employee } from '../types';
 import { Building2, Search, Plus, X, Pencil, Trash2, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface DepartmentManagementProps {
   departments: Department[];
+  assets: Asset[];
+  employees: Employee[];
   onAdd: (department: Omit<Department, 'id'>) => Promise<void>;
   onUpdate: (department: Department) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -20,7 +22,7 @@ const initialForm: Omit<Department, 'id'> = {
   description: ''
 };
 
-const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true }) => {
+const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments, assets, employees, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true }) => {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
@@ -39,6 +41,16 @@ const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments
     message: '',
     onConfirm: undefined
   });
+
+  // Compute employee counts for each department
+  const departmentUsage = useMemo(() => {
+    const usage: Record<string, number> = {};
+    departments.forEach(dept => {
+      // Count employees in this department
+      usage[dept.id] = employees.filter(emp => emp.department === dept.name).length;
+    });
+    return usage;
+  }, [departments, employees]);
 
   const filteredDepartments = useMemo(() => {
     return departments.filter(department => {
@@ -90,6 +102,19 @@ const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments
   };
 
   const handleDelete = async (department: Department) => {
+    const employeeCount = departmentUsage[department.id] || 0;
+    
+    if (employeeCount > 0) {
+      setDialogState({
+        isOpen: true,
+        type: DialogType.ERROR,
+        title: 'Cannot Delete Department',
+        message: `Cannot delete ${department.name}. It has ${employeeCount} employee(s) assigned. Please reassign them first.`,
+        onConfirm: undefined
+      });
+      return;
+    }
+  
     setDialogState({
       isOpen: true,
       type: DialogType.CONFIRM,
@@ -98,6 +123,8 @@ const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments
       onConfirm: async () => {
         try {
           await onDelete(department.id);
+          // Close the dialog after successful deletion
+          setDialogState(prev => ({ ...prev, isOpen: false }));
         } catch (error) {
           // Error is already handled in the handler
           console.error('Error deleting department:', error);
@@ -163,10 +190,13 @@ const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments
                     </div>
                     <span className="font-medium text-gray-800">{department.name}</span>
                     {department.description && (
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full truncate max-w-[150px]">
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full truncate max-w-[100px]">
                         {department.description}
                       </span>
                     )}
+                    <span className="text-xs text-gray-600 font-semibold bg-gray-100 px-2 py-1 rounded-full">
+                      {departmentUsage[department.id] || 0} employees
+                    </span>
                   </div>
                   <div className="absolute -top-2 -right-2 flex gap-1">
                     {canUpdate && (

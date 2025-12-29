@@ -789,7 +789,7 @@ const App: React.FC = () => {
 
    try {
      if (useBackend) {
-       await deleteEmployee(id);
+       await deleteEmployee(id, session?.user || null);
      }
      // Only update state after successful deletion
      setEmployees(prev => prev.filter(e => e.id !== id));
@@ -1047,6 +1047,7 @@ const App: React.FC = () => {
                   canCreate={canCreate(session?.user || null)}
                   canUpdate={canUpdate(session?.user || null)}
                   canDelete={canDelete(session?.user || null)}
+                  currentUser={session?.user || null}
                 />
               )}
               {currentView === View.LOCATIONS && (
@@ -1064,6 +1065,8 @@ const App: React.FC = () => {
               {currentView === View.DEPARTMENTS && (
                 <DepartmentManagementPage
                   departments={departments}
+                  assets={assets}
+                  employees={employees}
                   onAdd={handleAddDepartment}
                   onUpdate={handleUpdateDepartment}
                   onDelete={handleDeleteDepartment}

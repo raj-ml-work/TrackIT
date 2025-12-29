@@ -4,11 +4,13 @@ import { Building2, Loader } from 'lucide-react';
 import ConfirmDialog, { DialogType } from '../../components/ConfirmDialog';
 import DepartmentManagement from '../../components/DepartmentManagement';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '../../services/departmentService';
-import { Department, UserAccount } from '../../types';
+import { Department, UserAccount, Asset, Employee } from '../../types';
 import * as authClient from '../../services/authClient';
 
 interface DepartmentManagementPageProps {
   departments: Department[];
+  assets: Asset[];
+  employees: Employee[];
   onAdd: (department: Omit<Department, 'id'>) => Promise<void>;
   onUpdate: (department: Department) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -18,7 +20,7 @@ interface DepartmentManagementPageProps {
   currentUser?: UserAccount | null;
 }
 
-const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ departments: initialDepartments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, currentUser = null }) => {
+const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ departments: initialDepartments, assets, employees, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, currentUser = null }) => {
   const [departments, setDepartments] = useState<Department[]>(initialDepartments);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +126,8 @@ const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ dep
       ) : (
         <DepartmentManagement
           departments={departments}
+          assets={assets}
+          employees={employees}
           onAdd={handleAdd}
           onUpdate={handleUpdate}
           onDelete={handleDelete}
