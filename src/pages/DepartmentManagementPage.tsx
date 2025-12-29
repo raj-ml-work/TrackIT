@@ -100,7 +100,7 @@ const DepartmentManagementPage: React.FC<DepartmentManagementPageProps> = ({ dep
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDepartment(id);
+      await deleteDepartment(id, currentUser);
       await fetchDepartments();
     } catch (err) {
       console.error('Error deleting department:', err);

@@ -149,10 +149,21 @@ export const deleteDepartment = async (id: string, currentUser: UserAccount | nu
 
     // Check foreign key constraints - ensure no employees are assigned to this department
     const supabase = await getSupabaseClient();
+    
+    // First get the department name to check for employees
+    const { data: departmentData, error: deptError } = await supabase
+      .from(TABLE_NAME)
+      .select('name')
+      .eq('id', id)
+      .single();
+    
+    if (deptError) throw deptError;
+    if (!departmentData) throw new Error('Department not found');
+    
     const { data: employees, error: employeesError } = await supabase
       .from('employees')
       .select('id')
-      .eq('department', id);
+      .eq('department', departmentData.name);
 
     if (employeesError) throw employeesError;
 

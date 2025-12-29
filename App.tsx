@@ -839,7 +839,9 @@ const App: React.FC = () => {
    }
 
    try {
-     await deleteDepartment(id);
+     if (useBackend) {
+       await deleteDepartment(id, session?.user || null);
+     }
      // Only update state after successful deletion
      setDepartments(prev => prev.filter(d => d.id !== id));
    } catch (error) {
