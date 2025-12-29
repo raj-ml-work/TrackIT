@@ -316,7 +316,7 @@ export const updateLastLogin = async (userId: string): Promise<void> => {
  * Transform database format to app format
  */
 const transformUserFromDB = (dbUser: any): UserAccount => {
-  const lastLogin = dbUser.last_login 
+  const lastLogin = dbUser.last_login
     ? formatLastLogin(dbUser.last_login)
     : '—';
 
@@ -324,8 +324,8 @@ const transformUserFromDB = (dbUser: any): UserAccount => {
     id: dbUser.id,
     name: dbUser.name,
     email: dbUser.email,
-    role: dbUser.role,
-    status: dbUser.status,
+    role: dbUser.role as UserRole,
+    status: dbUser.status as UserStatus,
     lastLogin,
     passwordHash: dbUser.password_hash
   };

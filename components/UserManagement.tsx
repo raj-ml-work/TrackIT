@@ -746,9 +746,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                          // Show success dialog with temporary password
                          setResetDialog({
                            isOpen: true,
+                           userId: resetDialog.userId,
                            userName: resetDialog.userName,
                            temporaryPassword: tempPassword,
-                           isSuccess: true
+                           isSuccess: true,
+                           useManualPassword: resetDialog.useManualPassword,
+                           manualPassword: resetDialog.manualPassword,
+                           confirmManualPassword: resetDialog.confirmManualPassword
                          });
                        } catch (error) {
                          console.error('Error resetting password:', error);
@@ -785,33 +789,46 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                       The password for <span className="font-semibold text-gray-900">{resetDialog.userName}</span> has been reset successfully.
                     </p>
 
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl mb-4">
-                      <p className="text-xs text-blue-800 font-semibold mb-2">TEMPORARY PASSWORD:</p>
-                      <div className="flex items-center gap-2">
-                        <code className="bg-gray-100 px-3 py-1 rounded text-blue-600 font-mono text-sm">
-                          {resetDialog.temporaryPassword}
-                        </code>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (resetDialog.temporaryPassword) {
-                              navigator.clipboard.writeText(resetDialog.temporaryPassword);
-                            }
-                          }}
-                          className="text-blue-600 hover:text-blue-800 text-sm"
-                          title="Copy to clipboard"
-                        >
-                          📋 Copy
-                        </button>
+                    {/* Show temporary password only when random password was generated */}
+                    {!resetDialog.useManualPassword && resetDialog.temporaryPassword && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl mb-4">
+                        <p className="text-xs text-blue-800 font-semibold mb-2">TEMPORARY PASSWORD:</p>
+                        <div className="flex items-center gap-2">
+                          <code className="bg-gray-100 px-3 py-1 rounded text-blue-600 font-mono text-sm">
+                            {resetDialog.temporaryPassword}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (resetDialog.temporaryPassword) {
+                                navigator.clipboard.writeText(resetDialog.temporaryPassword);
+                              }
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-sm"
+                            title="Copy to clipboard"
+                          >
+                            📋 Copy
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
                       <p className="text-xs text-gray-700 font-semibold mb-2">NEXT STEPS:</p>
                       <ul className="text-xs text-gray-600 space-y-1">
-                        <li>• Provide this temporary password to the user securely</li>
-                        <li>• Instruct the user to change their password immediately after logging in</li>
-                        <li>• Consider using encrypted communication for sharing sensitive information</li>
+                        {!resetDialog.useManualPassword ? (
+                          <>
+                            <li>• Provide this temporary password to the user securely</li>
+                            <li>• Instruct the user to change their password immediately after logging in</li>
+                            <li>• Consider using encrypted communication for sharing sensitive information</li>
+                          </>
+                        ) : (
+                          <>
+                            <li>• The user can now log in with their new password</li>
+                            <li>• Instruct the user to change their password immediately after logging in</li>
+                            <li>• Consider using encrypted communication for sharing sensitive information</li>
+                          </>
+                        )}
                       </ul>
                     </div>
                   </div>
