@@ -2,7 +2,7 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Auralis Inventory Management
+# TrackIT Inventory Management
 
 A modern, glassmorphic inventory management system with role-based access control, employee management, location tracking, and comprehensive asset management. Built with React, TypeScript, and Supabase.
 
@@ -40,7 +40,7 @@ Before you begin, ensure you have the following installed:
 
 ```bash
 git clone <repository-url>
-cd Auralis_inventory_management
+cd TrackIT_inventory_management
 ```
 
 ### 2. Install Dependencies
@@ -86,8 +86,8 @@ The application will be available at:
 ### 6. Default Login Credentials
 
 When using mock data (no database configured):
-- **Admin**: `admin@auralis.inc` / `admin123`
-- **User**: `liam@auralis.inc` / `user123`
+- **Admin**: `admin@trackit.inc` / `admin123`
+- **User**: `liam@trackit.inc` / `user123`
 
 ## Database Configuration
 
@@ -100,7 +100,7 @@ Supabase provides a managed PostgreSQL database with authentication, real-time s
 1. Go to [supabase.com](https://supabase.com) and sign up/login
 2. Click **"New Project"**
 3. Fill in project details:
-   - **Name**: `auralis-inventory` (or your preferred name)
+   - **Name**: `trackit-inventory` (or your preferred name)
    - **Database Password**: Save this securely
    - **Region**: Choose the closest region to you
 4. Wait for the project to be created (~2 minutes)
@@ -146,7 +146,7 @@ The app will automatically attempt to create a default admin user on first launc
 1. Start the app: `npm run dev`
 2. Check the browser console - you should see a message about admin creation
 3. If successful, default credentials are:
-   - **Email**: `admin@auralis.inc`
+   - **Email**: `admin@trackit.inc`
    - **Password**: `Admin@123`
 4. **Important**: Change the password after first login!
 
@@ -167,21 +167,21 @@ For local development with PostgreSQL:
 #### Step 2: Create Database
 
 ```bash
-createdb auralis_inventory
+createdb trackit_inventory
 ```
 
 Or using psql:
 
 ```bash
 psql postgres
-CREATE DATABASE auralis_inventory;
+CREATE DATABASE trackit_inventory;
 \q
 ```
 
 #### Step 3: Run Schema
 
 ```bash
-psql auralis_inventory < database/schema.sql
+psql trackit_inventory < database/schema.sql
 ```
 
 #### Step 4: Configure Environment Variables
@@ -195,7 +195,7 @@ VITE_DB_TYPE=postgres
 # PostgreSQL Connection
 VITE_DB_HOST=localhost
 VITE_DB_PORT=5432
-VITE_DB_NAME=auralis_inventory
+VITE_DB_NAME=trackit_inventory
 VITE_DB_USER=postgres
 VITE_DB_PASSWORD=your_password
 ```
@@ -242,7 +242,7 @@ npm run preview
 ### Project Structure
 
 ```
-Auralis_inventory_management/
+TrackIT_inventory_management/
 ├── components/          # React components
 │   ├── AssetManager.tsx
 │   ├── Dashboard.tsx

@@ -919,7 +919,7 @@ const App: React.FC = () => {
           <div className="inline-flex p-4 bg-gray-900 rounded-2xl text-white mb-4 animate-pulse">
             <Hexagon size={36} fill="currentColor" />
           </div>
-          <p className="text-gray-600 font-medium">Loading Auralis...</p>
+          <p className="text-gray-600 font-medium">Loading TrackIT...</p>
         </div>
       </div>
     );
@@ -940,7 +940,7 @@ const App: React.FC = () => {
               <Hexagon size={20} fill="white" className="text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-gray-900">Auralis</h1>
+              <h1 className="text-lg font-bold text-gray-900">TrackIT</h1>
               <p className="text-xs text-gray-500">Inventory Management</p>
             </div>
           </div>
@@ -959,7 +959,7 @@ const App: React.FC = () => {
         <div className="p-4 border-t border-gray-200">
           <div className="p-3 bg-gray-50 rounded-lg">
             <p className="text-xs text-gray-500 font-medium mb-1">Pro Plan</p>
-            <p className="text-sm font-semibold text-gray-900">Auralis Corp</p>
+            <p className="text-sm font-semibold text-gray-900">TrackIT Corp</p>
           </div>
         </div>
       </aside>
@@ -970,7 +970,7 @@ const App: React.FC = () => {
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
             <Hexagon size={18} fill="white" className="text-white" />
           </div>
-          <span className="font-bold text-lg text-gray-900">Auralis</span>
+          <span className="font-bold text-lg text-gray-900">TrackIT</span>
         </div>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600">
            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}

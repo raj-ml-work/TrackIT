@@ -277,7 +277,7 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-3">
              <Sparkles className="text-violet-500" size={20} />
-             <h3 className="text-lg font-bold text-gray-800">Auralis Insights</h3>
+             <h3 className="text-lg font-bold text-gray-800">TrackIT Insights</h3>
           </div>
           
           <div className="min-h-[60px]">

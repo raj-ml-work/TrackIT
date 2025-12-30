@@ -22,7 +22,7 @@ const Settings: React.FC = () => {
            </div>
            <div className="flex justify-between items-center py-3 border-b border-gray-100">
              <span className="text-gray-700">Email Address</span>
-             <span className="text-gray-500">admin@auralis.inc</span>
+             <span className="text-gray-500">admin@trackit.inc</span>
            </div>
         </div>
       </GlassCard>
@@ -34,7 +34,7 @@ const Settings: React.FC = () => {
           </div>
           <div>
             <h3 className="text-xl font-bold text-gray-800">Application Preferences</h3>
-            <p className="text-gray-500">Customize the look and feel of Auralis.</p>
+            <p className="text-gray-500">Customize the look and feel of TrackIT.</p>
           </div>
         </div>
         
@@ -60,7 +60,7 @@ const Settings: React.FC = () => {
       </GlassCard>
 
       <div className="text-center pt-8">
-        <p className="text-xs text-gray-400">Auralis Inventory v1.0.0</p>
+        <p className="text-xs text-gray-400">TrackIT Inventory v1.0.0</p>
       </div>
     </div>
   );

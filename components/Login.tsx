@@ -78,7 +78,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <Hexagon size={36} fill="currentColor" />
             </motion.div>
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">
-              Welcome to Auralis
+              Welcome to TrackIT
             </h1>
             <p className="text-gray-500 font-medium">
               Sign in to manage your inventory
@@ -190,12 +190,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
                 <p className="font-semibold text-indigo-900 mb-1">Admin</p>
-                <p className="text-indigo-700 font-mono">admin@auralis.inc</p>
+                <p className="text-indigo-700 font-mono">admin@trackit.inc</p>
                 <p className="text-indigo-700 font-mono">admin123</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
                 <p className="font-semibold text-blue-900 mb-1">User</p>
-                <p className="text-blue-700 font-mono">user@auralis.inc</p>
+                <p className="text-blue-700 font-mono">user@trackit.inc</p>
                 <p className="text-blue-700 font-mono">user123</p>
               </div>
             </div>
@@ -204,7 +204,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         {/* Footer */}
         <p className="text-center text-xs text-gray-500 mt-6">
-          Auralis Inventory Management &copy; 2025
+          TrackIT Inventory Management &copy; 2025
         </p>
       </motion.div>
     </div>
