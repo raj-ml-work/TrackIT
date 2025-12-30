@@ -216,84 +216,6 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmployeeIdError('');
-
-  const validateStep2 = (): boolean => {
-    const errors: Record<string, string> = {};
-    
-    if (!formData.personalInfo.firstName || formData.personalInfo.firstName.trim() === '') {
-      errors.firstName = 'First name is required';
-    }
-    
-    // Email validation
-    if (formData.personalInfo.personalEmail && 
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.personalInfo.personalEmail)) {
-      errors.personalEmail = 'Invalid email format';
-    }
-    
-    // Phone validation (basic)
-    if (formData.personalInfo.mobileNumber && 
-        !/^[\d\s\-\+\(\)]+$/.test(formData.personalInfo.mobileNumber)) {
-      errors.mobileNumber = 'Invalid phone number format';
-    }
-    
-    if (formData.personalInfo.emergencyContactNumber && 
-        !/^[\d\s\-\+\(\)]+$/.test(formData.personalInfo.emergencyContactNumber)) {
-      errors.emergencyContactNumber = 'Invalid phone number format';
-    }
-    
-    // URL validation
-    if (formData.personalInfo.linkedinUrl && 
-        !/^https?:\/\/.+/.test(formData.personalInfo.linkedinUrl)) {
-      errors.linkedinUrl = 'Invalid URL format (must start with http:// or https://)';
-    }
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const validateStep3 = (): boolean => {
-    const errors: Record<string, string> = {};
-    
-    // Official email is required if personal email not provided
-    if (!formData.personalInfo.personalEmail && 
-        (!formData.officialInfo.officialEmail || formData.officialInfo.officialEmail.trim() === '')) {
-      errors.officialEmail = 'Official email is required if personal email is not provided';
-    }
-    
-    // Email validation
-    if (formData.officialInfo.officialEmail && 
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.officialInfo.officialEmail)) {
-      errors.officialEmail = 'Invalid email format';
-    }
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleNext = () => {
-    if (currentStep === 1) {
-      if (validateStep1()) {
-        setCurrentStep(2);
-      }
-    } else if (currentStep === 2) {
-      if (validateStep2()) {
-        setCurrentStep(3);
-      }
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!validateStep3()) {
-      return;
-    }
-
-    setIsSubmitting(true);
     setSubmitError('');
     setFormErrors({});
     
@@ -388,6 +310,77 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const validateStep2 = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    if (!formData.personalInfo.firstName || formData.personalInfo.firstName.trim() === '') {
+      errors.firstName = 'First name is required';
+    }
+    
+    // Email validation
+    if (formData.personalInfo.personalEmail && 
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.personalInfo.personalEmail)) {
+      errors.personalEmail = 'Invalid email format';
+    }
+    
+    // Phone validation (basic)
+    if (formData.personalInfo.mobileNumber && 
+        !/^[\d\s\-\+\(\)]+$/.test(formData.personalInfo.mobileNumber)) {
+      errors.mobileNumber = 'Invalid phone number format';
+    }
+    
+    if (formData.personalInfo.emergencyContactNumber && 
+        !/^[\d\s\-\+\(\)]+$/.test(formData.personalInfo.emergencyContactNumber)) {
+      errors.emergencyContactNumber = 'Invalid phone number format';
+    }
+    
+    // URL validation
+    if (formData.personalInfo.linkedinUrl && 
+        !/^https?:\/\/.+/.test(formData.personalInfo.linkedinUrl)) {
+      errors.linkedinUrl = 'Invalid URL format (must start with http:// or https://)';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateStep3 = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    // Official email is required if personal email not provided
+    if (!formData.personalInfo.personalEmail && 
+        (!formData.officialInfo.officialEmail || formData.officialInfo.officialEmail.trim() === '')) {
+      errors.officialEmail = 'Official email is required if personal email is not provided';
+    }
+    
+    // Email validation
+    if (formData.officialInfo.officialEmail && 
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.officialInfo.officialEmail)) {
+      errors.officialEmail = 'Invalid email format';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleNext = () => {
+    if (currentStep === 1) {
+      if (validateStep1()) {
+        setCurrentStep(2);
+      }
+    } else if (currentStep === 2) {
+      if (validateStep2()) {
+        setCurrentStep(3);
+      }
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
     }
   };
 
@@ -1086,117 +1079,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                     </button>
                   )}
                 </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase block mb-1">Full Name *</label>
-                  <input
-                    required
-                    disabled={isSubmitting}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                    value={form.name}
-                    onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase block mb-1">Email</label>
-                  <input
-                    type="email"
-                    disabled={isSubmitting}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                    value={form.email}
-                    onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase block mb-1">Department</label>
-                    <select
-                      disabled={isSubmitting}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                      value={form.department}
-                      onChange={e => setForm(prev => ({ ...prev, department: e.target.value }))}
-                    >
-                      <option value="">Select Department</option>
-                      {departments.map(dept => (
-                        <option key={dept.id} value={dept.name}>{dept.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase block mb-1">Location</label>
-                    <select
-                      disabled={isSubmitting}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                      value={form.location}
-                      onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))}
-                    >
-                      <option value="">Select Location</option>
-                      {locations.map(loc => (
-                        <option key={loc.id} value={loc.name}>{loc.name} - {loc.city}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase block mb-1">Title</label>
-                    <input
-                      disabled={isSubmitting}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                      value={form.title}
-                      onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="e.g. Senior Designer"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase block mb-1">Status</label>
-                    <select
-                      disabled={isSubmitting}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                      value={form.status}
-                      onChange={e => setForm(prev => ({ ...prev, status: e.target.value as EmployeeStatus }))}
-                    >
-                      {Object.values(EmployeeStatus).map(status => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {editingEmployee && assetCounts[editingEmployee.id] > 0 && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
-                    <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-800">
-                      This employee has <strong>{assetCounts[editingEmployee.id]} asset(s)</strong> assigned.
-                      They cannot be deleted until assets are reassigned.
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-4 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:-translate-y-0.5 transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader size={16} className="animate-spin" />
-                        {editingEmployee ? 'Saving...' : 'Creating...'}
-                      </>
-                    ) : (
-                      <>{editingEmployee ? 'Save Changes' : 'Create Employee'}</>
-                    )}
-                  </button>
-                </div>
-              </form>
+              </GlassCard>
             </motion.div>
           </>
         )}

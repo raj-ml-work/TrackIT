@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
 import { Location, Asset } from '../types';
-import { MapPin, Plus, X, Trash2, Loader } from 'lucide-react';
+import { MapPin, Plus, X, Trash2, Loader, Edit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface LocationManagementProps {
@@ -41,6 +41,14 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
     onConfirm: undefined
   });
 
+  const [formErrors, setFormErrors] = useState<{ name?: string; city?: string }>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const filteredLocations = locations.filter(loc =>
+    loc.name.toLowerCase().includes(search.toLowerCase()) ||
+    loc.city.toLowerCase().includes(search.toLowerCase())
+  );
+
   // Compute usage counts
   const locationUsage = useMemo(() => {
     const usage: Record<string, number> = {};
@@ -50,13 +58,16 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
     return usage;
   }, [locations, assets]);
 
-  // Get color for tag based on index
-  const getTagColor = (index: number) => {
-    return tagColors[index % tagColors.length];
-  };
-
   const openNew = () => {
     setForm(initialForm);
+    setEditingId(null);
+    setIsModalOpen(true);
+    setFormErrors({});
+  };
+
+  const openEdit = (location: Location) => {
+    setForm(location);
+    setEditingId(location.id);
     setIsModalOpen(true);
     setFormErrors({});
   };
@@ -83,10 +94,10 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
     
     // Check for duplicate location names (case-insensitive)
     if (form.name && form.name.trim() !== '') {
-      const existingLocation = locations.find(loc => 
-        loc.name.toLowerCase() === form.name.toLowerCase()
+      const existingLocation = locations.find(loc =>
+        loc.name.toLowerCase() === form.name.toLowerCase() && (!editingId || loc.id !== editingId)
       );
-      
+
       if (existingLocation) {
         errors.name = `Location "${form.name}" already exists`;
       }
@@ -101,7 +112,11 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
     setIsSubmitting(true);
 
     try {
-      await onAdd(form);
+      if (editingId) {
+        await onUpdate({ ...form, id: editingId });
+      } else {
+        await onAdd(form);
+      }
       closeModal();
     } catch (error) {
       // Error is already handled in the handler
@@ -114,12 +129,12 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
   const handleDelete = async (location: Location) => {
     const usageCount = locationUsage[location.id] || 0;
     
-    if (usage > 0) {
+    if (usageCount > 0) {
       setDialogState({
         isOpen: true,
         type: DialogType.ERROR,
         title: 'Cannot Delete Location',
-        message: `Cannot delete ${location.name}. It has ${usage} asset(s) assigned. Please reassign them first.`,
+        message: `Cannot delete ${location.name}. It has ${usageCount} asset(s) assigned. Please reassign them first.`,
         onConfirm: undefined
       });
       return;
@@ -158,81 +173,83 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
       </div>
 
       <GlassCard>
-        {locations.length === 0 ? (
-          <div className="text-center py-12">
-            <MapPin size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-600 font-medium mb-2">No locations yet</p>
-            <p className="text-sm text-gray-500">Add your first location to get started</p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <AnimatePresence>
-            {filteredLocations.length === 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-8 text-center border border-dashed border-gray-200 rounded-2xl bg-gray-50/60"
-              >
-                <p className="text-gray-700 font-semibold mb-1">No locations yet</p>
-                <p className="text-gray-500 text-sm">Add your first location to standardize asset locations.</p>
-              </motion.div>
-            )}
-
-            <div className="flex flex-wrap gap-3">
-              {filteredLocations.map((location, index) => (
-                <motion.div
-                  key={location.id}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ delay: index * 0.05 }}
-                  whileHover={{ scale: 1.05 }}
-                  className="relative"
-                >
-                  <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-all">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center text-gray-700">
-                      <MapPin size={14} />
-                    </div>
-                    <span className="font-medium text-gray-800">{location.name}</span>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{location.city}</span>
-                    {location.comments && (
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full truncate max-w-[100px]">
-                        {location.comments}
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-600 font-semibold bg-gray-100 px-2 py-1 rounded-full">
-                      {locationUsage[location.id] || 0}
-                    </span>
-                  </div>
-                  <div className="absolute -top-2 -right-2 flex gap-1">
-                    {canUpdate && (
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => openEdit(location)}
-                        className="p-1 bg-blue-50 text-blue-600 rounded-full transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </motion.button>
-                    )}
-                    {canDelete && (
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handleDelete(location)}
-                        className="p-1 bg-red-50 text-red-600 rounded-full transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </motion.button>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+        <div>
+          {locations.length === 0 ? (
+            <div className="text-center py-12">
+              <MapPin size={48} className="mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-600 font-medium mb-2">No locations yet</p>
+              <p className="text-sm text-gray-500">Add your first location to get started</p>
             </div>
-          </AnimatePresence>
+          ) : (
+            <div className="space-y-4">
+              <AnimatePresence>
+                {filteredLocations.length === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-8 text-center border border-dashed border-gray-200 rounded-2xl bg-gray-50/60"
+                  >
+                    <p className="text-gray-700 font-semibold mb-1">No locations yet</p>
+                    <p className="text-gray-500 text-sm">Add your first location to standardize asset locations.</p>
+                  </motion.div>
+                )}
+
+                <div className="flex flex-wrap gap-3">
+                  {filteredLocations.map((location, index) => (
+                    <motion.div
+                      key={location.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ delay: index * 0.05 }}
+                      whileHover={{ scale: 1.05 }}
+                      className="relative"
+                    >
+                      <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-all">
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center text-gray-700">
+                          <MapPin size={14} />
+                        </div>
+                        <span className="font-medium text-gray-800">{location.name}</span>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{location.city}</span>
+                        {location.comments && (
+                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full truncate max-w-[100px]">
+                            {location.comments}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-600 font-semibold bg-gray-100 px-2 py-1 rounded-full">
+                          {locationUsage[location.id] || 0}
+                        </span>
+                      </div>
+                      <div className="absolute -top-2 -right-2 flex gap-1">
+                        {canUpdate && (
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => openEdit(location)}
+                            className="p-1 bg-blue-50 text-blue-600 rounded-full transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </motion.button>
+                        )}
+                        {canDelete && (
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleDelete(location)}
+                            className="p-1 bg-red-50 text-red-600 rounded-full transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </motion.button>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       </GlassCard>
 
@@ -263,8 +280,8 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
                   <MapPin size={18} />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Add Location</p>
-                  <h4 className="text-lg font-bold text-gray-800">New Location</h4>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">{editingId ? 'Edit Location' : 'Add Location'}</p>
+                  <h4 className="text-lg font-bold text-gray-800">{editingId ? 'Edit Location' : 'New Location'}</h4>
                 </div>
               </div>
 
@@ -340,12 +357,12 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
                     {isSubmitting ? (
                       <>
                         <Loader size={16} className="animate-spin" />
-                        Adding...
+                        {editingId ? 'Updating...' : 'Adding...'}
                       </>
                     ) : (
                       <>
-                        <Plus size={16} />
-                        Add Location
+                        {editingId ? <Edit2 size={16} /> : <Plus size={16} />}
+                        {editingId ? 'Update Location' : 'Add Location'}
                       </>
                     )}
                   </button>
@@ -365,8 +382,8 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
         message={dialogState.message}
         type={dialogState.type}
       />
-   </div>
- );
+    </div>
+  );
 };
 
 export default LocationManagement;

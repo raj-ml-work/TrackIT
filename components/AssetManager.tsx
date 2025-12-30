@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType, Location, Employee, EmployeeStatus } from '../types';
 import GlassCard from './GlassCard';
-import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, IndianRupee, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, Eye } from 'lucide-react';
+import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, IndianRupee, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, Eye, DollarSign } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AssetManagerProps {
@@ -695,15 +695,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   <p className="text-sm text-gray-700">{asset.assignedTo || 'Unassigned'}</p>
                 </div>
                 <div className="col-span-2 flex items-center gap-2 justify-end">
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
+                  <button
                     onClick={() => setViewingAsset(asset)}
                     className="p-2 hover:bg-green-50 text-green-600 rounded-lg transition-colors"
                     title="View Details"
                   >
                     <Eye size={16} />
-                  </motion.button>
+                  </button>
                   {canUpdate && (
                     <button
                       onClick={(e) => { e.stopPropagation(); openEdit(asset); }}
@@ -727,7 +725,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       title="Delete"
                     >
                       <Trash2 size={16} />
-                    </motion.button>
+                    </button>
                   )}
                 </div>
               </motion.div>
@@ -746,14 +744,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
             className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             onClick={() => setViewingAsset(null)}
           >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl relative max-h-[90vh] overflow-y-auto"
-            >
+             <div
+               onClick={(e) => e.stopPropagation()}
+               className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl relative max-h-[90vh] overflow-y-auto"
+             >
               <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-600" onClick={() => setViewingAsset(null)}>
                 <X size={18} />
               </button>
@@ -809,7 +803,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   </div>
                 </div>
               </div>
-            </div>
+              </div>
 
               {/* Specs Section */}
               {viewingAsset.specs && (
@@ -924,7 +918,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   </div>
                 )}
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -976,8 +970,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               <div className="mb-6">
                 <div className="flex items-center gap-4 mb-4">
                   <div className={`p-4 rounded-2xl ${
-                    selectedAsset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-600' : 
-                    selectedAsset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-600' : 
+                    selectedAsset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-600' :
+                    selectedAsset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-600' :
                     selectedAsset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-600' :
                     'bg-yellow-100 text-yellow-600'
                   }`}>
@@ -1116,17 +1110,17 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       <Edit2 size={18} />
                     </button>
                     {canDelete && (
-                      <button 
-                        onClick={async () => { 
-                          if(confirm('Delete this asset?')) { 
+                      <button
+                        onClick={async () => {
+                          if(confirm('Delete this asset?')) {
                             try {
-                              await onDelete(selectedAsset.id); 
+                              await onDelete(selectedAsset.id);
                               setSelectedAsset(null);
                             } catch (error) {
                               console.error('Error deleting asset:', error);
                             }
                           }
-                        }} 
+                        }}
                         className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
                         title="Delete"
                       >
@@ -1309,21 +1303,19 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                         className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 outline-none transition-all text-sm resize-none"
                       />
                       <div className="flex justify-end">
-                        <motion.button
+                        <button
                           type="submit"
                           disabled={!commentText.trim()}
-                          whileHover={commentText.trim() ? { scale: 1.02 } : {}}
-                          whileTap={commentText.trim() ? { scale: 0.98 } : {}}
                           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-md shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                         >
                           <Send size={16} />
                           Add Comment
-                        </motion.button>
+                        </button>
                       </div>
                     </div>
                   </form>
               </div>
-              </motion.div>
+            </div>
             </motion.div>
           </>
         )}
@@ -1333,14 +1325,14 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       <AnimatePresence>
         {isModalOpen && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={closeModal}
               className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -1371,17 +1363,17 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
 
                  <div className="pt-6 flex justify-between items-center shrink-0 border-t border-gray-100 mt-4">
                     {currentStep === 2 ? (
-                      <button 
-                        type="button" 
-                        onClick={() => setCurrentStep(1)} 
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(1)}
                         className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
                       >
                         <ArrowLeft size={16} /> Back
                       </button>
                     ) : (
-                      <button 
-                        type="button" 
-                        onClick={closeModal} 
+                      <button
+                        type="button"
+                        onClick={closeModal}
                         className="px-4 py-2 text-gray-500 hover:text-gray-700 text-sm font-medium"
                       >
                         Cancel
@@ -1389,17 +1381,17 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                     )}
 
                     {currentStep === 1 && hasExtraSpecs(formData.type) ? (
-                      <button 
-                        type="button" 
-                        onClick={handleNext} 
+                      <button
+                        type="button"
+                        onClick={handleNext}
                         className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/30 flex items-center gap-2 text-sm font-medium"
                       >
                         Next <ArrowRight size={16} />
                       </button>
                     ) : (
-                      <button 
+                      <button
                         type="button"
-                        onClick={() => handleSubmit()} 
+                        onClick={() => handleSubmit()}
                         className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/30 flex items-center gap-2 text-sm font-medium"
                       >
                         <Check size={16} /> {editingId ? 'Update Asset' : 'Create Asset'}
