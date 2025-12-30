@@ -190,7 +190,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
                 <p className="font-semibold text-indigo-900 mb-1">Admin</p>
-                <p className="text-indigo-700 font-mono">admin@trackit.inc</p>
+                <p className="text-indigo-700 font-mono">admin@trackit.com</p>
                 <p className="text-indigo-700 font-mono">admin123</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">

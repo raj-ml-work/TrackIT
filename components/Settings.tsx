@@ -22,7 +22,7 @@ const Settings: React.FC = () => {
            </div>
            <div className="flex justify-between items-center py-3 border-b border-gray-100">
              <span className="text-gray-700">Email Address</span>
-             <span className="text-gray-500">admin@trackit.inc</span>
+             <span className="text-gray-500">admin@trackit.com</span>
            </div>
         </div>
       </GlassCard>

@@ -9,7 +9,7 @@ const DEFAULT_USERS = [
   {
     id: 'u-1001',
     name: 'Alicia Vega',
-    email: 'admin@auralis.inc',
+    email: 'admin@trackit.com',
     password: 'admin123',
     role: UserRole.ADMIN,
     status: UserStatus.ACTIVE,
@@ -47,8 +47,8 @@ export const initializeDefaultAdmin = async (): Promise<void> => {
 
   try {
     const supabase = await getSupabaseClient();
-    const defaultAdminEmail = 'admin@auralis.inc';
-    const defaultAdminPassword = 'Admin@123';
+    const defaultAdminEmail = 'admin@trackit.com';
+    const defaultAdminPassword = 'admin123';
     const defaultAdminName = 'System Administrator';
     const defaultAdminPasswordHash = await hashPassword(defaultAdminPassword);
 
@@ -74,7 +74,7 @@ export const initializeDefaultAdmin = async (): Promise<void> => {
       if (defaultAdminCheckError.code === '42501' || defaultAdminCheckError.message?.includes('permission denied')) {
         console.warn('⚠️  Cannot check for default admin user due to RLS policies.');
         console.warn('📝 Please create an admin user manually with:');
-        console.warn('   Email: admin@auralis.inc, Password: Admin@123 (auto-confirmed)');
+        console.warn('   Email: admin@trackit.com, Password: admin123 (auto-confirmed)');
         console.warn('   Then run in SQL Editor: SELECT initialize_default_admin();');
         return;
       }
@@ -85,7 +85,7 @@ export const initializeDefaultAdmin = async (): Promise<void> => {
     const defaultAdminExists = !!(defaultAdminRecords && defaultAdminRecords.length > 0);
 
     if (defaultAdminExists) {
-      console.log('✅ Default admin account present in users table with password Admin@123');
+      console.log('✅ Default admin account present in users table with password admin123');
       return;
     }
 
@@ -102,7 +102,7 @@ export const initializeDefaultAdmin = async (): Promise<void> => {
         console.warn('⚠️  Cannot check for admin users due to RLS policies.');
         console.warn('📝 Please create an admin user manually:');
         console.warn('   1. Go to Supabase Dashboard → Authentication → Users → Add User');
-        console.warn('   2. Email: admin@auralis.inc, Password: Admin@123 (auto-confirmed)');
+        console.warn('   2. Email: admin@trackit.com, Password: admin123 (auto-confirmed)');
         console.warn('   3. Then run in SQL Editor: SELECT initialize_default_admin();');
         return;
       }

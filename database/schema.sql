@@ -1,4 +1,4 @@
--- Auralis Inventory Management Database Schema
+-- TrackIT Inventory Management Database Schema
 -- For Supabase PostgreSQL
 -- Restructured for historical data migration and improved performance
 
@@ -500,9 +500,9 @@ CREATE OR REPLACE FUNCTION initialize_default_admin()
 RETURNS void AS $$
 DECLARE
   admin_exists boolean;
-  default_email text := 'admin@auralis.inc';
+  default_email text := 'admin@trackit.com';
   default_name text := 'System Administrator';
-  default_password text := 'Admin@123';
+  default_password text := 'admin123';
 BEGIN
   SELECT EXISTS(SELECT 1 FROM users WHERE role = 'Admin' LIMIT 1) INTO admin_exists;
   
@@ -517,7 +517,7 @@ BEGIN
     )
     ON CONFLICT (email) DO NOTHING;
     
-    RAISE NOTICE 'Default admin user initialized with hashed password. Email: %, Password: Admin@123', default_email;
+    RAISE NOTICE 'Default admin user initialized with hashed password. Email: %, Password: admin123', default_email;
   ELSE
     RAISE NOTICE 'Admin user already exists. Skipping initialization.';
   END IF;
@@ -529,9 +529,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ============================================
 DO $$
 DECLARE
-  default_email text := 'admin@auralis.inc';
+  default_email text := 'admin@trackit.com';
   default_name text := 'System Administrator';
-  default_password text := 'Admin@123';
+  default_password text := 'admin123';
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM users WHERE email = default_email) THEN
     INSERT INTO users (name, email, role, status, password_hash)
@@ -542,7 +542,7 @@ BEGIN
       'Active',
       encode(digest(default_password, 'sha256'), 'hex')
     );
-    RAISE NOTICE 'Default admin created before RLS is enabled with hashed password. Email: %, Password: Admin@123', default_email;
+    RAISE NOTICE 'Default admin created before RLS is enabled with hashed password. Email: %, Password: admin123', default_email;
   ELSE
     RAISE NOTICE 'Default admin already present. Skipping bootstrap insert.';
   END IF;
