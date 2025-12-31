@@ -786,8 +786,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                     <div className={`p-2 rounded-xl ${
                       asset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-600' : 
                       asset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-600' : 
+                      asset.status === AssetStatus.ASSIGNED ? 'bg-indigo-100 text-indigo-600' :
+                      asset.status === AssetStatus.MAINTENANCE ? 'bg-yellow-100 text-yellow-600' :
                       asset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-600' :
-                      'bg-yellow-100 text-yellow-600'
+                      'bg-gray-100 text-gray-600'
                     }`}>
                       {getIcon(asset.type)}
                     </div>
@@ -812,8 +814,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   <span className={`inline-flex w-fit items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     asset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-800' :
                     asset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-800' :
+                    asset.status === AssetStatus.ASSIGNED ? 'bg-indigo-100 text-indigo-800' :
+                    asset.status === AssetStatus.MAINTENANCE ? 'bg-yellow-100 text-yellow-800' :
                     asset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-800' :
-                    'bg-yellow-100 text-yellow-800'
+                    'bg-gray-100 text-gray-800'
                   }`}>
                     {asset.status}
                   </span>
@@ -920,8 +924,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                     viewingAsset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-800' :
                     viewingAsset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-800' :
+                    viewingAsset.status === AssetStatus.ASSIGNED ? 'bg-indigo-100 text-indigo-800' :
+                    viewingAsset.status === AssetStatus.MAINTENANCE ? 'bg-yellow-100 text-yellow-800' :
                     viewingAsset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-800' :
-                    'bg-yellow-100 text-yellow-800'
+                    'bg-gray-100 text-gray-800'
                   }`}>
                     {viewingAsset.status}
                   </span>
@@ -1127,8 +1133,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   <div className={`p-4 rounded-2xl ${
                     selectedAsset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-600' :
                     selectedAsset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-600' :
+                    selectedAsset.status === AssetStatus.ASSIGNED ? 'bg-indigo-100 text-indigo-600' :
+                    selectedAsset.status === AssetStatus.MAINTENANCE ? 'bg-yellow-100 text-yellow-600' :
                     selectedAsset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-600' :
-                    'bg-yellow-100 text-yellow-600'
+                    'bg-gray-100 text-gray-600'
                   }`}>
                     {getIcon(selectedAsset.type)}
                   </div>
@@ -1256,8 +1264,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                       selectedAsset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-800' :
                       selectedAsset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-800' :
+                      selectedAsset.status === AssetStatus.ASSIGNED ? 'bg-indigo-100 text-indigo-800' :
+                      selectedAsset.status === AssetStatus.MAINTENANCE ? 'bg-yellow-100 text-yellow-800' :
                       selectedAsset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-800' :
-                      'bg-yellow-100 text-yellow-800'
+                      'bg-gray-100 text-gray-800'
                     }`}>
                       {selectedAsset.status}
                     </span>
