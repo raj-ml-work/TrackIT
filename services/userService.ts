@@ -58,15 +58,25 @@ export const getUserById = async (id: string): Promise<UserAccount | null> => {
  */
 export const getUserByEmail = async (email: string): Promise<UserAccount | null> => {
   try {
+    const normalizedEmail = email.trim().toLowerCase();
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
       .select('*')
-      .eq('email', email.toLowerCase())
+      .eq('email', normalizedEmail)
       .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 or 1 rows
 
     if (error && error.code !== 'PGRST116') throw error;
-    if (!data) return null;
+    if (!data) {
+      const { data: ilikeData, error: ilikeError } = await supabase
+        .from(TABLE_NAME)
+        .select('*')
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
+      if (ilikeError && ilikeError.code !== 'PGRST116') throw ilikeError;
+      if (!ilikeData) return null;
+      return transformUserFromDB(ilikeData);
+    }
 
     return transformUserFromDB(data);
   } catch (error) {

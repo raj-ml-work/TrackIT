@@ -182,9 +182,14 @@ export const registerUser = async (userData: UserAccount & { password: string })
  * Login function - uses Supabase Auth when configured, falls back to mock for development
  */
 export const login = async (credentials: LoginCredentials): Promise<AuthSession> => {
+  const normalizedCredentials = {
+    ...credentials,
+    email: credentials.email.trim(),
+    password: credentials.password
+  };
   // Custom auth: check users table directly
   if (isSupabaseConfigured()) {
-    const user = await userService.getUserByEmail(credentials.email);
+    const user = await userService.getUserByEmail(normalizedCredentials.email);
 
     if (!user || !user.passwordHash) {
       throw new Error('Invalid email or password');
@@ -195,15 +200,15 @@ export const login = async (credentials: LoginCredentials): Promise<AuthSession>
     
     if (isSha256Hash(user.passwordHash)) {
       // SHA-256 (current standard)
-      const hashedInput = await hashPassword(credentials.password);
+      const hashedInput = await hashPassword(normalizedCredentials.password);
       isPasswordValid = user.passwordHash === hashedInput;
     } else if (isSha1Hash(user.passwordHash)) {
       // SHA-1 (legacy format)
-      const hashedInput = await hashPasswordSHA1(credentials.password);
+      const hashedInput = await hashPasswordSHA1(normalizedCredentials.password);
       isPasswordValid = user.passwordHash === hashedInput;
     } else {
       // Plain text fallback (very old legacy)
-      isPasswordValid = user.passwordHash === credentials.password;
+      isPasswordValid = user.passwordHash === normalizedCredentials.password;
     }
     
     if (!isPasswordValid) {
@@ -218,7 +223,7 @@ export const login = async (credentials: LoginCredentials): Promise<AuthSession>
 
     return {
       user,
-      rememberMe: credentials.rememberMe || false
+      rememberMe: normalizedCredentials.rememberMe || false
     };
   }
 
