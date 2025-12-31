@@ -188,22 +188,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </motion.button>
           </form>
 
-          {/* Demo Credentials */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center mb-3">Demo Credentials</p>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                <p className="font-semibold text-indigo-900 mb-1">Admin</p>
-                <p className="text-indigo-700 font-mono">admin@trackit.com</p>
-                <p className="text-indigo-700 font-mono">admin123</p>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                <p className="font-semibold text-blue-900 mb-1">User</p>
-                <p className="text-blue-700 font-mono">user@trackit.inc</p>
-                <p className="text-blue-700 font-mono">user123</p>
-              </div>
-            </div>
-          </div>
+          
         </motion.div>
 
         {/* Footer */}
