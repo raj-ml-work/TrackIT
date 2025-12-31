@@ -25,7 +25,9 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
   const [loadingInsight, setLoadingInsight] = useState(false);
 
   const totalValue = assets.reduce((acc, curr) => acc + curr.cost, 0);
-  const inUseCount = assets.filter(a => a.status === AssetStatus.IN_USE).length;
+  const isUtilized = (asset: Asset) =>
+    asset.status === AssetStatus.IN_USE || asset.status === AssetStatus.ASSIGNED;
+  const inUseCount = assets.filter(isUtilized).length;
   const utilizationRate = assets.length > 0 ? Math.round((inUseCount / assets.length) * 100) : 0;
   
   // Calculate expiring warranties (next 90 days)
@@ -39,8 +41,8 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
 
   const typeData = Object.values(AssetType).map(type => {
     const typeAssets = assets.filter(a => a.type === type);
-    const inUse = typeAssets.filter(a => a.status === AssetStatus.IN_USE).length;
-    const available = typeAssets.length - inUse;
+    const inUse = typeAssets.filter(isUtilized).length;
+    const available = typeAssets.filter(a => a.status === AssetStatus.AVAILABLE).length;
     return {
       name: type,
       inUse,
@@ -152,11 +154,11 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
              </div>
              <div className="flex items-center gap-3 text-xs text-gray-600">
                <span className="flex items-center gap-1.5">
-                 <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                 <span className="w-2.5 h-2.5 rounded-full bg-orange-400" />
                  In Use
                </span>
                <span className="flex items-center gap-1.5">
-                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-400" />
+                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                  Available
                </span>
              </div>
@@ -165,14 +167,14 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
              <ResponsiveContainer width="100%" height="100%">
                <BarChart data={typeData} barCategoryGap={18}>
                  <defs>
-                   <linearGradient id="inUseGradient" x1="0" y1="0" x2="0" y2="1">
-                     <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.9} />
-                     <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.9} />
-                   </linearGradient>
-                   <linearGradient id="availableGradient" x1="0" y1="0" x2="0" y2="1">
-                     <stop offset="0%" stopColor="#818cf8" stopOpacity={0.9} />
-                     <stop offset="100%" stopColor="#6366f1" stopOpacity={0.9} />
-                   </linearGradient>
+                 <linearGradient id="inUseGradient" x1="0" y1="0" x2="0" y2="1">
+                   <stop offset="0%" stopColor="#fdba74" stopOpacity={0.9} />
+                   <stop offset="100%" stopColor="#fb923c" stopOpacity={0.9} />
+                 </linearGradient>
+                 <linearGradient id="availableGradient" x1="0" y1="0" x2="0" y2="1">
+                   <stop offset="0%" stopColor="#34d399" stopOpacity={0.9} />
+                   <stop offset="100%" stopColor="#10b981" stopOpacity={0.9} />
+                 </linearGradient>
                  </defs>
                  <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" vertical={false} />
                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />

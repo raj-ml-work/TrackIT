@@ -74,7 +74,7 @@ export class DataLoader {
     }
 
     const promise = this.withRetry(async () => {
-      const { data } = await dataService.getAssets(1, 50, { status: 'In Use' });
+      const { data } = await dataService.getAssets(1, 50, { status: ['In Use', 'Assigned'] });
       this.setCachedData(cacheKey, data);
       return data;
     });

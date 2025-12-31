@@ -64,7 +64,7 @@ export const getDashboardMetrics = async (): Promise<DashboardMetrics> => {
   const { count: inUseAssets, error: utilizationError } = await supabase
     .from('assets')
     .select('*', { count: 'exact', head: true })
-    .eq('status', 'In Use');
+    .in('status', ['In Use', 'Assigned']);
 
   if (utilizationError) {
     console.error('Error fetching utilization rate:', utilizationError);
@@ -105,7 +105,7 @@ export const getAssets = async (
   page: number = 1,
   limit: number = 20,
   filters?: {
-    status?: string;
+    status?: string | string[];
     type?: string;
     location?: string;
     assignedTo?: string;
@@ -127,7 +127,10 @@ export const getAssets = async (
     }));
 
     const filtered = mockAssets.filter(asset => {
-      if (filters?.status && asset.status !== filters.status) return false;
+      if (filters?.status) {
+        const statusFilter = Array.isArray(filters.status) ? filters.status : [filters.status];
+        if (!statusFilter.includes(asset.status)) return false;
+      }
       if (filters?.type && asset.type !== filters.type) return false;
       if (filters?.location && asset.location !== filters.location) return false;
       if (filters?.assignedTo && asset.assignedTo !== filters.assignedTo) return false;
@@ -156,7 +159,11 @@ export const getAssets = async (
 
   // Apply filters
   if (filters?.status) {
-    query = query.eq('status', filters.status);
+    if (Array.isArray(filters.status)) {
+      query = query.in('status', filters.status);
+    } else {
+      query = query.eq('status', filters.status);
+    }
   }
   if (filters?.type) {
     query = query.eq('type', filters.type);
