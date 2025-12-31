@@ -1058,6 +1058,18 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                 setPage(1);
               }}
             />
+            {search && (
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setPage(1);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500 uppercase tracking-wide">Status</span>
