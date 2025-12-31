@@ -221,7 +221,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
             <div className="ml-auto">
               <button
                 onClick={openNew}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-600 text-white text-sm font-semibold shadow-lg shadow-green-600/20 hover:-translate-y-0.5 hover:bg-green-700 transition-transform"
               >
                 <UserPlus size={18} />
                 Add User
