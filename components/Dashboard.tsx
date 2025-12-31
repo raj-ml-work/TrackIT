@@ -258,41 +258,74 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
               <p className="text-lg font-semibold text-gray-800">{assets.length}</p>
             </div>
           </div>
-          <div className="h-56 w-full relative">
+          <div className="h-60 w-full relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
+                <defs>
+                  {statusData.map((entry) => (
+                    <linearGradient
+                      key={`grad-${entry.name}`}
+                      id={`statusGrad-${entry.name.replace(/\s+/g, '')}`}
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="0%" stopColor={entry.color} stopOpacity={0.95} />
+                      <stop offset="100%" stopColor={entry.color} stopOpacity={0.55} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                <Pie
+                  data={[{ name: 'track', count: assets.length || 1 }]}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={64}
+                  outerRadius={86}
+                  dataKey="count"
+                  fill="#eef2f7"
+                  stroke="none"
+                />
                 <Pie
                   data={statusData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={58}
-                  outerRadius={78}
-                  paddingAngle={4}
+                  innerRadius={64}
+                  outerRadius={86}
+                  paddingAngle={3}
                   dataKey="count"
+                  stroke="#f8fafc"
+                  strokeWidth={2}
                 >
                   {statusData.map((entry) => (
-                    <Cell key={`cell-${entry.name}`} fill={entry.color} />
+                    <Cell
+                      key={`cell-${entry.name}`}
+                      fill={`url(#statusGrad-${entry.name.replace(/\s+/g, '')})`}
+                    />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-               <div className="text-center">
-                 <span className="block text-2xl font-bold text-gray-800">{assets.length}</span>
-                 <span className="text-xs text-gray-500 uppercase tracking-wider">Total</span>
-               </div>
+              <div className="text-center">
+                <span className="block text-2xl font-bold text-gray-800">{assets.length}</span>
+                <span className="text-xs text-gray-500 uppercase tracking-wider">Total</span>
+              </div>
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-3 overflow-x-auto pb-1">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {statusData.map((status) => (
-              <div key={status.name} className="flex items-center gap-2 whitespace-nowrap rounded-full bg-gray-50 px-3 py-1.5">
+              <div
+                key={status.name}
+                className="flex items-center gap-2 rounded-full border border-gray-100 bg-white px-3 py-1.5 text-xs shadow-sm"
+              >
                 <span
                   className="h-2.5 w-2.5 rounded-full"
                   style={{ backgroundColor: status.color }}
                 />
-                <span className="text-xs font-medium text-gray-600">{status.name}</span>
-                <span className="text-xs font-semibold text-gray-800">{status.count}</span>
+                <span className="font-medium text-gray-600">{status.name}</span>
+                <span className="font-semibold text-gray-800">{status.count}</span>
               </div>
             ))}
           </div>
