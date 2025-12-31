@@ -225,12 +225,12 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
                <BarChart data={typeData} barCategoryGap={18}>
                  <defs>
                  <linearGradient id="inUseGradient" x1="0" y1="0" x2="0" y2="1">
-                   <stop offset="0%" stopColor="#fdba74" stopOpacity={0.9} />
-                   <stop offset="100%" stopColor="#fb923c" stopOpacity={0.9} />
+                   <stop offset="0%" stopColor="#1f4f8a" stopOpacity={0.9} />
+                   <stop offset="100%" stopColor="#093266" stopOpacity={0.9} />
                  </linearGradient>
                  <linearGradient id="availableGradient" x1="0" y1="0" x2="0" y2="1">
-                   <stop offset="0%" stopColor="#34d399" stopOpacity={0.9} />
-                   <stop offset="100%" stopColor="#10b981" stopOpacity={0.9} />
+                   <stop offset="0%" stopColor="#6ad06f" stopOpacity={0.9} />
+                   <stop offset="100%" stopColor="#3faf43" stopOpacity={0.9} />
                  </linearGradient>
                  </defs>
                  <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" vertical={false} />
@@ -317,6 +317,16 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
                   layout="vertical"
                   margin={{ left: 16, right: 16 }}
                 >
+                  <defs>
+                    <linearGradient id="laptopUsedGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#1f4f8a" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#093266" stopOpacity={0.9} />
+                    </linearGradient>
+                    <linearGradient id="laptopAvailableGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#6ad06f" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#3faf43" stopOpacity={0.9} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" horizontal={false} />
                   <XAxis type="number" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis
@@ -332,8 +342,8 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
                     cursor={{ fill: 'transparent' }}
                     contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }}
                   />
-                  <Bar dataKey="used" name="Used" stackId="a" fill="#34d399" radius={[8, 8, 8, 8]} />
-                  <Bar dataKey="available" name="Available" stackId="a" fill="#60a5fa" radius={[8, 8, 8, 8]} />
+                  <Bar dataKey="used" name="Used" stackId="a" fill="url(#laptopUsedGradient)" radius={[8, 8, 8, 8]} />
+                  <Bar dataKey="available" name="Available" stackId="a" fill="url(#laptopAvailableGradient)" radius={[8, 8, 8, 8]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
