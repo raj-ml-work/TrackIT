@@ -155,6 +155,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
 
   const visibleAssets = useBackend ? pageAssets : localPagedAssets;
   const totalCount = useBackend ? totalAssets : localFilteredAssets.length;
+  const showLoadingState = useBackend && isPageLoading && visibleAssets.length === 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const pageStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const pageEnd = Math.min(page * PAGE_SIZE, totalCount);
@@ -760,7 +761,20 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           </div>
 
           <AnimatePresence>
-            {visibleAssets.length === 0 && (
+            {showLoadingState && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-8 text-center border border-dashed border-gray-200 rounded-2xl bg-gray-50/60"
+              >
+                <div className="flex items-center justify-center gap-2 text-gray-600">
+                  <Loader size={16} className="animate-spin" />
+                  <span className="font-medium">Loading assets...</span>
+                </div>
+              </motion.div>
+            )}
+
+            {!showLoadingState && visibleAssets.length === 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}

@@ -182,6 +182,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
   const visibleEmployees = useBackend ? pageEmployees : localPagedEmployees;
   const totalCount = useBackend ? totalEmployees : localFilteredEmployees.length;
+  const showLoadingState = useBackend && isPageLoading && visibleEmployees.length === 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const pageStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const pageEnd = Math.min(page * PAGE_SIZE, totalCount);
@@ -1111,7 +1112,20 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           </div>
 
           <AnimatePresence>
-            {visibleEmployees.length === 0 && (
+            {showLoadingState && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-8 text-center border border-dashed border-gray-200 rounded-2xl bg-gray-50/60"
+              >
+                <div className="flex items-center justify-center gap-2 text-gray-600">
+                  <Loader size={16} className="animate-spin" />
+                  <span className="font-medium">Loading employees...</span>
+                </div>
+              </motion.div>
+            )}
+
+            {!showLoadingState && visibleEmployees.length === 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
