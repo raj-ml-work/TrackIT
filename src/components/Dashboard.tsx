@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BarChart, 
@@ -49,6 +49,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
   const [metrics, setMetrics] = useState<any>(null);
   const [activeAssets, setActiveAssets] = useState<any[]>([]);
   const [currentEmployees, setCurrentEmployees] = useState<any[]>([]);
+  const [laptopAssets, setLaptopAssets] = useState<any[]>([]);
+  const [employeeDirectory, setEmployeeDirectory] = useState<any[]>([]);
   const [selectedTimeRange, setSelectedTimeRange] = useState('7d');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -69,21 +71,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
 
     try {
       // Load critical data first
-      const [dashboardMetrics, activeAssetsData, currentEmployeesData] = await Promise.all([
+      const [
+        dashboardMetrics, 
+        activeAssetsData, 
+        currentEmployeesData,
+        laptopAssetsData,
+        employeeDirectoryData
+      ] = await Promise.all([
         dataLoader.loadDashboardMetrics(),
         dataLoader.loadActiveAssets(),
-        dataLoader.loadCurrentEmployees()
+        dataLoader.loadCurrentEmployees(),
+        dataLoader.loadLaptopAssets(),
+        dataLoader.loadEmployeeDirectory()
       ]);
 
       setMetrics(dashboardMetrics);
       setActiveAssets(activeAssetsData);
       setCurrentEmployees(currentEmployeesData);
+      setLaptopAssets(laptopAssetsData);
+      setEmployeeDirectory(employeeDirectoryData);
 
       // Track successful data loading
       trackMetric('dashboard_data_loaded', {
         metricsLoaded: true,
         assetsCount: activeAssetsData.length,
-        employeesCount: currentEmployeesData.length
+        employeesCount: currentEmployeesData.length,
+        laptopAssetsCount: laptopAssetsData.length,
+        directoryCount: employeeDirectoryData.length
       });
 
       setLoading(false);
@@ -126,6 +140,73 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
     setFilterStatus(status);
     trackUserAction('dashboard_filter', { status });
   }, [trackUserAction]);
+
+  const usedStatuses = useMemo(() => new Set(['In Use', 'Assigned']), []);
+
+  const laptopLocationStats = useMemo(() => {
+    const stats = new Map<string, { used: number; available: number; total: number }>();
+
+    laptopAssets.forEach((asset) => {
+      const locationValue = typeof asset.location === 'string'
+        ? asset.location
+        : asset.location?.name || asset.locationName || asset.location_name;
+      const location = (locationValue || 'Unassigned').toString().trim() || 'Unassigned';
+      const entry = stats.get(location) || { used: 0, available: 0, total: 0 };
+
+      if (usedStatuses.has(asset.status)) {
+        entry.used += 1;
+      }
+      if (asset.status === 'Available') {
+        entry.available += 1;
+      }
+
+      entry.total += 1;
+      stats.set(location, entry);
+    });
+
+    return Array.from(stats.entries())
+      .map(([location, counts]) => ({ location, ...counts }))
+      .sort((a, b) => b.total - a.total);
+  }, [laptopAssets, usedStatuses]);
+
+  const laptopDepartmentStats = useMemo(() => {
+    const employeeLookup = new Map<string, any>();
+    employeeDirectory.forEach((employee) => {
+      if (employee?.id) employeeLookup.set(employee.id, employee);
+      if (employee?.employeeId) employeeLookup.set(employee.employeeId, employee);
+      if (employee?.name) employeeLookup.set(employee.name, employee);
+    });
+
+    const counts = new Map<string, number>();
+
+    laptopAssets.forEach((asset) => {
+      if (!usedStatuses.has(asset.status)) {
+        return;
+      }
+
+      const assigneeKey = asset.employeeId
+        || asset.employee_id
+        || asset.assignedToId
+        || asset.assigned_to_uuid
+        || asset.assignedTo
+        || asset.assigned_to;
+
+      let department = 'Unassigned';
+
+      if (assigneeKey) {
+        const employee = employeeLookup.get(assigneeKey);
+        department = employee?.department?.trim()
+          || employee?.officialInfo?.division
+          || 'Unknown';
+      }
+
+      counts.set(department, (counts.get(department) || 0) + 1);
+    });
+
+    return Array.from(counts.entries())
+      .map(([department, used]) => ({ department, used }))
+      .sort((a, b) => b.used - a.used);
+  }, [laptopAssets, employeeDirectory, usedStatuses]);
 
   // Calculate asset distribution
   const assetDistribution = [
@@ -328,6 +409,62 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
                     <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Laptop Status Wizards */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <GlassCard>
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Laptops Used/Available by Location</h3>
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {laptopLocationStats.length === 0 ? (
+                  <p className="text-sm text-slate-500">No laptop data available yet.</p>
+                ) : (
+                  laptopLocationStats.map((entry) => (
+                    <div
+                      key={entry.location}
+                      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{entry.location}</p>
+                        <p className="text-xs text-slate-500">Total {entry.total}</p>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">
+                          Used {entry.used}
+                        </span>
+                        <span className="rounded-full bg-sky-100 px-2 py-1 text-sky-700">
+                          Available {entry.available}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </GlassCard>
+
+            <GlassCard>
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Laptops Used by Department</h3>
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {laptopDepartmentStats.length === 0 ? (
+                  <p className="text-sm text-slate-500">No assigned laptops yet.</p>
+                ) : (
+                  laptopDepartmentStats.map((entry) => (
+                    <div
+                      key={entry.department}
+                      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{entry.department}</p>
+                        <p className="text-xs text-slate-500">Assigned laptops</p>
+                      </div>
+                      <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                        {entry.used}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </GlassCard>
           </div>

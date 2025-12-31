@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Asset, AssetStatus, AssetType, Location } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Asset, AssetStatus, AssetType, Employee, Location } from '../types';
 import GlassCard from './GlassCard';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Sparkles, TrendingUp, AlertCircle, Package, IndianRupee, MapPin } from 'lucide-react';
@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 interface DashboardProps {
   assets: Asset[];
   locations: Location[];
+  employees: Employee[];
 }
 
 const COLORS = ['#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#f59e0b'];
@@ -20,7 +21,7 @@ const STATUS_COLORS: Record<AssetStatus, string> = {
   [AssetStatus.RETIRED]: '#94a3b8'
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
+const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) => {
   const [insight, setInsight] = useState<string>("");
   const [loadingInsight, setLoadingInsight] = useState(false);
 
@@ -56,6 +57,62 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
     count: assets.filter(a => a.status === status).length,
     color: STATUS_COLORS[status] || '#94a3b8'
   }));
+
+  const usedStatusSet = useMemo(() => new Set([AssetStatus.IN_USE, AssetStatus.ASSIGNED]), []);
+
+  const laptopLocationStats = useMemo(() => {
+    const stats = new Map<string, { used: number; available: number; total: number }>();
+
+    assets
+      .filter(asset => asset.type === AssetType.LAPTOP)
+      .forEach(asset => {
+        const location = asset.location?.trim() || 'Unassigned';
+        const current = stats.get(location) || { used: 0, available: 0, total: 0 };
+
+        if (usedStatusSet.has(asset.status)) {
+          current.used += 1;
+        }
+        if (asset.status === AssetStatus.AVAILABLE) {
+          current.available += 1;
+        }
+
+        current.total += 1;
+        stats.set(location, current);
+      });
+
+    return Array.from(stats.entries())
+      .map(([location, counts]) => ({ location, ...counts }))
+      .sort((a, b) => b.total - a.total);
+  }, [assets, usedStatusSet]);
+
+  const laptopDepartmentStats = useMemo(() => {
+    const employeeLookup = new Map<string, Employee>();
+    employees.forEach(employee => {
+      if (employee.id) employeeLookup.set(employee.id, employee);
+      if (employee.employeeId) employeeLookup.set(employee.employeeId, employee);
+      if (employee.name) employeeLookup.set(employee.name, employee);
+    });
+
+    const counts = new Map<string, number>();
+
+    assets
+      .filter(asset => asset.type === AssetType.LAPTOP)
+      .forEach(asset => {
+        if (!usedStatusSet.has(asset.status)) {
+          return;
+        }
+
+        const assigneeKey = asset.employeeId || asset.assignedToId || asset.assignedTo || '';
+        const employee = employeeLookup.get(assigneeKey);
+        const department = employee?.department?.trim() || 'Unassigned';
+
+        counts.set(department, (counts.get(department) || 0) + 1);
+      });
+
+    return Array.from(counts.entries())
+      .map(([department, used]) => ({ department, used }))
+      .sort((a, b) => b.used - a.used);
+  }, [assets, employees, usedStatusSet]);
 
   // Location distribution by name
   const locationData = locations.map(loc => ({
@@ -239,6 +296,94 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
               </div>
             ))}
           </div>
+        </GlassCard>
+      </div>
+
+      {/* Laptop Status Widgets */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <GlassCard>
+          <div className="flex items-center gap-3 mb-6">
+            <Package className="text-emerald-500" size={20} />
+            <div>
+              <h3 className="text-lg font-bold text-gray-800">Laptops by Location</h3>
+              <p className="text-xs text-gray-500">Used vs available</p>
+            </div>
+          </div>
+          {laptopLocationStats.length > 0 ? (
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={laptopLocationStats}
+                  layout="vertical"
+                  margin={{ left: 16, right: 16 }}
+                >
+                  <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" horizontal={false} />
+                  <XAxis type="number" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="location"
+                    width={120}
+                    stroke="#94a3b8"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'transparent' }}
+                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }}
+                  />
+                  <Bar dataKey="used" name="Used" stackId="a" fill="#34d399" radius={[8, 8, 8, 8]} />
+                  <Bar dataKey="available" name="Available" stackId="a" fill="#60a5fa" radius={[8, 8, 8, 8]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              <Package size={40} className="mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No laptop data available</p>
+            </div>
+          )}
+        </GlassCard>
+
+        <GlassCard>
+          <div className="flex items-center gap-3 mb-6">
+            <TrendingUp className="text-indigo-500" size={20} />
+            <div>
+              <h3 className="text-lg font-bold text-gray-800">Laptops by Department</h3>
+              <p className="text-xs text-gray-500">Assigned laptop usage</p>
+            </div>
+          </div>
+          {laptopDepartmentStats.length > 0 ? (
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={laptopDepartmentStats} margin={{ left: 8, right: 16, bottom: 16 }}>
+                  <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" vertical={false} />
+                  <XAxis
+                    dataKey="department"
+                    stroke="#94a3b8"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={48}
+                  />
+                  <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    cursor={{ fill: 'transparent' }}
+                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }}
+                  />
+                  <Bar dataKey="used" name="Used" fill="#818cf8" radius={[10, 10, 0, 0]} barSize={26} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              <TrendingUp size={40} className="mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No assigned laptops yet</p>
+            </div>
+          )}
         </GlassCard>
       </div>
 

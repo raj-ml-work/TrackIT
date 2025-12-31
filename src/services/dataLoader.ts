@@ -104,6 +104,46 @@ export class DataLoader {
   }
 
   /**
+   * Load all laptop assets for dashboard summaries (HIGH priority)
+   */
+  async loadLaptopAssets(): Promise<Asset[]> {
+    const cacheKey = 'laptop_assets';
+
+    if (this.isCached(cacheKey)) {
+      return this.getCachedData(cacheKey);
+    }
+
+    const promise = this.withRetry(async () => {
+      const { data } = await dataService.getAssets(1, 1000, { type: 'Laptop' });
+      this.setCachedData(cacheKey, data);
+      return data;
+    });
+
+    this.loadingPromises.set(cacheKey, promise);
+    return promise;
+  }
+
+  /**
+   * Load employee directory for dashboard summaries (HIGH priority)
+   */
+  async loadEmployeeDirectory(): Promise<Employee[]> {
+    const cacheKey = 'employee_directory';
+
+    if (this.isCached(cacheKey)) {
+      return this.getCachedData(cacheKey);
+    }
+
+    const promise = this.withRetry(async () => {
+      const { data } = await dataService.getEmployees(1, 1000);
+      this.setCachedData(cacheKey, data);
+      return data;
+    });
+
+    this.loadingPromises.set(cacheKey, promise);
+    return promise;
+  }
+
+  /**
    * Load all assets with pagination (MEDIUM priority)
    */
   async loadAllAssets(page: number = 1): Promise<{ data: Asset[]; total: number; page: number; totalPages: number }> {

@@ -1047,7 +1047,9 @@ const App: React.FC = () => {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
             >
-              {currentView === View.DASHBOARD && <Dashboard assets={assets} locations={locations} />}
+              {currentView === View.DASHBOARD && (
+                <Dashboard assets={assets} locations={locations} employees={employees} />
+              )}
               {currentView === View.INVENTORY && (
                 <AssetManager
                   assets={assets}
