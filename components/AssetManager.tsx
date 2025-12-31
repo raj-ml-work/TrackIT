@@ -373,7 +373,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
             required 
             type="text" 
             className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-              formErrors.name ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+              formErrors.name ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-emerald-500/20'
             }`}
             value={formData.name} 
             onChange={e => {
@@ -397,7 +397,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Status *</label>
            <select 
              className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-               formErrors.status ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+               formErrors.status ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-emerald-500/20'
              }`}
              value={formData.status} 
              onChange={e => {
@@ -437,12 +437,12 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       <div className="grid grid-cols-2 gap-4">
          <div>
             <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Brand</label>
-            <input type="text" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
+            <input type="text" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all" 
                value={formData.specs?.brand} onChange={e => updateSpecs('brand', e.target.value)} placeholder="e.g. Dell, Apple" />
          </div>
          <div>
             <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Model</label>
-            <input type="text" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
+            <input type="text" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all" 
                value={formData.specs?.model} onChange={e => updateSpecs('model', e.target.value)} placeholder="e.g. XPS 15" />
          </div>
       </div>
@@ -455,7 +455,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
             required 
             type="text" 
             className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-              formErrors.serialNumber ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+              formErrors.serialNumber ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-emerald-500/20'
             }`}
             value={formData.serialNumber} 
             onChange={e => {
@@ -472,7 +472,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Location *</label>
           <select 
             className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-              formErrors.location || formErrors.locationId ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+              formErrors.location || formErrors.locationId ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-emerald-500/20'
             }`}
             value={formData.locationId || formData.location || ''}
             onChange={e => {
@@ -511,7 +511,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
             type="number"
             min="0"
             className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-              formErrors.cost ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+              formErrors.cost ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-emerald-500/20'
             }`}
             value={formData.cost}
             onChange={e => {
@@ -528,7 +528,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           <input 
             type="date" 
             className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-              formErrors.purchaseDate ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+              formErrors.purchaseDate ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-emerald-500/20'
             }`}
             value={formData.purchaseDate} 
             onChange={e => {
@@ -544,7 +544,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Warranty Expiry</label>
           <input 
             type="date" 
-            className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+            className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
             value={formData.warrantyExpiry} 
             onChange={e => setFormData({...formData, warrantyExpiry: e.target.value})} 
           />
@@ -555,7 +555,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Assigned To</label>
         <select 
           className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-            formErrors.assignedTo || formErrors.assignedToId ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+            formErrors.assignedTo || formErrors.assignedToId ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-emerald-500/20'
           }`}
           value={formData.assignedToId || formData.employeeId || ''}
           onChange={e => {
@@ -642,18 +642,18 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                 {(type === AssetType.LAPTOP || type === AssetType.DESKTOP) && (
                    <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Processor (CPU)</label>
-                      <input type="text" className="w-full p-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
+                      <input type="text" className="w-full p-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all" 
                          value={formData.specs?.cpu} onChange={e => updateSpecs('cpu', e.target.value)} placeholder="e.g. Intel Core i7-12700H, Apple M2 Max" />
                    </div>
                 )}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Memory (RAM)</label>
-                  <input type="text" className="w-full p-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
+                  <input type="text" className="w-full p-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all" 
                       value={formData.specs?.ram} onChange={e => updateSpecs('ram', e.target.value)} placeholder="e.g. 16GB, 32GB" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Storage</label>
-                  <input type="text" className="w-full p-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
+                  <input type="text" className="w-full p-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all" 
                       value={formData.specs?.storage} onChange={e => updateSpecs('storage', e.target.value)} placeholder="e.g. 512GB SSD" />
                 </div>
               </div>
@@ -664,7 +664,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           {isDisplay && (
             <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Screen Size</label>
-                <input type="text" className="w-full p-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" 
+                <input type="text" className="w-full p-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all" 
                    value={formData.specs?.screenSize} onChange={e => updateSpecs('screenSize', e.target.value)} placeholder="e.g. 27 inch, 55 inch" />
             </div>
           )}
@@ -1056,7 +1056,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                           animate={{ opacity: 1, y: 0 }}
                           className={`p-4 rounded-xl border ${
                             comment.type === AssetCommentType.SYSTEM
-                              ? 'bg-blue-50/50 border-blue-100'
+                              ? 'bg-emerald-50/50 border-emerald-100'
                               : 'bg-white border-gray-200'
                           }`}
                         >
@@ -1064,8 +1064,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                             <div className="flex items-center gap-2">
                               <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold ${
                                 comment.type === AssetCommentType.SYSTEM
-                                  ? 'bg-blue-200 text-blue-700'
-                                  : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+                                  ? 'bg-emerald-200 text-emerald-700'
+                                  : 'bg-gradient-to-br from-emerald-500 to-green-600 text-white'
                               }`}>
                                 {comment.type === AssetCommentType.SYSTEM ? 'S' : comment.authorName.substring(0, 1)}
                               </div>
@@ -1076,7 +1076,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                             </div>
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                               comment.type === AssetCommentType.SYSTEM
-                                ? 'bg-blue-100 text-blue-700'
+                                ? 'bg-emerald-100 text-emerald-700'
                                 : 'bg-gray-100 text-gray-700'
                             }`}>
                               {comment.type}
@@ -1434,7 +1434,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                             animate={{ opacity: 1, y: 0 }}
                             className={`p-4 rounded-xl border ${
                               comment.type === AssetCommentType.SYSTEM
-                                ? 'bg-blue-50/50 border-blue-100'
+                                ? 'bg-emerald-50/50 border-emerald-100'
                                 : 'bg-white border-gray-200'
                             }`}
                           >
@@ -1442,8 +1442,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                               <div className="flex items-center gap-2">
                                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold ${
                                   comment.type === AssetCommentType.SYSTEM
-                                    ? 'bg-blue-200 text-blue-700'
-                                    : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+                                    ? 'bg-emerald-200 text-emerald-700'
+                                    : 'bg-gradient-to-br from-emerald-500 to-green-600 text-white'
                                 }`}>
                                   {comment.type === AssetCommentType.SYSTEM ? 'S' : comment.authorName.substring(0, 1)}
                                 </div>
@@ -1454,7 +1454,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                               </div>
                               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                                 comment.type === AssetCommentType.SYSTEM
-                                  ? 'bg-blue-100 text-blue-700'
+                                ? 'bg-emerald-100 text-emerald-700'
                                   : 'bg-gray-100 text-gray-700'
                               }`}>
                                 {comment.type}
@@ -1480,13 +1480,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                         onChange={(e) => setCommentText(e.target.value)}
                         placeholder="Add a note about this asset..."
                         rows={3}
-                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 outline-none transition-all text-sm resize-none"
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all text-sm resize-none"
                       />
                       <div className="flex justify-end">
                         <button
                           type="submit"
                           disabled={!commentText.trim()}
-                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-md shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                          className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg font-medium hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-md shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
                         >
                           <Send size={16} />
                           Add Comment
@@ -1564,7 +1564,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       <button
                         type="button"
                         onClick={handleNext}
-                        className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/30 flex items-center gap-2 text-sm font-medium"
+                        className="relative px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg shadow-emerald-500/30 flex items-center gap-2 text-sm font-medium overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
                       >
                         Next <ArrowRight size={16} />
                       </button>
@@ -1572,7 +1572,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       <button
                         type="button"
                         onClick={() => handleSubmit()}
-                        className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/30 flex items-center gap-2 text-sm font-medium"
+                        className="relative px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg shadow-emerald-500/30 flex items-center gap-2 text-sm font-medium overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
                       >
                         <Check size={16} /> {editingId ? 'Update Asset' : 'Create Asset'}
                       </button>

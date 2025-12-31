@@ -63,7 +63,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           bgColor: 'bg-blue-50',
           borderColor: 'border-blue-200',
           textColor: 'text-blue-700',
-          buttonColor: 'bg-blue-500 hover:bg-blue-600'
+          buttonColor: 'bg-green-600 hover:bg-green-700'
         };
       default: // CONFIRM
         return {

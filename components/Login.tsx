@@ -32,7 +32,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
       {/* Animated background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
@@ -42,7 +42,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             scale: [1, 1.1, 1],
           }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute top-20 left-20 w-96 h-96 bg-gradient-to-br from-blue-200/30 to-indigo-200/30 rounded-full blur-3xl"
+          className="absolute top-20 left-20 w-96 h-96 bg-gradient-to-br from-slate-200/30 to-slate-300/30 rounded-full blur-3xl"
         />
         <motion.div
           animate={{
@@ -51,7 +51,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             scale: [1, 1.2, 1],
           }}
           transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          className="absolute bottom-20 right-20 w-96 h-96 bg-gradient-to-br from-purple-200/30 to-pink-200/30 rounded-full blur-3xl"
+          className="absolute bottom-20 right-20 w-96 h-96 bg-gradient-to-br from-slate-200/30 to-slate-300/30 rounded-full blur-3xl"
         />
       </div>
 
@@ -78,12 +78,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <img
                 src="/images/TrackIT_v2.png"
                 alt="TrackIT"
-                className="h-9 w-auto"
+                className="h-14 w-auto"
               />
             </motion.div>
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">
-              Welcome to TrackIT
-            </h1>
             <p className="text-gray-500 font-medium">
               Sign in to manage your inventory
             </p>
@@ -120,7 +117,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white/60 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 outline-none transition-all text-gray-800 placeholder-gray-400"
+                  className="w-full pl-12 pr-4 py-3 bg-white/60 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all text-gray-800 placeholder-gray-400"
                   placeholder="you@company.com"
                   disabled={isLoading}
                 />
@@ -141,7 +138,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white/60 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 outline-none transition-all text-gray-800 placeholder-gray-400"
+                  className="w-full pl-12 pr-4 py-3 bg-white/60 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all text-gray-800 placeholder-gray-400"
                   placeholder="••••••••"
                   disabled={isLoading}
                 />
@@ -154,7 +151,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/20"
                   disabled={isLoading}
                 />
                 <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">
@@ -163,7 +160,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </label>
               <button
                 type="button"
-                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                className="text-sm text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
                 disabled={isLoading}
               >
                 Forgot password?
@@ -175,7 +172,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               disabled={isLoading}
               whileHover={!isLoading ? { y: -2 } : {}}
               whileTap={!isLoading ? { scale: 0.98 } : {}}
-              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold shadow-lg shadow-indigo-500/30 hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="relative w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl font-semibold shadow-lg shadow-emerald-500/30 hover:from-emerald-700 hover:to-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
             >
               {isLoading ? (
                 <>

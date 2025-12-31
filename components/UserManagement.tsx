@@ -23,7 +23,7 @@ const initialForm: Omit<UserAccount, 'id' | 'lastLogin'> = {
 const roleBadge = (role: UserRole) => {
   const base = 'text-xs px-3 py-1 rounded-full font-semibold';
   if (role === UserRole.ADMIN) {
-    return `${base} bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-sm`;
+    return `${base} bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-sm`;
   } else {
     return `${base} bg-gray-100 text-gray-700`;
   }
@@ -85,7 +85,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
 
     if (strength <= 2) return { strength, label: 'Weak', color: 'bg-red-500' };
     if (strength <= 3) return { strength, label: 'Fair', color: 'bg-yellow-500' };
-    if (strength <= 4) return { strength, label: 'Good', color: 'bg-blue-500' };
+    if (strength <= 4) return { strength, label: 'Good', color: 'bg-emerald-500' };
     return { strength, label: 'Strong', color: 'bg-green-500' };
   };
 
@@ -392,7 +392,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                     className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
                       formErrors.name 
                         ? 'border-red-300 focus:ring-red-100' 
-                        : 'border-gray-200 focus:ring-indigo-100'
+                        : 'border-gray-200 focus:ring-emerald-100'
                     }`}
                     value={form.name}
                     onChange={e => {
@@ -414,7 +414,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                     className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
                       formErrors.email 
                         ? 'border-red-300 focus:ring-red-100' 
-                        : 'border-gray-200 focus:ring-indigo-100'
+                        : 'border-gray-200 focus:ring-emerald-100'
                     }`}
                     value={form.email}
                     onChange={e => {
@@ -441,7 +441,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                           type="button"
                           onClick={generateRandomPassword}
                           disabled={isSubmitting}
-                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors disabled:opacity-50"
+                          className="text-xs text-emerald-600 hover:text-emerald-800 font-medium transition-colors disabled:opacity-50"
                         >
                           Generate Strong Password
                         </button>
@@ -455,7 +455,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                               type={showPassword ? 'text' : 'password'}
                               required
                               disabled={isSubmitting}
-                              className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none disabled:opacity-50"
+                              className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none disabled:opacity-50"
                               value={password}
                               onChange={e => setPassword(e.target.value)}
                               placeholder="Minimum 6 characters"
@@ -495,7 +495,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                               type={showConfirmPassword ? 'text' : 'password'}
                               required
                               disabled={isSubmitting}
-                              className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none disabled:opacity-50"
+                              className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none disabled:opacity-50"
                               value={confirmPassword}
                               onChange={e => setConfirmPassword(e.target.value)}
                               placeholder="Re-enter password"
@@ -562,7 +562,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-700 hover:to-purple-700 hover:-translate-y-0.5 transition-all duration-300 shadow-md shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="relative px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold hover:from-emerald-700 hover:to-green-700 hover:-translate-y-0.5 transition-all duration-300 shadow-md shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
                   >
                     {isSubmitting ? (
                       <>
@@ -681,7 +681,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                            <input
                              type={showPassword ? 'text' : 'password'}
                              required
-                             className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none"
+                             className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none"
                              value={resetDialog.manualPassword || ''}
                              onChange={e => setResetDialog(prev => ({ ...prev, manualPassword: e.target.value }))}
                              placeholder="Minimum 6 characters"
@@ -720,7 +720,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                            <input
                              type={showConfirmPassword ? 'text' : 'password'}
                              required
-                             className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none"
+                             className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none"
                              value={resetDialog.confirmManualPassword || ''}
                              onChange={e => setResetDialog(prev => ({ ...prev, confirmManualPassword: e.target.value }))}
                              placeholder="Re-enter password"

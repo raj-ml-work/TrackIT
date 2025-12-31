@@ -52,7 +52,7 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
 
     if (strength <= 2) return { strength, label: 'Weak', color: 'bg-red-500' };
     if (strength <= 3) return { strength, label: 'Fair', color: 'bg-yellow-500' };
-    if (strength <= 4) return { strength, label: 'Good', color: 'bg-blue-500' };
+    if (strength <= 4) return { strength, label: 'Good', color: 'bg-emerald-500' };
     return { strength, label: 'Strong', color: 'bg-green-500' };
   };
 
@@ -187,7 +187,9 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
 
               <div className="mb-6">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                  <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-emerald-500/30 ring-1 ring-white/60 overflow-hidden">
+                    <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/30 via-white/10 to-transparent" />
+                    <span className="pointer-events-none absolute -top-3 -left-3 h-10 w-14 bg-white/40 blur-xl rotate-12" />
                     {user.name.substring(0, 1)}
                   </div>
                   <div>
@@ -195,7 +197,7 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                         user.role === 'Admin' 
-                          ? 'bg-gradient-to-r from-indigo-500 to-blue-500 text-white' 
+                          ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white' 
                           : 'bg-gray-100 text-gray-700'
                       }`}>
                         {user.role === 'Admin' && <ShieldCheck size={12} />}
@@ -227,7 +229,7 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
                   </div>
                   <button
                     onClick={handleOpenPasswordChange}
-                    className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                    className="text-sm text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
                   >
                     Change Password
                   </button>
@@ -296,7 +298,7 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
                   </button>
 
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600">
+                    <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600">
                       <Lock size={20} />
                     </div>
                     <div>
@@ -327,7 +329,7 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
                           required
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
-                          className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                          className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
                           disabled={isUpdatingPassword}
                         />
                         <button
@@ -350,7 +352,7 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
                           required
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                          className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
                           disabled={isUpdatingPassword}
                         />
                         <button
@@ -391,7 +393,7 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
                           required
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                          className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
                           disabled={isUpdatingPassword}
                         />
                         <button

@@ -267,7 +267,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
               <p className="text-slate-600 mb-6">{error}</p>
               <button
                 onClick={handleRefresh}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
+                className="relative bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
               >
                 Try Again
               </button>
@@ -297,7 +297,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
                 Refresh
               </button>
               
-              <button className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
+              <button className="relative flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none">
                 <Plus className="w-4 h-4" />
                 Add Asset
               </button>
@@ -389,7 +389,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
                       onClick={() => setSelectedTimeRange(range)}
                       className={`px-3 py-1 rounded-lg text-sm ${
                         selectedTimeRange === range
-                          ? 'bg-blue-500 text-white'
+                          ? 'bg-green-600 text-white'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
@@ -480,12 +480,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
                     placeholder="Search assets..."
                     value={searchQuery}
                     onChange={(e) => handleSearch(e.target.value)}
-                    className="px-3 py-1 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-1 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <select
                     value={filterStatus}
                     onChange={(e) => handleFilter(e.target.value)}
-                    className="px-3 py-1 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-1 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="all">All Status</option>
                     <option value="In Use">In Use</option>
@@ -515,7 +515,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-slate-900">Current Employees</h3>
                 <div className="flex gap-2">
-                  <button className="flex items-center gap-2 px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">
+                  <button className="relative flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/30 before:via-white/10 before:to-transparent before:pointer-events-none">
                     <Plus className="w-4 h-4" />
                     Add
                   </button>

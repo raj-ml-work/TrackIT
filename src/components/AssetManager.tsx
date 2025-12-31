@@ -149,7 +149,7 @@ export const AssetManager: React.FC = () => {
               <p className="text-slate-600 mb-6">{error}</p>
               <button
                 onClick={() => loadAssets(currentPage)}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
+                className="relative bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
               >
                 Try Again
               </button>
@@ -171,11 +171,11 @@ export const AssetManager: React.FC = () => {
             </div>
             
             <div className="flex flex-wrap gap-3">
-              <button className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
+              <button className="relative flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none">
                 <Plus className="w-4 h-4" />
                 Add Asset
               </button>
-              <button className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+              <button className="relative flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none">
                 <Download className="w-4 h-4" />
                 Export
               </button>
@@ -196,14 +196,14 @@ export const AssetManager: React.FC = () => {
                   placeholder="Search assets..."
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
               
               <select
                 value={filterStatus}
                 onChange={(e) => handleFilter(e.target.value as AssetStatus | 'all', filterType)}
-                className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option value="all">All Status</option>
                 <option value="Available">Available</option>
@@ -215,7 +215,7 @@ export const AssetManager: React.FC = () => {
               <select
                 value={filterType}
                 onChange={(e) => handleFilter(filterStatus, e.target.value as AssetType | 'all')}
-                className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option value="all">All Types</option>
                 <option value="Laptop">Laptops</option>
@@ -300,7 +300,7 @@ export const AssetManager: React.FC = () => {
                       </div>
 
                       <div className="mt-4 flex gap-2">
-                        <button className="flex items-center gap-2 px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors">
+                        <button className="relative flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/30 before:via-white/10 before:to-transparent before:pointer-events-none">
                           <Eye className="w-3 h-3" />
                           View
                         </button>

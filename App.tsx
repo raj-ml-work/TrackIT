@@ -913,7 +913,7 @@ const App: React.FC = () => {
       onClick={() => { setCurrentView(view); setIsMobileMenuOpen(false); }}
       className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 w-full text-left ${
         currentView === view 
-          ? 'relative bg-green-50 text-green-600 font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] before:content-[\"\" ] before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/40 before:via-white/10 before:to-transparent before:pointer-events-none' 
+          ? 'relative bg-green-50 text-green-600 font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] before:content-[\'\'] before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/40 before:via-white/10 before:to-transparent before:pointer-events-none' 
           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
       }`}
     >

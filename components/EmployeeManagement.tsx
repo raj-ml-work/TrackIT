@@ -1018,7 +1018,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           type="checkbox"
           id="agreementSigned"
           disabled={isSubmitting}
-          className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+          className="w-5 h-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
           checked={formData.officialInfo.agreementSigned}
           onChange={e => setFormData(prev => ({
             ...prev,
@@ -1334,7 +1334,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                     <button
                       type="button"
                       onClick={handleNext}
-                      className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/30 flex items-center gap-2 text-sm font-medium"
+                      className="relative px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg shadow-emerald-500/30 flex items-center gap-2 text-sm font-medium overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
                     >
                       Next <ArrowRight size={16} />
                     </button>
@@ -1343,7 +1343,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                       type="button"
                       onClick={handleSubmit}
                       disabled={isSubmitting}
-                      className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/30 flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="relative px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg shadow-emerald-500/30 flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
                     >
                       {isSubmitting ? (
                         <>
@@ -1437,7 +1437,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                       onClick={() => setActiveTab(tab)}
                       className={`px-4 py-3 text-sm font-medium transition-colors relative ${
                         activeTab === tab
-                          ? 'text-indigo-600'
+                          ? 'text-green-600'
                           : 'text-gray-500 hover:text-gray-700'
                       }`}
                     >
@@ -1445,7 +1445,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                       {activeTab === tab && (
                         <motion.div
                           layoutId="activeTab"
-                          className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600"
+                          className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-600"
                         />
                       )}
                     </button>
@@ -1563,7 +1563,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                           {viewingEmployee.personalInfo.linkedinUrl && (
                             <div className="p-4 bg-gray-50 rounded-xl">
                               <p className="text-xs text-gray-500 uppercase mb-1">LinkedIn</p>
-                              <a href={viewingEmployee.personalInfo.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-indigo-600 hover:underline">
+                              <a href={viewingEmployee.personalInfo.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-emerald-600 hover:underline">
                                 {viewingEmployee.personalInfo.linkedinUrl}
                               </a>
                             </div>
