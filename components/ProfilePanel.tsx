@@ -112,7 +112,9 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="flex items-center gap-3 bg-white/70 border border-white/60 rounded-2xl px-4 py-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+          <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white font-semibold shadow-md shadow-emerald-500/30 ring-1 ring-white/60 overflow-hidden">
+            <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/30 via-white/10 to-transparent" />
+            <span className="pointer-events-none absolute -top-2 -left-2 h-6 w-10 bg-white/40 blur-lg rotate-12" />
             {user.name.substring(0, 1)}
           </div>
           <div className="text-left hidden sm:block">
@@ -185,7 +187,7 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
 
               <div className="mb-6">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
                     {user.name.substring(0, 1)}
                   </div>
                   <div>
@@ -446,4 +448,3 @@ const ProfilePanel: React.FC<ProfilePanelProps> = ({ user, onLogout }) => {
 };
 
 export default ProfilePanel;
-
