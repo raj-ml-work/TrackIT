@@ -4,13 +4,20 @@
  * Handles all database operations for Assets
  */
 
-import { Asset, AssetComment, AssetCommentType, UserAccount } from '../types';
+import { Asset, AssetComment, AssetCommentType, AssetStatus, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'assets';
 const COMMENTS_TABLE_NAME = 'asset_comments';
 const SPECS_TABLE_NAME = 'asset_specs';
+const LEGACY_UNDER_MAINTENANCE = 'Under Maintenance';
+
+const normalizeAssetStatus = (status: string | null | undefined): AssetStatus => {
+  if (!status) return AssetStatus.AVAILABLE;
+  if (status === LEGACY_UNDER_MAINTENANCE) return AssetStatus.MAINTENANCE;
+  return status as AssetStatus;
+};
 
 /**
  * Check if serial number already exists
@@ -425,7 +432,7 @@ const transformAssetFromDB = (dbAsset: any): Asset => {
     id: dbAsset.id,
     name: dbAsset.name,
     type: dbAsset.type,
-    status: dbAsset.status,
+    status: normalizeAssetStatus(dbAsset.status),
     serialNumber: dbAsset.serial_number,
     assignedTo: assignedToName || undefined, // Legacy: employee name
     assignedToId: dbAsset.employee_id || dbAsset.assigned_to_uuid || dbAsset.assigned_to || undefined, // UUID of assigned employee
@@ -461,7 +468,7 @@ const transformAssetToDB = (asset: Asset | Omit<Asset, 'id'>): any => {
     id: 'id' in asset ? asset.id : undefined,
     name: asset.name,
     type: asset.type,
-    status: asset.status,
+    status: normalizeAssetStatus(asset.status),
     serial_number: asset.serialNumber.trim(),
     // Keep legacy assigned_to string for backward compatibility/readability
     assigned_to: (asset as any).assignedTo || null,
@@ -610,4 +617,3 @@ const transformCommentToDB = (comment: Omit<AssetComment, 'id'>): any => {
 
 // Export the helper function for testing
 export { getAssetChanges };
-

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Asset, AssetStatus, AssetType, Location } from '../types';
 import GlassCard from './GlassCard';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Sparkles, TrendingUp, AlertCircle, Package, IndianRupee, MapPin } from 'lucide-react';
 import { generateInventoryInsight } from '../services/geminiService';
 import { motion } from 'framer-motion';
@@ -12,6 +12,13 @@ interface DashboardProps {
 }
 
 const COLORS = ['#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#f59e0b'];
+const STATUS_COLORS: Record<AssetStatus, string> = {
+  [AssetStatus.IN_USE]: '#22c55e',
+  [AssetStatus.ASSIGNED]: '#16a34a',
+  [AssetStatus.AVAILABLE]: '#38bdf8',
+  [AssetStatus.MAINTENANCE]: '#f59e0b',
+  [AssetStatus.RETIRED]: '#94a3b8'
+};
 
 const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
   const [insight, setInsight] = useState<string>("");
@@ -30,14 +37,22 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
     return diffDays > 0 && diffDays <= 90;
   }).length;
 
-  const typeData = Object.values(AssetType).map(type => ({
-    name: type,
-    value: assets.filter(a => a.type === type).length
-  })).filter(d => d.value > 0);
+  const typeData = Object.values(AssetType).map(type => {
+    const typeAssets = assets.filter(a => a.type === type);
+    const inUse = typeAssets.filter(a => a.status === AssetStatus.IN_USE).length;
+    const available = typeAssets.length - inUse;
+    return {
+      name: type,
+      inUse,
+      available,
+      total: typeAssets.length
+    };
+  }).filter(d => d.total > 0);
 
   const statusData = Object.values(AssetStatus).map(status => ({
     name: status,
-    count: assets.filter(a => a.status === status).length
+    count: assets.filter(a => a.status === status).length,
+    color: STATUS_COLORS[status] || '#94a3b8'
   }));
 
   // Location distribution by name
@@ -130,43 +145,77 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <GlassCard className="lg:col-span-2">
-           <div className="flex justify-between items-center mb-6">
-             <h3 className="text-lg font-bold text-gray-800">Asset Distribution</h3>
+           <div className="flex justify-between items-center mb-4">
+             <div>
+               <h3 className="text-lg font-bold text-gray-800">Asset Utilization</h3>
+               <p className="text-xs text-gray-500 mt-1">In use vs available by type</p>
+             </div>
+             <div className="flex items-center gap-3 text-xs text-gray-600">
+               <span className="flex items-center gap-1.5">
+                 <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                 In Use
+               </span>
+               <span className="flex items-center gap-1.5">
+                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-400" />
+                 Available
+               </span>
+             </div>
            </div>
            <div className="h-64 w-full">
              <ResponsiveContainer width="100%" height="100%">
-               <BarChart data={typeData}>
+               <BarChart data={typeData} barCategoryGap={18}>
+                 <defs>
+                   <linearGradient id="inUseGradient" x1="0" y1="0" x2="0" y2="1">
+                     <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.9} />
+                     <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.9} />
+                   </linearGradient>
+                   <linearGradient id="availableGradient" x1="0" y1="0" x2="0" y2="1">
+                     <stop offset="0%" stopColor="#818cf8" stopOpacity={0.9} />
+                     <stop offset="100%" stopColor="#6366f1" stopOpacity={0.9} />
+                   </linearGradient>
+                 </defs>
+                 <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" vertical={false} />
                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                  <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                  <Tooltip 
                     cursor={{fill: 'transparent'}}
-                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} 
+                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }} 
                  />
-                 <Bar dataKey="value" fill="#0ea5e9" radius={[8, 8, 0, 0]} barSize={40} />
+                 <Bar dataKey="inUse" fill="url(#inUseGradient)" radius={[10, 10, 0, 0]} barSize={26} />
+                 <Bar dataKey="available" fill="url(#availableGradient)" radius={[10, 10, 0, 0]} barSize={26} />
                </BarChart>
              </ResponsiveContainer>
            </div>
         </GlassCard>
 
         <GlassCard>
-          <h3 className="text-lg font-bold text-gray-800 mb-6">Status Breakdown</h3>
-          <div className="h-64 w-full relative">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-bold text-gray-800">Status Breakdown</h3>
+              <p className="text-xs text-gray-500 mt-1">Current asset lifecycle state</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-500">Total Assets</p>
+              <p className="text-lg font-semibold text-gray-800">{assets.length}</p>
+            </div>
+          </div>
+          <div className="h-56 w-full relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={statusData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
+                  innerRadius={58}
+                  outerRadius={78}
+                  paddingAngle={4}
                   dataKey="count"
                 >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  {statusData.map((entry) => (
+                    <Cell key={`cell-${entry.name}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: '12px', border: 'none' }} />
+                <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -175,6 +224,18 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations }) => {
                  <span className="text-xs text-gray-500 uppercase tracking-wider">Total</span>
                </div>
             </div>
+          </div>
+          <div className="mt-3 flex items-center gap-3 overflow-x-auto pb-1">
+            {statusData.map((status) => (
+              <div key={status.name} className="flex items-center gap-2 whitespace-nowrap rounded-full bg-gray-50 px-3 py-1.5">
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: status.color }}
+                />
+                <span className="text-xs font-medium text-gray-600">{status.name}</span>
+                <span className="text-xs font-semibold text-gray-800">{status.count}</span>
+              </div>
+            ))}
           </div>
         </GlassCard>
       </div>

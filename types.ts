@@ -14,8 +14,7 @@ export enum AssetStatus {
   AVAILABLE = 'Available',
   MAINTENANCE = 'Maintenance',
   RETIRED = 'Retired',
-  ASSIGNED = 'Assigned',
-  UNDER_MAINTENANCE = 'Under Maintenance'
+  ASSIGNED = 'Assigned'
 }
 
 export interface AssetSpecs {
