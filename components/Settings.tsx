@@ -12,7 +12,6 @@ const Settings: React.FC = () => {
           </div>
           <div>
             <h3 className="text-xl font-bold text-gray-800">Profile Settings</h3>
-            <p className="text-gray-500">Manage your personal information and preferences.</p>
           </div>
         </div>
         <div className="space-y-4">
@@ -34,7 +33,6 @@ const Settings: React.FC = () => {
           </div>
           <div>
             <h3 className="text-xl font-bold text-gray-800">Application Preferences</h3>
-            <p className="text-gray-500">Customize the look and feel of TrackIT.</p>
           </div>
         </div>
         

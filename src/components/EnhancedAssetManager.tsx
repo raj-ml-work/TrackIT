@@ -286,10 +286,9 @@ export const EnhancedAssetManager: React.FC<AssetManagerProps> = ({ insights: in
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
         <div className="container mx-auto px-4 py-8">
           {/* Header */}
-          <div className="flex flex-col lg:flex-row justify-between items-center mb-8 gap-4">
+          <div className="flex flex-col lg:flex-row justify-between items-center mb-4 gap-4">
             <div>
               <h1 className="text-3xl font-bold text-slate-900 mb-2">Inventory Management</h1>
-              <p className="text-slate-600">Comprehensive asset tracking and management</p>
               {lastUpdated && (
                 <p className="text-xs text-slate-500 mt-1">
                   Last updated: {lastUpdated.toLocaleString()} {cacheHit && '(Cached)'}

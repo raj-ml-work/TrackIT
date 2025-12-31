@@ -1027,17 +1027,7 @@ const App: React.FC = () => {
         
         <div className="p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
-            <div className="mb-6">
-              <p className="text-gray-600 text-sm">
-                {currentView === View.DASHBOARD && `Overview of ${assets.length} managed assets.`}
-                {currentView === View.INVENTORY && "Manage and track your corporate equipment."}
-                {currentView === View.EMPLOYEES && "Manage organization employees and asset assignments."}
-                {currentView === View.DEPARTMENTS && "Organize and manage your company departments."}
-                {currentView === View.LOCATIONS && "Manage office locations and standardize addresses."}
-                {currentView === View.USERS && "Admin-only control of teammates, roles, and status."}
-                {currentView === View.SETTINGS && "Configure your workspace."}
-              </p>
-            </div>
+            <div className="mb-0" />
 
           <AnimatePresence mode='wait'>
             <motion.div

@@ -193,20 +193,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
 
   return (
     <div className="space-y-6">
-      {canManageUsers && (
-        <div className="flex justify-end">
-          <button
-            onClick={openNew}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
-          >
-            <UserPlus size={18} />
-            Add User
-          </button>
-        </div>
-      )}
-
       <GlassCard>
-        <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
+        <div className="flex flex-wrap gap-3 items-center mb-4">
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl w-full md:w-80">
             <Search size={16} className="text-gray-400" />
             <input
@@ -229,6 +217,17 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
               ))}
             </select>
           </div>
+          {canManageUsers && (
+            <div className="ml-auto">
+              <button
+                onClick={openNew}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+              >
+                <UserPlus size={18} />
+                Add User
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">

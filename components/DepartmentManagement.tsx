@@ -269,20 +269,8 @@ const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        {canCreate && (
-          <button
-            onClick={openNew}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
-          >
-            <Plus size={18} />
-            Add Department
-          </button>
-        )}
-      </div>
-
       <GlassCard>
-        <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
+        <div className="flex flex-wrap gap-3 items-center mb-4">
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl w-full md:w-80">
             <Search size={16} className="text-gray-400" />
             <input
@@ -292,6 +280,17 @@ const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments
               onChange={e => setSearch(e.target.value)}
             />
           </div>
+          {canCreate && (
+            <div className="ml-auto">
+              <button
+                onClick={openNew}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+              >
+                <Plus size={18} />
+                Add Department
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">

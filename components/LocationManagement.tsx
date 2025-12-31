@@ -294,19 +294,18 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        {canCreate && (
-          <button
-            onClick={openNew}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
-          >
-            <Plus size={18} />
-            Add Location
-          </button>
-        )}
-      </div>
-
       <GlassCard>
+        {canCreate && (
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={openNew}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+            >
+              <Plus size={18} />
+              Add Location
+            </button>
+          </div>
+        )}
         <div>
           {locations.length === 0 ? (
             <div className="text-center py-12">

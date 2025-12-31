@@ -1034,20 +1034,8 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        {canCreate && (
-          <button
-            onClick={openNew}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
-          >
-            <UserPlus size={18} />
-            Add Employee
-          </button>
-        )}
-      </div>
-
       <GlassCard>
-        <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
+        <div className="flex flex-wrap gap-3 items-center mb-4">
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl w-full md:w-80">
             <Search size={16} className="text-gray-400" />
             <input
@@ -1088,17 +1076,28 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
               ))}
             </select>
           </div>
-          {useBackend && (
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              {isPageLoading && (
-                <>
-                  <Loader size={14} className="animate-spin" />
-                  <span>Loading employees...</span>
-                </>
-              )}
-              {!isPageLoading && pageError && <span className="text-red-600">{pageError}</span>}
-            </div>
-          )}
+          <div className="flex items-center gap-3 ml-auto">
+            {useBackend && (
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                {isPageLoading && (
+                  <>
+                    <Loader size={14} className="animate-spin" />
+                    <span>Loading employees...</span>
+                  </>
+                )}
+                {!isPageLoading && pageError && <span className="text-red-600">{pageError}</span>}
+              </div>
+            )}
+            {canCreate && (
+              <button
+                onClick={openNew}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+              >
+                <UserPlus size={18} />
+                Add Employee
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-2">

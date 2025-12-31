@@ -687,20 +687,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
 
   return (
     <div className="space-y-6">
-      {canCreate && (
-        <div className="flex justify-end">
-          <button
-            onClick={() => { setCurrentStep(1); setIsModalOpen(true); }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
-          >
-            <Plus size={18} />
-            Add Asset
-          </button>
-        </div>
-      )}
-
       <GlassCard>
-        <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
+        <div className="flex flex-wrap gap-3 items-center mb-4">
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl w-full md:w-80">
             <Search size={16} className="text-gray-400" />
             <input
@@ -739,21 +727,32 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               {Object.values(AssetType).map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
-          {useBackend && (
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              {isPageLoading && (
-                <>
-                  <Loader size={14} className="animate-spin" />
-                  <span>Loading assets...</span>
-                </>
-              )}
-              {!isPageLoading && pageError && <span className="text-red-600">{pageError}</span>}
-            </div>
-          )}
+          <div className="flex items-center gap-3 ml-auto">
+            {useBackend && (
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                {isPageLoading && (
+                  <>
+                    <Loader size={14} className="animate-spin" />
+                    <span>Loading assets...</span>
+                  </>
+                )}
+                {!isPageLoading && pageError && <span className="text-red-600">{pageError}</span>}
+              </div>
+            )}
+            {canCreate && (
+              <button
+                onClick={() => { setCurrentStep(1); setIsModalOpen(true); }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-lg shadow-gray-900/20 hover:-translate-y-0.5 transition-transform"
+              >
+                <Plus size={18} />
+                Add Asset
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Asset List */}
-        <div className="space-y-2">
+        <div className="space-y-2 pt-2">
           <div className="grid grid-cols-12 text-xs text-gray-400 px-2">
             <span className="col-span-4">Asset</span>
             <span className="col-span-2">Location</span>
