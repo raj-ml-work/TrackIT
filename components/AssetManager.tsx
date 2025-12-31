@@ -234,11 +234,11 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       errors.cost = 'Cost must be a valid number (0 or greater)';
     }
     
-    // If status is "In Use", assignedToId must be set
+    // If status is "In Use" or "Assigned", assignedToId must be set
     const assignedToId = formData.assignedToId || formData.employeeId;
-    if (formData.status === AssetStatus.IN_USE && !assignedToId) {
-      errors.assignedToId = 'An employee must be assigned when status is "In Use"';
-      errors.status = 'Status cannot be "In Use" without an assigned employee';
+    if ((formData.status === AssetStatus.IN_USE || formData.status === AssetStatus.ASSIGNED) && !assignedToId) {
+      errors.assignedToId = 'An employee must be assigned when status is "In Use" or "Assigned"';
+      errors.status = 'Please assign an employee first';
     }
     
     setFormErrors(errors);
@@ -255,15 +255,16 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     
     const assignedToId = formData.assignedToId || formData.employeeId;
 
-    // If assignedToId is set, ensure status is "In Use"
-    // If assignedToId is not set and status is "In Use", change to "Available"
+    // Preserve selected status when assigned; if unassigned, prevent "In Use"/"Assigned"
     const finalFormData = {
       ...formData,
       assignedToId: assignedToId || undefined,
       employeeId: assignedToId || undefined,
-      status: assignedToId 
-        ? AssetStatus.IN_USE 
-        : (formData.status === AssetStatus.IN_USE ? AssetStatus.AVAILABLE : formData.status)
+      status: assignedToId
+        ? formData.status
+        : (formData.status === AssetStatus.IN_USE || formData.status === AssetStatus.ASSIGNED
+          ? AssetStatus.AVAILABLE
+          : formData.status)
     };
     
     setFormErrors({});
@@ -561,14 +562,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
             const newAssignedToId = e.target.value || undefined;
             const selectedEmployee = employees.find(emp => emp.id === newAssignedToId);
             
-            // If assigning to someone, automatically set status to "In Use"
+            // When assigning, keep the user's selected status
             if (newAssignedToId && selectedEmployee) {
               setFormData(prev => ({ 
                 ...prev, 
                 assignedToId: newAssignedToId,
                 employeeId: newAssignedToId,
-                assignedTo: selectedEmployee.name, // Keep for display/backward compatibility
-                status: AssetStatus.IN_USE 
+                assignedTo: selectedEmployee.name // Keep for display/backward compatibility
               }));
               // Clear any errors since assignment is valid
               setFormErrors(prev => {
@@ -579,13 +579,15 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                 return newErrors;
               });
             } else {
-              // If unassigning, set status to "Available" if it was "In Use"
+              // If unassigning, set status to "Available" if it was "In Use"/"Assigned"
               setFormData(prev => ({ 
                 ...prev, 
                 assignedToId: undefined,
                 employeeId: undefined,
                 assignedTo: undefined,
-                status: prev.status === AssetStatus.IN_USE ? AssetStatus.AVAILABLE : prev.status
+                status: prev.status === AssetStatus.IN_USE || prev.status === AssetStatus.ASSIGNED
+                  ? AssetStatus.AVAILABLE
+                  : prev.status
               }));
               // Clear errors
               setFormErrors(prev => {
