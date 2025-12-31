@@ -41,6 +41,140 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
     onConfirm: undefined
   });
 
+  const locationTagPalettes = [
+    {
+      bg: '#eff6ff',
+      border: '#bfdbfe',
+      text: '#1e3a8a',
+      iconBg: '#dbeafe',
+      iconText: '#1d4ed8',
+      metaBg: '#e0e7ff',
+      metaText: '#3730a3'
+    },
+    {
+      bg: '#ecfeff',
+      border: '#a5f3fc',
+      text: '#155e75',
+      iconBg: '#cffafe',
+      iconText: '#0e7490',
+      metaBg: '#e6fffb',
+      metaText: '#0f766e'
+    },
+    {
+      bg: '#f0fdf4',
+      border: '#bbf7d0',
+      text: '#166534',
+      iconBg: '#dcfce7',
+      iconText: '#15803d',
+      metaBg: '#e7f5eb',
+      metaText: '#166534'
+    },
+    {
+      bg: '#f7fee7',
+      border: '#d9f99d',
+      text: '#365314',
+      iconBg: '#ecfccb',
+      iconText: '#3f6212',
+      metaBg: '#f1f5d6',
+      metaText: '#365314'
+    },
+    {
+      bg: '#fffbeb',
+      border: '#fde68a',
+      text: '#92400e',
+      iconBg: '#fef3c7',
+      iconText: '#b45309',
+      metaBg: '#fff3d6',
+      metaText: '#92400e'
+    },
+    {
+      bg: '#fff7ed',
+      border: '#fed7aa',
+      text: '#9a3412',
+      iconBg: '#ffedd5',
+      iconText: '#c2410c',
+      metaBg: '#ffe7d1',
+      metaText: '#9a3412'
+    },
+    {
+      bg: '#fff1f2',
+      border: '#fecdd3',
+      text: '#9f1239',
+      iconBg: '#ffe4e6',
+      iconText: '#be123c',
+      metaBg: '#ffe4ec',
+      metaText: '#9f1239'
+    },
+    {
+      bg: '#fdf2f8',
+      border: '#fbcfe8',
+      text: '#9d174d',
+      iconBg: '#fce7f3',
+      iconText: '#be185d',
+      metaBg: '#fde7f6',
+      metaText: '#9d174d'
+    },
+    {
+      bg: '#f5f3ff',
+      border: '#ddd6fe',
+      text: '#4c1d95',
+      iconBg: '#ede9fe',
+      iconText: '#6d28d9',
+      metaBg: '#ede9fe',
+      metaText: '#4c1d95'
+    },
+    {
+      bg: '#eef2ff',
+      border: '#c7d2fe',
+      text: '#312e81',
+      iconBg: '#e0e7ff',
+      iconText: '#4338ca',
+      metaBg: '#e0e7ff',
+      metaText: '#312e81'
+    },
+    {
+      bg: '#f1f5f9',
+      border: '#cbd5f5',
+      text: '#334155',
+      iconBg: '#e2e8f0',
+      iconText: '#475569',
+      metaBg: '#e2e8f0',
+      metaText: '#334155'
+    },
+    {
+      bg: '#f8fafc',
+      border: '#cbd5e1',
+      text: '#1f2937',
+      iconBg: '#e2e8f0',
+      iconText: '#334155',
+      metaBg: '#e2e8f0',
+      metaText: '#1f2937'
+    }
+  ];
+
+  const getLocationTagStyle = (name: string) => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i += 1) {
+      hash = (hash * 31 + name.charCodeAt(i)) % locationTagPalettes.length;
+    }
+    const palette = locationTagPalettes[hash];
+    return {
+      chip: {
+        backgroundColor: palette.bg,
+        borderColor: palette.border,
+        color: palette.text
+      },
+      icon: {
+        backgroundColor: palette.iconBg,
+        color: palette.iconText
+      },
+      meta: {
+        backgroundColor: palette.metaBg,
+        color: palette.metaText
+      }
+    };
+  };
+
   const [formErrors, setFormErrors] = useState<{ name?: string; city?: string }>({});
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -195,57 +329,65 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
                 )}
 
                 <div className="flex flex-wrap gap-3">
-                  {filteredLocations.map((location, index) => (
-                    <motion.div
-                      key={location.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ delay: index * 0.05 }}
-                      whileHover={{ scale: 1.05 }}
-                      className="relative"
-                    >
-                      <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-all">
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center text-gray-700">
-                          <MapPin size={14} />
-                        </div>
-                        <span className="font-medium text-gray-800">{location.name}</span>
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{location.city}</span>
-                        {location.comments && (
-                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full truncate max-w-[100px]">
-                            {location.comments}
+                  {filteredLocations.map((location, index) => {
+                    const tagStyle = getLocationTagStyle(location.name);
+                    return (
+                      <motion.div
+                        key={location.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ delay: index * 0.05 }}
+                        whileHover={{ scale: 1.05 }}
+                        className="relative"
+                      >
+                        <div
+                          className="flex items-center gap-2 px-4 py-2 rounded-full shadow-sm hover:shadow-md transition-all border"
+                          style={tagStyle.chip}
+                        >
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center" style={tagStyle.icon}>
+                            <MapPin size={14} />
+                          </div>
+                          <span className="font-medium text-gray-800">{location.name}</span>
+                          <span className="text-xs px-2 py-1 rounded-full" style={tagStyle.meta}>
+                            {location.city}
                           </span>
-                        )}
-                        <span className="text-xs text-gray-600 font-semibold bg-gray-100 px-2 py-1 rounded-full">
-                          {locationUsage[location.id] || 0}
-                        </span>
-                      </div>
-                      <div className="absolute -top-2 -right-2 flex gap-1">
-                        {canUpdate && (
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => openEdit(location)}
-                            className="p-1 bg-blue-50 text-blue-600 rounded-full transition-colors"
-                            title="Edit"
-                          >
-                            <Edit2 size={14} />
-                          </motion.button>
-                        )}
-                        {canDelete && (
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleDelete(location)}
-                            className="p-1 bg-red-50 text-red-600 rounded-full transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </motion.button>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
+                          {location.comments && (
+                            <span className="text-xs px-2 py-1 rounded-full truncate max-w-[100px]" style={tagStyle.meta}>
+                              {location.comments}
+                            </span>
+                          )}
+                          <span className="text-xs font-semibold px-2 py-1 rounded-full" style={tagStyle.meta}>
+                            {locationUsage[location.id] || 0}
+                          </span>
+                        </div>
+                        <div className="absolute -top-2 -right-2 flex gap-1">
+                          {canUpdate && (
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => openEdit(location)}
+                              className="p-1 bg-blue-50 text-blue-600 rounded-full transition-colors"
+                              title="Edit"
+                            >
+                              <Edit2 size={14} />
+                            </motion.button>
+                          )}
+                          {canDelete && (
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleDelete(location)}
+                              className="p-1 bg-red-50 text-red-600 rounded-full transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </motion.button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </AnimatePresence>
             </div>
