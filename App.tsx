@@ -927,8 +927,12 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
         <div className="text-center">
-          <div className="inline-flex p-4 bg-gray-900 rounded-2xl text-white mb-4 animate-pulse">
-            <Hexagon size={36} fill="currentColor" />
+          <div className="inline-flex p-3 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 rounded-2xl shadow-xl shadow-slate-900/20 ring-1 ring-white/20 mb-4 animate-pulse">
+            <img
+              src="/images/TrackIT-icon.png"
+              alt="TrackIT"
+              className="h-8 w-8 object-contain drop-shadow-sm"
+            />
           </div>
           <p className="text-gray-600 font-medium">Loading TrackIT...</p>
         </div>
