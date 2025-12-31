@@ -2,7 +2,7 @@ import { LoginCredentials, AuthSession, UserAccount, UserRole, UserStatus } from
 import { getSupabaseClient } from './supabaseClient';
 import { dbConfig } from './database';
 import * as userService from './userService';
-import { hashPassword, isSha256Hash } from './passwordUtil';
+import { hashPassword, hashPasswordSHA1, isSha256Hash, isSha1Hash } from './passwordUtil';
 
 // Fallback mock users for development when Supabase is not configured
 const DEFAULT_USERS = [
@@ -190,16 +190,24 @@ export const login = async (credentials: LoginCredentials): Promise<AuthSession>
       throw new Error('Invalid email or password');
     }
 
-    // Support hashed passwords (preferred) and fall back to plain for legacy rows
+    // Support multiple hash formats for legacy compatibility
+    let isPasswordValid = false;
+    
     if (isSha256Hash(user.passwordHash)) {
+      // SHA-256 (current standard)
       const hashedInput = await hashPassword(credentials.password);
-      if (user.passwordHash !== hashedInput) {
-        throw new Error('Invalid email or password');
-      }
+      isPasswordValid = user.passwordHash === hashedInput;
+    } else if (isSha1Hash(user.passwordHash)) {
+      // SHA-1 (legacy format)
+      const hashedInput = await hashPasswordSHA1(credentials.password);
+      isPasswordValid = user.passwordHash === hashedInput;
     } else {
-      if (user.passwordHash !== credentials.password) {
-        throw new Error('Invalid email or password');
-      }
+      // Plain text fallback (very old legacy)
+      isPasswordValid = user.passwordHash === credentials.password;
+    }
+    
+    if (!isPasswordValid) {
+      throw new Error('Invalid email or password');
     }
 
     if (user.status === UserStatus.INACTIVE) {

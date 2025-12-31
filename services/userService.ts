@@ -6,7 +6,7 @@
 
 import { UserAccount, UserRole, UserStatus } from '../types';
 import { getSupabaseClient } from './supabaseClient';
-import { hashPassword } from './passwordUtil';
+import { hashPassword, hashPasswordSHA1 } from './passwordUtil';
 import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'users';

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
-import { Employee, EmployeeStatus, Asset, Location, Department } from '../types';
-import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package } from 'lucide-react';
+import { Employee, EmployeeStatus, Asset, Location, Department, EmployeePersonalInfo, EmployeeOfficialInfo } from '../types';
+import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package, UserCircle, User, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
 
@@ -94,6 +94,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string>(''); // General submission error
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'personal' | 'official' | 'assets'>('overview');
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     type: DialogType;
@@ -313,9 +314,24 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     }
   };
 
+  const validateStep1 = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.employeeId || formData.employeeId.trim() === '') {
+      errors.employeeId = 'Employee ID is required';
+    }
+
+    if (!formData.status) {
+      errors.status = 'Status is required';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const validateStep2 = (): boolean => {
     const errors: Record<string, string> = {};
-    
+
     if (!formData.personalInfo.firstName || formData.personalInfo.firstName.trim() === '') {
       errors.firstName = 'First name is required';
     }

@@ -640,13 +640,13 @@ const App: React.FC = () => {
     }
   };
 
-  const handleResetUserPassword = async (id: string): Promise<string> => {
+  const handleResetUserPassword = async (id: string, passwordOption?: string): Promise<string> => {
     try {
       if (!session?.user) {
         throw new Error('Not authenticated');
       }
 
-      const temporaryPassword = await resetUserPassword(id, session.user);
+      const temporaryPassword = await resetUserPassword(id, session.user, passwordOption);
       
       // Update the user list to reflect the password change (though we can't see the password)
       // Just ensure the user is still active and refresh the list
