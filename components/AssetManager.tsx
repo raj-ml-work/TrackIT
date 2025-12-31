@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType, Location, Employee, EmployeeStatus } from '../types';
 import GlassCard from './GlassCard';
-import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, IndianRupee, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, Eye, DollarSign } from 'lucide-react';
+import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, IndianRupee, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, Eye, DollarSign, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getAssetsPage } from '../services/dataService';
 
 interface AssetManagerProps {
   assets: Asset[];
@@ -15,6 +16,7 @@ interface AssetManagerProps {
   canCreate?: boolean;
   canUpdate?: boolean;
   canDelete?: boolean;
+  useBackend?: boolean;
 }
 
 const initialSpecs: AssetSpecs = {
@@ -52,9 +54,18 @@ const getIcon = (type: AssetType) => {
   }
 };
 
-const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], locations, onAdd, onUpdate, onDelete, onAddComment, canCreate = true, canUpdate = true, canDelete = true }) => {
+const PAGE_SIZE = 20;
+
+const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], locations, onAdd, onUpdate, onDelete, onAddComment, canCreate = true, canUpdate = true, canDelete = true, useBackend = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterType, setFilterType] = useState<AssetType | 'All'>('All');
+  const [page, setPage] = useState(1);
+  const [pageAssets, setPageAssets] = useState<Asset[]>([]);
+  const [totalAssets, setTotalAssets] = useState(0);
+  const [isPageLoading, setIsPageLoading] = useState(false);
+  const [pageError, setPageError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -82,24 +93,87 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   // Comment State
   const [commentText, setCommentText] = useState('');
 
-  const filteredAssets = assets.filter(asset => {
-    const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          asset.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          asset.specs?.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          asset.specs?.model?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterType === 'All' || asset.type === filterType;
-    return matchesSearch && matchesFilter;
-  });
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (!useBackend) return;
+    if (searchTerm.trim() !== debouncedSearch) return;
+
+    let isMounted = true;
+    const loadAssetsPage = async () => {
+      setIsPageLoading(true);
+      setPageError('');
+      try {
+        const result = await getAssetsPage({
+          page,
+          pageSize: PAGE_SIZE,
+          search: debouncedSearch || undefined,
+          type: filterType
+        });
+        if (!isMounted) return;
+        setPageAssets(result.data);
+        setTotalAssets(result.total);
+      } catch (error) {
+        if (!isMounted) return;
+        console.error('Error loading assets page:', error);
+        setPageError('Failed to load assets. Please try again.');
+      } finally {
+        if (isMounted) {
+          setIsPageLoading(false);
+        }
+      }
+    };
+
+    loadAssetsPage();
+    return () => {
+      isMounted = false;
+    };
+  }, [useBackend, page, debouncedSearch, filterType, refreshToken, searchTerm]);
+
+  const localFilteredAssets = useMemo(() => {
+    const normalizedSearch = debouncedSearch.toLowerCase();
+    return assets.filter(asset => {
+      const matchesSearch =
+        asset.name.toLowerCase().includes(normalizedSearch) ||
+        asset.serialNumber.toLowerCase().includes(normalizedSearch) ||
+        asset.specs?.brand?.toLowerCase().includes(normalizedSearch) ||
+        asset.specs?.model?.toLowerCase().includes(normalizedSearch);
+      const matchesFilter = filterType === 'All' || asset.type === filterType;
+      return matchesSearch && matchesFilter;
+    });
+  }, [assets, debouncedSearch, filterType]);
+
+  const localPagedAssets = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return localFilteredAssets.slice(start, start + PAGE_SIZE);
+  }, [localFilteredAssets, page]);
+
+  const visibleAssets = useBackend ? pageAssets : localPagedAssets;
+  const totalCount = useBackend ? totalAssets : localFilteredAssets.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const pageStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, totalCount);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   // Update selected asset when assets change (e.g., when a comment is added)
   useEffect(() => {
     if (selectedAsset) {
-      const updated = assets.find(a => a.id === selectedAsset.id);
+      const updated = visibleAssets.find(a => a.id === selectedAsset.id);
       if (updated) {
         setSelectedAsset(updated);
       }
     }
-  }, [assets, selectedAsset?.id]);
+  }, [visibleAssets, selectedAsset?.id]);
 
   const hasExtraSpecs = (type: AssetType) => {
     return [
@@ -202,6 +276,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         }
       } else {
         await onAdd(finalFormData);
+      }
+      if (useBackend) {
+        setRefreshToken(prev => prev + 1);
       }
       closeModal();
     } catch (error) {
@@ -627,20 +704,37 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               className="w-full bg-transparent focus:outline-none text-sm"
               placeholder="Search assets by name, serial number, brand, or model"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500 uppercase tracking-wide">Type</span>
             <select
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value as AssetType | 'All')}
+              onChange={(e) => {
+                setFilterType(e.target.value as AssetType | 'All');
+                setPage(1);
+              }}
               className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none"
             >
               <option value="All">All Types</option>
               {Object.values(AssetType).map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
+          {useBackend && (
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              {isPageLoading && (
+                <>
+                  <Loader size={14} className="animate-spin" />
+                  <span>Loading assets...</span>
+                </>
+              )}
+              {!isPageLoading && pageError && <span className="text-red-600">{pageError}</span>}
+            </div>
+          )}
         </div>
 
         {/* Asset List */}
@@ -654,7 +748,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           </div>
 
           <AnimatePresence>
-            {filteredAssets.length === 0 && (
+            {visibleAssets.length === 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -665,7 +759,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               </motion.div>
             )}
 
-            {filteredAssets.map((asset, index) => (
+            {visibleAssets.map((asset, index) => (
               <motion.div
                 key={asset.id}
                 initial={{ opacity: 0, y: 4 }}
@@ -738,6 +832,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                         e.stopPropagation();
                         try {
                           await onDelete(asset.id);
+                          if (useBackend) {
+                            setRefreshToken(prev => prev + 1);
+                          }
                         } catch (error) {
                           console.error('Error deleting asset:', error);
                         }
@@ -752,6 +849,31 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               </motion.div>
             ))}
           </AnimatePresence>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+          <span>
+            Showing {pageStart}-{pageEnd} of {totalCount}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(prev => Math.max(1, prev - 1))}
+              disabled={page <= 1}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Prev
+            </button>
+            <span className="text-xs text-gray-500">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={page >= totalPages}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </GlassCard>
 

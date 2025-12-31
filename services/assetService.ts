@@ -4,7 +4,7 @@
  * Handles all database operations for Assets
  */
 
-import { Asset, AssetComment, AssetCommentType, AssetStatus, UserAccount } from '../types';
+import { Asset, AssetComment, AssetCommentType, AssetQuery, AssetStatus, PaginatedResult, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 import { isAdmin, getPermissionError } from './permissionUtil';
 
@@ -17,6 +17,30 @@ const normalizeAssetStatus = (status: string | null | undefined): AssetStatus =>
   if (!status) return AssetStatus.AVAILABLE;
   if (status === LEGACY_UNDER_MAINTENANCE) return AssetStatus.MAINTENANCE;
   return status as AssetStatus;
+};
+
+const attachAssetSpecs = async (supabase: any, assets: Asset[]): Promise<Asset[]> => {
+  if (assets.length === 0) return assets;
+  const assetIds = assets.map(a => a.id);
+  const { data: specsData, error: specsError } = await supabase
+    .from(SPECS_TABLE_NAME)
+    .select('*')
+    .in('asset_id', assetIds);
+
+  if (!specsError && specsData) {
+    const specsByAssetId: Record<string, any> = {};
+    specsData.forEach(dbSpec => {
+      specsByAssetId[dbSpec.asset_id] = transformSpecsFromDB(dbSpec);
+    });
+
+    assets.forEach(asset => {
+      if (specsByAssetId[asset.id]) {
+        asset.assetSpecs = specsByAssetId[asset.id];
+      }
+    });
+  }
+
+  return assets;
 };
 
 /**
@@ -64,28 +88,7 @@ export const getAssets = async (): Promise<Asset[]> => {
 
     // Transform database format to app format
     const assets = (data || []).map(transformAssetFromDB);
-    
-    // Fetch asset specs for all assets
-    if (assets.length > 0) {
-      const assetIds = assets.map(a => a.id);
-      const { data: specsData, error: specsError } = await supabase
-        .from(SPECS_TABLE_NAME)
-        .select('*')
-        .in('asset_id', assetIds);
-
-      if (!specsError && specsData) {
-        const specsByAssetId: Record<string, any> = {};
-        specsData.forEach(dbSpec => {
-          specsByAssetId[dbSpec.asset_id] = transformSpecsFromDB(dbSpec);
-        });
-
-        assets.forEach(asset => {
-          if (specsByAssetId[asset.id]) {
-            asset.assetSpecs = specsByAssetId[asset.id];
-          }
-        });
-      }
-    }
+    await attachAssetSpecs(supabase, assets);
     
     // Fetch comments for all assets (lazy load - only when needed)
     // For now, we'll load comments separately when viewing asset details
@@ -93,6 +96,163 @@ export const getAssets = async (): Promise<Asset[]> => {
     return assets;
   } catch (error) {
     console.error('Error fetching assets:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get a paginated list of assets with optional search and type filtering
+ */
+export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<Asset>> => {
+  try {
+    const supabase = await getSupabaseClient();
+    const page = Math.max(1, query.page || 1);
+    const pageSize = Math.max(1, Math.min(query.pageSize || 20, 100));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const search = query.search?.trim();
+
+    if (search) {
+      const pattern = `%${search.toLowerCase()}%`;
+      try {
+        let searchRequest = supabase
+          .from('asset_search_view')
+          .select('asset_id', { count: 'exact' })
+          .ilike('search_text', pattern)
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (query.type && query.type !== 'All') {
+          searchRequest = searchRequest.eq('asset_type', query.type);
+        }
+
+        const { data: matches, error: searchError, count } = await searchRequest;
+        if (searchError) throw searchError;
+
+        const ids = (matches || []).map((row: { asset_id: string }) => row.asset_id);
+        if (ids.length === 0) {
+          return {
+            data: [],
+            total: count || 0,
+            page,
+            pageSize
+          };
+        }
+
+        const { data, error } = await supabase
+          .from(TABLE_NAME)
+          .select(
+            `
+        *,
+        assigned_employee:employees!employee_id(id, employee_id, personal_info:employee_personal_info(first_name, last_name)),
+        location:locations(id, name, city, country)
+      `
+          )
+          .in('id', ids)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const order = new Map(ids.map((id, index) => [id, index]));
+        const sorted = (data || []).sort((a, b) => {
+          return (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0);
+        });
+
+        const assets = sorted.map(transformAssetFromDB);
+        await attachAssetSpecs(supabase, assets);
+
+        return {
+          data: assets,
+          total: count || 0,
+          page,
+          pageSize
+        };
+      } catch (error: any) {
+        if (error?.code !== 'PGRST205') {
+          throw error;
+        }
+        console.warn('asset_search_view missing; falling back to table search.');
+        let fallbackRequest = supabase
+          .from(TABLE_NAME)
+          .select(
+            `
+        *,
+        assigned_employee:employees!employee_id(id, employee_id, personal_info:employee_personal_info(first_name, last_name)),
+        location:locations(id, name, city, country),
+        asset_specs:asset_specs(brand, model)
+      `,
+            { count: 'exact' }
+          )
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (query.type && query.type !== 'All') {
+          fallbackRequest = fallbackRequest.eq('type', query.type);
+        }
+
+        fallbackRequest = fallbackRequest.or(
+          [
+            `name.ilike.${pattern}`,
+            `serial_number.ilike.${pattern}`,
+            `type.ilike.${pattern}`,
+            `specs->>brand.ilike.${pattern}`,
+            `specs->>model.ilike.${pattern}`
+          ].join(',')
+        );
+        fallbackRequest = fallbackRequest.or(
+          [`brand.ilike.${pattern}`, `model.ilike.${pattern}`].join(','),
+          { foreignTable: 'asset_specs' }
+        );
+        fallbackRequest = fallbackRequest.or([`name.ilike.${pattern}`].join(','), {
+          foreignTable: 'locations'
+        });
+
+        const { data, error: fallbackError, count } = await fallbackRequest;
+        if (fallbackError) throw fallbackError;
+
+        const assets = (data || []).map(transformAssetFromDB);
+        await attachAssetSpecs(supabase, assets);
+
+        return {
+          data: assets,
+          total: count || 0,
+          page,
+          pageSize
+        };
+      }
+    }
+
+    let request = supabase
+      .from(TABLE_NAME)
+      .select(
+        `
+        *,
+        assigned_employee:employees!employee_id(id, employee_id, personal_info:employee_personal_info(first_name, last_name)),
+        location:locations(id, name, city, country)
+      `,
+        { count: 'exact' }
+      )
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (query.type && query.type !== 'All') {
+      request = request.eq('type', query.type);
+    }
+
+    const { data, error, count } = await request;
+    if (error) throw error;
+
+    const assets = (data || []).map(transformAssetFromDB);
+    await attachAssetSpecs(supabase, assets);
+
+    return {
+      data: assets,
+      total: count || 0,
+      page,
+      pageSize
+    };
+  } catch (error) {
+    console.error('Error fetching assets page:', error);
     throw error;
   }
 };

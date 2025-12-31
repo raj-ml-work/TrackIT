@@ -51,6 +51,7 @@ export const initializeDatabase = async (): Promise<void> => {
 export {
   // Asset services
   getAssets,
+  getAssetsPage,
   getAssetById,
   createAsset,
   updateAsset,

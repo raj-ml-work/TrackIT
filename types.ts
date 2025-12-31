@@ -198,3 +198,10 @@ export interface AssetHistory {
   changedBy?: string; // FK to users.id
   changedAt: string;
 }
+
+export interface AssetQuery {
+  page: number;
+  pageSize: number;
+  search?: string;
+  type?: AssetType | 'All';
+}
