@@ -1350,6 +1350,14 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                           </div>
                         </div>
                       </div>
+                      {viewingEmployee.personalInfo?.additionalComments && (
+                        <div className="p-4 bg-gray-50 rounded-xl">
+                          <p className="text-xs text-gray-500 uppercase mb-1">Comments / Notes</p>
+                          <p className="text-sm text-gray-900 whitespace-pre-wrap">
+                            {viewingEmployee.personalInfo.additionalComments}
+                          </p>
+                        </div>
+                      )}
                     </motion.div>
                   )}
 
