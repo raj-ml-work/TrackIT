@@ -114,6 +114,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
 
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateStep1()) {
+      return;
+    }
     if (hasExtraSpecs(formData.type)) {
       setCurrentStep(2);
     } else {
@@ -121,10 +124,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     }
   };
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    
-    // Validate all required fields
+  const validateStep1 = (): boolean => {
     const errors: { 
       name?: string; 
       serialNumber?: string; 
@@ -155,7 +155,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       errors.purchaseDate = 'Purchase date is required';
     }
     
-    if (formData.cost === undefined || formData.cost === null || formData.cost < 0) {
+    if (formData.cost === undefined || formData.cost === null || Number.isNaN(formData.cost) || formData.cost < 0) {
       errors.cost = 'Cost must be a valid number (0 or greater)';
     }
     
@@ -166,12 +166,20 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       errors.status = 'Status cannot be "In Use" without an assigned employee';
     }
     
-    // If there are validation errors, show them and prevent submission
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    if (!validateStep1()) {
+      setCurrentStep(1);
       return;
     }
     
+    const assignedToId = formData.assignedToId || formData.employeeId;
+
     // If assignedToId is set, ensure status is "In Use"
     // If assignedToId is not set and status is "In Use", change to "Available"
     const finalFormData = {
@@ -420,8 +428,21 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Cost (₹)</label>
-          <input type="number" min="0" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-            value={formData.cost} onChange={e => setFormData({...formData, cost: parseFloat(e.target.value)})} />
+          <input
+            type="number"
+            min="0"
+            className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
+              formErrors.cost ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-blue-500/20'
+            }`}
+            value={formData.cost}
+            onChange={e => {
+              setFormData({...formData, cost: parseFloat(e.target.value)});
+              if (formErrors.cost) setFormErrors(prev => ({ ...prev, cost: undefined }));
+            }}
+          />
+          {formErrors.cost && (
+            <p className="mt-1 text-xs text-red-600">{formErrors.cost}</p>
+          )}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Purchase Date *</label>

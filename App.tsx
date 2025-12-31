@@ -544,8 +544,19 @@ const App: React.FC = () => {
       return;
     }
 
+    const asset = assets.find(a => a.id === id);
+    const isAssigned = !!(asset?.assignedToId || asset?.employeeId || asset?.assignedTo);
+    if (isAssigned) {
+      showDialog(
+        DialogType.WARNING,
+        'Cannot Delete Asset',
+        'This asset must be unassigned before it can be deleted.'
+      );
+      return;
+    }
+
     console.log('Showing confirmation dialog');
-    showDialog(DialogType.CONFIRM, 'Confirm Deletion', 'Are you sure you want to delete this asset?', async () => {
+    showDialog(DialogType.DANGER, 'Confirm Deletion', 'Are you sure you want to delete this asset?', async () => {
       console.log('User confirmed deletion - proceeding');
       // Proceed with deletion after confirmation
       try {
