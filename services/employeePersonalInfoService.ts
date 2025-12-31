@@ -45,12 +45,23 @@ export const createEmployeePersonalInfo = async (personalInfo: Omit<EmployeePers
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === 'PGRST116') {
+        throw new Error('Unable to save personal details. Please try again.');
+      }
+      throw error;
+    }
+    if (!data) {
+      throw new Error('Unable to save personal details. Please try again.');
+    }
 
     return transformPersonalInfoFromDB(data);
   } catch (error) {
     console.error('Error creating employee personal info:', error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Unable to save personal details. Please try again.');
   }
 };
 
@@ -131,5 +142,4 @@ const transformPersonalInfoToDB = (personalInfo: EmployeePersonalInfo | Omit<Emp
     additional_comments: personalInfo.additionalComments || null
   };
 };
-
 

@@ -219,6 +219,18 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     setEmployeeIdError('');
     setSubmitError('');
     setFormErrors({});
+    if (!validateStep1()) {
+      setCurrentStep(1);
+      return;
+    }
+    if (!validateStep2()) {
+      setCurrentStep(2);
+      return;
+    }
+    if (!validateStep3()) {
+      setCurrentStep(3);
+      return;
+    }
     
     try {
       // Create employee object with all data
@@ -321,6 +333,10 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       errors.employeeId = 'Employee ID is required';
     }
 
+    if (!formData.locationId) {
+      errors.locationId = 'Location is required';
+    }
+
     if (!formData.status) {
       errors.status = 'Status is required';
     }
@@ -334,6 +350,26 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
     if (!formData.personalInfo.firstName || formData.personalInfo.firstName.trim() === '') {
       errors.firstName = 'First name is required';
+    }
+
+    if (!formData.personalInfo.gender) {
+      errors.gender = 'Gender is required';
+    }
+
+    if (!formData.personalInfo.mobileNumber || formData.personalInfo.mobileNumber.trim() === '') {
+      errors.mobileNumber = 'Mobile number is required';
+    }
+
+    if (!formData.personalInfo.personalEmail || formData.personalInfo.personalEmail.trim() === '') {
+      errors.personalEmail = 'Personal email is required';
+    }
+
+    if (!formData.personalInfo.emergencyContactName || formData.personalInfo.emergencyContactName.trim() === '') {
+      errors.emergencyContactName = 'Emergency contact name is required';
+    }
+    
+    if (!formData.personalInfo.emergencyContactNumber || formData.personalInfo.emergencyContactNumber.trim() === '') {
+      errors.emergencyContactNumber = 'Emergency contact number is required';
     }
     
     // Email validation
@@ -366,10 +402,12 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const validateStep3 = (): boolean => {
     const errors: Record<string, string> = {};
     
-    // Official email is required if personal email not provided
-    if (!formData.personalInfo.personalEmail && 
-        (!formData.officialInfo.officialEmail || formData.officialInfo.officialEmail.trim() === '')) {
-      errors.officialEmail = 'Official email is required if personal email is not provided';
+    if (!formData.officialInfo.department || formData.officialInfo.department.trim() === '') {
+      errors.department = 'Department is required';
+    }
+
+    if (!formData.officialInfo.officialEmail || formData.officialInfo.officialEmail.trim() === '') {
+      errors.officialEmail = 'Official email is required';
     }
     
     // Email validation
@@ -377,12 +415,21 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.officialInfo.officialEmail)) {
       errors.officialEmail = 'Invalid email format';
     }
+
+    if (!formData.officialInfo.startDate) {
+      errors.startDate = 'Start date is required';
+    }
+
+    if (!formData.officialInfo.officialDob) {
+      errors.officialDob = 'Official date of birth is required';
+    }
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleNext = () => {
+    setSubmitError('');
     if (currentStep === 1) {
       if (validateStep1()) {
         setCurrentStep(2);
@@ -462,32 +509,52 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       </div>
 
       <div>
-        <label className="text-xs text-gray-500 uppercase block mb-1">Location</label>
+        <label className="text-xs text-gray-500 uppercase block mb-1">Location *</label>
         <select
           disabled={isSubmitting}
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+          className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+            formErrors.locationId
+              ? 'border-red-300 focus:ring-red-100'
+              : 'border-gray-200 focus:ring-blue-100'
+          }`}
           value={formData.locationId || ''}
-          onChange={e => setFormData(prev => ({ ...prev, locationId: e.target.value || undefined }))}
+          onChange={e => {
+            setFormData(prev => ({ ...prev, locationId: e.target.value || undefined }));
+            if (formErrors.locationId) setFormErrors(prev => ({ ...prev, locationId: undefined }));
+          }}
         >
           <option value="">Select Location</option>
           {locations.map(loc => (
             <option key={loc.id} value={loc.id}>{loc.name} - {loc.city}</option>
           ))}
         </select>
+        {formErrors.locationId && (
+          <p className="text-xs text-red-600 mt-1">{formErrors.locationId}</p>
+        )}
       </div>
 
       <div>
         <label className="text-xs text-gray-500 uppercase block mb-1">Status *</label>
         <select
           disabled={isSubmitting}
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+          className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+            formErrors.status
+              ? 'border-red-300 focus:ring-red-100'
+              : 'border-gray-200 focus:ring-blue-100'
+          }`}
           value={formData.status}
-          onChange={e => setFormData(prev => ({ ...prev, status: e.target.value as EmployeeStatus }))}
+          onChange={e => {
+            setFormData(prev => ({ ...prev, status: e.target.value as EmployeeStatus }));
+            if (formErrors.status) setFormErrors(prev => ({ ...prev, status: undefined }));
+          }}
         >
           {Object.values(EmployeeStatus).map(status => (
             <option key={status} value={status}>{status}</option>
           ))}
         </select>
+        {formErrors.status && (
+          <p className="text-xs text-red-600 mt-1">{formErrors.status}</p>
+        )}
       </div>
     </div>
   );
@@ -547,15 +614,22 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs text-gray-500 uppercase block mb-1">Gender</label>
+          <label className="text-xs text-gray-500 uppercase block mb-1">Gender *</label>
           <select
             disabled={isSubmitting}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+            className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+              formErrors.gender
+                ? 'border-red-300 focus:ring-red-100'
+                : 'border-gray-200 focus:ring-blue-100'
+            }`}
             value={formData.personalInfo.gender || ''}
-            onChange={e => setFormData(prev => ({
-              ...prev,
-              personalInfo: { ...prev.personalInfo, gender: e.target.value || undefined }
-            }))}
+            onChange={e => {
+              setFormData(prev => ({
+                ...prev,
+                personalInfo: { ...prev.personalInfo, gender: e.target.value || undefined }
+              }));
+              if (formErrors.gender) setFormErrors(prev => ({ ...prev, gender: undefined }));
+            }}
           >
             <option value="">Select Gender</option>
             <option value="Male">Male</option>
@@ -563,9 +637,12 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
             <option value="Other">Other</option>
             <option value="Prefer not to say">Prefer not to say</option>
           </select>
+          {formErrors.gender && (
+            <p className="text-xs text-red-600 mt-1">{formErrors.gender}</p>
+          )}
         </div>
         <div>
-          <label className="text-xs text-gray-500 uppercase block mb-1">Mobile Number</label>
+          <label className="text-xs text-gray-500 uppercase block mb-1">Mobile Number *</label>
           <input
             type="tel"
             disabled={isSubmitting}
@@ -591,7 +668,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       </div>
 
       <div>
-        <label className="text-xs text-gray-500 uppercase block mb-1">Personal Email</label>
+        <label className="text-xs text-gray-500 uppercase block mb-1">Personal Email *</label>
         <input
           type="email"
           disabled={isSubmitting}
@@ -619,20 +696,30 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         <h4 className="text-sm font-semibold text-gray-700 mb-3">Emergency Contact</h4>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-gray-500 uppercase block mb-1">Contact Name</label>
+            <label className="text-xs text-gray-500 uppercase block mb-1">Contact Name *</label>
             <input
               disabled={isSubmitting}
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                formErrors.emergencyContactName
+                  ? 'border-red-300 focus:ring-red-100'
+                  : 'border-gray-200 focus:ring-blue-100'
+              }`}
               value={formData.personalInfo.emergencyContactName}
-              onChange={e => setFormData(prev => ({
-                ...prev,
-                personalInfo: { ...prev.personalInfo, emergencyContactName: e.target.value }
-              }))}
+              onChange={e => {
+                setFormData(prev => ({
+                  ...prev,
+                  personalInfo: { ...prev.personalInfo, emergencyContactName: e.target.value }
+                }));
+                if (formErrors.emergencyContactName) setFormErrors(prev => ({ ...prev, emergencyContactName: undefined }));
+              }}
               placeholder="e.g. Jane Doe"
             />
+            {formErrors.emergencyContactName && (
+              <p className="text-xs text-red-600 mt-1">{formErrors.emergencyContactName}</p>
+            )}
           </div>
           <div>
-            <label className="text-xs text-gray-500 uppercase block mb-1">Contact Number</label>
+            <label className="text-xs text-gray-500 uppercase block mb-1">Contact Number *</label>
             <input
               type="tel"
               disabled={isSubmitting}
@@ -714,30 +801,40 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       </div>
 
       <div>
-        <label className="text-xs text-gray-500 uppercase block mb-1">Department</label>
+        <label className="text-xs text-gray-500 uppercase block mb-1">Department *</label>
         <select
           disabled={isSubmitting}
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+          className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+            formErrors.department
+              ? 'border-red-300 focus:ring-red-100'
+              : 'border-gray-200 focus:ring-blue-100'
+          }`}
           value={formData.officialInfo.department || ''}
-          onChange={e => setFormData(prev => ({
-            ...prev,
-            officialInfo: { ...prev.officialInfo, department: e.target.value || undefined }
-          }))}
+          onChange={e => {
+            setFormData(prev => ({
+              ...prev,
+              officialInfo: { ...prev.officialInfo, department: e.target.value || undefined }
+            }));
+            if (formErrors.department) setFormErrors(prev => ({ ...prev, department: undefined }));
+          }}
         >
           <option value="">Select Department</option>
           {departments.map(dept => (
             <option key={dept.id} value={dept.name}>{dept.name}</option>
           ))}
         </select>
+        {formErrors.department && (
+          <p className="text-xs text-red-600 mt-1">{formErrors.department}</p>
+        )}
       </div>
 
       <div>
         <label className="text-xs text-gray-500 uppercase block mb-1">
-          Official Email {!formData.personalInfo.personalEmail && '*'}
+          Official Email *
         </label>
         <input
           type="email"
-          required={!formData.personalInfo.personalEmail}
+          required
           disabled={isSubmitting}
           className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
             formErrors.officialEmail 
@@ -757,38 +854,55 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         {formErrors.officialEmail && (
           <p className="text-xs text-red-600 mt-1">{formErrors.officialEmail}</p>
         )}
-        {!formData.personalInfo.personalEmail && (
-          <p className="text-xs text-gray-500 mt-1">Required if personal email is not provided</p>
-        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs text-gray-500 uppercase block mb-1">Start Date</label>
+          <label className="text-xs text-gray-500 uppercase block mb-1">Start Date *</label>
           <input
             type="date"
             disabled={isSubmitting}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+            className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+              formErrors.startDate
+                ? 'border-red-300 focus:ring-red-100'
+                : 'border-gray-200 focus:ring-blue-100'
+            }`}
             value={formData.officialInfo.startDate}
-            onChange={e => setFormData(prev => ({
-              ...prev,
-              officialInfo: { ...prev.officialInfo, startDate: e.target.value }
-            }))}
+            onChange={e => {
+              setFormData(prev => ({
+                ...prev,
+                officialInfo: { ...prev.officialInfo, startDate: e.target.value }
+              }));
+              if (formErrors.startDate) setFormErrors(prev => ({ ...prev, startDate: undefined }));
+            }}
           />
+          {formErrors.startDate && (
+            <p className="text-xs text-red-600 mt-1">{formErrors.startDate}</p>
+          )}
         </div>
         <div>
-          <label className="text-xs text-gray-500 uppercase block mb-1">Official Date of Birth</label>
+          <label className="text-xs text-gray-500 uppercase block mb-1">Official Date of Birth *</label>
           <input
             type="date"
             disabled={isSubmitting}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+            className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+              formErrors.officialDob
+                ? 'border-red-300 focus:ring-red-100'
+                : 'border-gray-200 focus:ring-blue-100'
+            }`}
             value={formData.officialInfo.officialDob}
-            onChange={e => setFormData(prev => ({
-              ...prev,
-              officialInfo: { ...prev.officialInfo, officialDob: e.target.value }
-            }))}
+            onChange={e => {
+              setFormData(prev => ({
+                ...prev,
+                officialInfo: { ...prev.officialInfo, officialDob: e.target.value }
+              }));
+              if (formErrors.officialDob) setFormErrors(prev => ({ ...prev, officialDob: undefined }));
+            }}
           />
           <p className="text-xs text-gray-500 mt-1">For official records (may differ from actual DOB)</p>
+          {formErrors.officialDob && (
+            <p className="text-xs text-red-600 mt-1">{formErrors.officialDob}</p>
+          )}
         </div>
       </div>
 

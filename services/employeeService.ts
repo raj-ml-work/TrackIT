@@ -7,6 +7,8 @@
 import { Employee, EmployeeStatus, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 import { isAdmin, getPermissionError } from './permissionUtil';
+import { createEmployeePersonalInfo, updateEmployeePersonalInfo } from './employeePersonalInfoService';
+import { createEmployeeOfficialInfo, updateEmployeeOfficialInfo } from './employeeOfficialInfoService';
 
 const TABLE_NAME = 'employees';
 
@@ -153,7 +155,7 @@ export const createEmployee = async (employee: Omit<Employee, 'id'>, currentUser
     if (error) {
       // Provide more meaningful error messages
       if (error.code === 'PGRST116') {
-        throw new Error('Failed to create employee. Please ensure all required information is provided.');
+        throw new Error('Unable to save employee right now. Please try again.');
       } else if (error.code === '23502') {
         const column = error.message.match(/column "(\w+)"/)?.[1] || 'unknown';
         throw new Error(`Required field "${column}" is missing. Please fill in all required fields.`);
@@ -198,8 +200,41 @@ export const updateEmployee = async (employee: Employee, currentUser: UserAccoun
     if (fetchError) throw fetchError;
     
     const currentEmployee = transformEmployeeFromDB(currentEmployeeData);
+    let personalInfoId = employee.personalInfoId || currentEmployee.personalInfoId;
+    if (employee.personalInfo) {
+      const resolvedPersonalInfoId = employee.personalInfo.id || personalInfoId;
+      if (resolvedPersonalInfoId) {
+        const updatedPersonalInfo = await updateEmployeePersonalInfo({
+          ...employee.personalInfo,
+          id: resolvedPersonalInfoId
+        });
+        personalInfoId = updatedPersonalInfo.id;
+      } else {
+        const createdPersonalInfo = await createEmployeePersonalInfo(employee.personalInfo);
+        personalInfoId = createdPersonalInfo.id;
+      }
+    }
+
+    let officialInfoId = employee.officialInfoId || currentEmployee.officialInfoId;
+    if (employee.officialInfo) {
+      const resolvedOfficialInfoId = employee.officialInfo.id || officialInfoId;
+      if (resolvedOfficialInfoId) {
+        const updatedOfficialInfo = await updateEmployeeOfficialInfo({
+          ...employee.officialInfo,
+          id: resolvedOfficialInfoId
+        });
+        officialInfoId = updatedOfficialInfo.id;
+      } else {
+        const createdOfficialInfo = await createEmployeeOfficialInfo(employee.officialInfo);
+        officialInfoId = createdOfficialInfo.id;
+      }
+    }
     
-    const employeeData = transformEmployeeToDB(employee);
+    const employeeData = transformEmployeeToDB({
+      ...employee,
+      personalInfoId,
+      officialInfoId
+    });
     
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -377,4 +412,3 @@ const transformEmployeeToDB = (employee: Employee | Omit<Employee, 'id'>): any =
 
 // Export the helper function for testing
 export { getEmployeeChanges };
-

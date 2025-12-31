@@ -45,12 +45,23 @@ export const createEmployeeOfficialInfo = async (officialInfo: Omit<EmployeeOffi
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === 'PGRST116') {
+        throw new Error('Unable to save official details. Please try again.');
+      }
+      throw error;
+    }
+    if (!data) {
+      throw new Error('Unable to save official details. Please try again.');
+    }
 
     return transformOfficialInfoFromDB(data);
   } catch (error) {
     console.error('Error creating employee official info:', error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Unable to save official details. Please try again.');
   }
 };
 
@@ -127,5 +138,4 @@ const transformOfficialInfoToDB = (officialInfo: EmployeeOfficialInfo | Omit<Emp
     official_email: officialInfo.officialEmail || null
   };
 };
-
 
