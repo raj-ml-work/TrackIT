@@ -945,15 +945,13 @@ const App: React.FC = () => {
     <div className="min-h-screen flex font-sans text-slate-800 selection:bg-indigo-100">
       {/* Sidebar for Desktop */}
       <aside className="hidden lg:flex flex-col w-64 fixed h-full bg-white border-r border-gray-200 z-20">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Hexagon size={20} fill="white" className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">TrackIT</h1>
-              <p className="text-xs text-gray-500">Inventory Management</p>
-            </div>
+        <div className="h-16 px-6 border-b border-gray-200 flex items-center justify-center">
+          <div className="flex items-center justify-center">
+            <img
+              src="/images/TrackIT_v2.png"
+              alt="TrackIT"
+              className="h-12 w-auto"
+            />
           </div>
         </div>
 
@@ -977,11 +975,12 @@ const App: React.FC = () => {
 
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 w-full z-30 px-4 py-3 bg-white border-b border-gray-200 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Hexagon size={18} fill="white" className="text-white" />
-          </div>
-          <span className="font-bold text-lg text-gray-900">TrackIT</span>
+        <div className="flex items-center">
+          <img
+            src="/images/TrackIT_v2.png"
+            alt="TrackIT"
+            className="h-9 w-auto"
+          />
         </div>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600">
            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -1013,8 +1012,8 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 lg:ml-64 bg-gray-50 min-h-screen">
         {/* Top Header Bar */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="bg-white border-b border-gray-200 px-6 h-16 sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto h-full flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900">{currentView}</h1>
             <div className="flex items-center gap-4">
               <ProfilePanel user={session.user} onLogout={handleLogout} />

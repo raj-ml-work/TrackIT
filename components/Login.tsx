@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Hexagon, Lock, Mail, AlertCircle, Loader } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Loader } from 'lucide-react';
 import { LoginCredentials } from '../types';
 
 interface LoginProps {
@@ -73,9 +73,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="inline-flex p-4 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl text-white mb-4 shadow-lg shadow-indigo-500/30"
+              className="inline-flex mb-4"
             >
-              <Hexagon size={36} fill="currentColor" />
+              <img
+                src="/images/TrackIT_v2.png"
+                alt="TrackIT"
+                className="h-9 w-auto"
+              />
             </motion.div>
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">
               Welcome to TrackIT
@@ -212,4 +216,3 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 };
 
 export default Login;
-
