@@ -1074,6 +1074,7 @@ const App: React.FC = () => {
                   canCreate={canCreate(session?.user || null)}
                   canUpdate={canUpdate(session?.user || null)}
                   canDelete={canDelete(session?.user || null)}
+                  useBackend={useBackend}
                   currentUser={session?.user || null}
                 />
               )}

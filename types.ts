@@ -175,6 +175,20 @@ export interface Employee {
   officialInfo?: EmployeeOfficialInfo;
 }
 
+export interface EmployeeQuery {
+  page: number;
+  pageSize: number;
+  search?: string;
+  status?: EmployeeStatus | 'All';
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface AssetHistory {
   id: string;
   assetId: string;

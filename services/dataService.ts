@@ -63,6 +63,7 @@ export {
 export {
   // Employee services
   getEmployees,
+  getEmployeesPage,
   getEmployeeById,
   getEmployeeByEmployeeId,
   createEmployee,
@@ -102,4 +103,3 @@ export {
   updateDepartment,
   deleteDepartment
 } from './departmentService';
-

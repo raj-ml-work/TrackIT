@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
 import { Employee, EmployeeStatus, Asset, Location, Department, EmployeePersonalInfo, EmployeeOfficialInfo } from '../types';
 import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package, UserCircle, User, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
+import { getEmployeesPage } from '../services/dataService';
 
 interface EmployeeManagementProps {
   employees: Employee[];
@@ -16,6 +17,7 @@ interface EmployeeManagementProps {
   canCreate?: boolean;
   canUpdate?: boolean;
   canDelete?: boolean;
+  useBackend?: boolean;
   currentUser?: any; // Add current user for authentication
 }
 
@@ -82,9 +84,18 @@ const statusBadge = (status: EmployeeStatus) => {
     : `${base} bg-amber-100 text-amber-700`;
 };
 
-const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, currentUser }) => {
+const PAGE_SIZE = 20;
+
+const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, useBackend = false, currentUser }) => {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<EmployeeStatus | 'All'>('All');
+  const [page, setPage] = useState(1);
+  const [pageEmployees, setPageEmployees] = useState<Employee[]>([]);
+  const [totalEmployees, setTotalEmployees] = useState(0);
+  const [isPageLoading, setIsPageLoading] = useState(false);
+  const [pageError, setPageError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -109,10 +120,82 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     onConfirm: undefined
   });
 
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [search]);
+
+  useEffect(() => {
+    if (!useBackend) return;
+    if (search.trim() !== debouncedSearch) return;
+
+    let isMounted = true;
+    const loadEmployeesPage = async () => {
+      setIsPageLoading(true);
+      setPageError('');
+      try {
+        const result = await getEmployeesPage({
+          page,
+          pageSize: PAGE_SIZE,
+          search: debouncedSearch || undefined,
+          status: filterStatus
+        });
+        if (!isMounted) return;
+        setPageEmployees(result.data);
+        setTotalEmployees(result.total);
+      } catch (error) {
+        if (!isMounted) return;
+        console.error('Error loading employees page:', error);
+        setPageError('Failed to load employees. Please try again.');
+      } finally {
+        if (isMounted) {
+          setIsPageLoading(false);
+        }
+      }
+    };
+
+    loadEmployeesPage();
+    return () => {
+      isMounted = false;
+    };
+  }, [useBackend, page, debouncedSearch, filterStatus, refreshToken, search]);
+
+  const localFilteredEmployees = useMemo(() => {
+    const normalizedSearch = debouncedSearch.toLowerCase();
+    return employees.filter(employee => {
+      const matchesSearch =
+        employee.name?.toLowerCase().includes(normalizedSearch) ||
+        employee.employeeId.toLowerCase().includes(normalizedSearch) ||
+        employee.email?.toLowerCase().includes(normalizedSearch) ||
+        employee.department?.toLowerCase().includes(normalizedSearch);
+      const matchesStatus = filterStatus === 'All' || employee.status === filterStatus;
+      return matchesSearch && matchesStatus;
+    });
+  }, [employees, debouncedSearch, filterStatus]);
+
+  const localPagedEmployees = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return localFilteredEmployees.slice(start, start + PAGE_SIZE);
+  }, [localFilteredEmployees, page]);
+
+  const visibleEmployees = useBackend ? pageEmployees : localPagedEmployees;
+  const totalCount = useBackend ? totalEmployees : localFilteredEmployees.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const pageStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, totalCount);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   // Compute assigned asset counts
   const assetCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    employees.forEach(emp => {
+    visibleEmployees.forEach(emp => {
       counts[emp.id] = assets.filter(a => 
         a.assignedToId === emp.id || 
         a.employeeId === emp.id || 
@@ -120,19 +203,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       ).length;
     });
     return counts;
-  }, [employees, assets]);
-
-  const filteredEmployees = useMemo(() => {
-    return employees.filter(employee => {
-      const matchesSearch =
-        employee.name?.toLowerCase().includes(search.toLowerCase()) ||
-        employee.employeeId.toLowerCase().includes(search.toLowerCase()) ||
-        employee.email?.toLowerCase().includes(search.toLowerCase()) ||
-        employee.department?.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = filterStatus === 'All' || employee.status === filterStatus;
-      return matchesSearch && matchesStatus;
-    });
-  }, [employees, search, filterStatus]);
+  }, [visibleEmployees, assets]);
 
   // Get assets assigned to an employee
   const getEmployeeAssets = (employee: Employee) => {
@@ -279,6 +350,9 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         await onUpdate({ ...employeeData, id: editingEmployee.id } as Employee);
       } else {
         await onAdd(employeeData);
+      }
+      if (useBackend) {
+        setRefreshToken(prev => prev + 1);
       }
       closeModal();
     } catch (error: any) {
@@ -457,6 +531,9 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     showDialog(DialogType.DANGER, 'Confirm Deletion', `Are you sure you want to delete ${employee.name}?`, async () => {
       try {
         await onDelete(employee.id);
+        if (useBackend) {
+          setRefreshToken(prev => prev + 1);
+        }
       } catch (error: any) {
         console.error('Error deleting employee:', error);
         const errorMsg = error.message || 'Failed to delete employee. Please try again.';
@@ -976,14 +1053,20 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
               className="w-full bg-transparent focus:outline-none text-sm"
               placeholder="Search by name, employee ID, email, or department"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500 uppercase tracking-wide">Status</span>
             <select
               value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value as EmployeeStatus | 'All')}
+              onChange={e => {
+                setFilterStatus(e.target.value as EmployeeStatus | 'All');
+                setPage(1);
+              }}
               className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none"
             >
               <option value="All">All</option>
@@ -992,6 +1075,17 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
               ))}
             </select>
           </div>
+          {useBackend && (
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              {isPageLoading && (
+                <>
+                  <Loader size={14} className="animate-spin" />
+                  <span>Loading employees...</span>
+                </>
+              )}
+              {!isPageLoading && pageError && <span className="text-red-600">{pageError}</span>}
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -1005,18 +1099,24 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           </div>
 
           <AnimatePresence>
-            {filteredEmployees.length === 0 && (
+            {visibleEmployees.length === 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="p-8 text-center border border-dashed border-gray-200 rounded-2xl bg-gray-50/60"
               >
-                <p className="text-gray-700 font-semibold mb-1">No employees yet</p>
-                <p className="text-gray-500 text-sm">Add your first employee to start managing asset assignments.</p>
+                <p className="text-gray-700 font-semibold mb-1">
+                  {search || filterStatus !== 'All' ? 'No matching employees' : 'No employees yet'}
+                </p>
+                <p className="text-gray-500 text-sm">
+                  {search || filterStatus !== 'All'
+                    ? 'Try adjusting your search or filters.'
+                    : 'Add your first employee to start managing asset assignments.'}
+                </p>
               </motion.div>
             )}
 
-            {filteredEmployees.map((employee, index) => (
+            {visibleEmployees.map((employee, index) => (
               <motion.div
                 key={employee.id}
                 initial={{ opacity: 0, y: 4 }}
@@ -1090,6 +1190,31 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
               </motion.div>
             ))}
           </AnimatePresence>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+          <span>
+            Showing {pageStart}-{pageEnd} of {totalCount}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(prev => Math.max(1, prev - 1))}
+              disabled={page <= 1}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Prev
+            </button>
+            <span className="text-xs text-gray-500">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={page >= totalPages}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </GlassCard>
 

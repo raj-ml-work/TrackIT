@@ -4,7 +4,7 @@
  * Handles all database operations for Employees
  */
 
-import { Employee, EmployeeStatus, UserAccount } from '../types';
+import { Employee, EmployeeQuery, EmployeeStatus, PaginatedResult, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 import { isAdmin, getPermissionError } from './permissionUtil';
 import { createEmployeePersonalInfo, updateEmployeePersonalInfo } from './employeePersonalInfoService';
@@ -34,6 +34,70 @@ export const getEmployees = async (): Promise<Employee[]> => {
     return (data || []).map(transformEmployeeFromDB);
   } catch (error) {
     console.error('Error fetching employees:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get a paginated list of employees with optional search and status filtering
+ */
+export const getEmployeesPage = async (query: EmployeeQuery): Promise<PaginatedResult<Employee>> => {
+  try {
+    const supabase = await getSupabaseClient();
+    const page = Math.max(1, query.page || 1);
+    const pageSize = Math.max(1, Math.min(query.pageSize || 20, 100));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const search = query.search?.trim();
+
+    let request = supabase
+      .from(TABLE_NAME)
+      .select(
+        `
+        *,
+        personal_info:employee_personal_info(*),
+        official_info:employee_official_info(*),
+        location:locations(name, city, country),
+        client:clients(name, code)
+      `,
+        { count: 'exact' }
+      )
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (query.status && query.status !== 'All') {
+      request = request.eq('status', query.status);
+    }
+
+    if (search) {
+      const pattern = `%${search}%`;
+      request = request.or([`employee_id.ilike.${pattern}`, `name.ilike.${pattern}`].join(','));
+      request = request.or(
+        [
+          `first_name.ilike.${pattern}`,
+          `last_name.ilike.${pattern}`,
+          `personal_email.ilike.${pattern}`
+        ].join(','),
+        { foreignTable: 'employee_personal_info' }
+      );
+      request = request.or(
+        [`official_email.ilike.${pattern}`, `division.ilike.${pattern}`].join(','),
+        { foreignTable: 'employee_official_info' }
+      );
+    }
+
+    const { data, error, count } = await request;
+
+    if (error) throw error;
+
+    return {
+      data: (data || []).map(transformEmployeeFromDB),
+      total: count || 0,
+      page,
+      pageSize
+    };
+  } catch (error) {
+    console.error('Error fetching employees page:', error);
     throw error;
   }
 };
