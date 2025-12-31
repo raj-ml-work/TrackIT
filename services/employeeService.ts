@@ -50,6 +50,110 @@ export const getEmployeesPage = async (query: EmployeeQuery): Promise<PaginatedR
     const to = from + pageSize - 1;
     const search = query.search?.trim();
 
+    if (search) {
+      const pattern = `%${search.toLowerCase()}%`;
+      try {
+        let searchRequest = supabase
+          .from('employee_search_view')
+          .select('employee_id', { count: 'exact' })
+          .ilike('search_text', pattern)
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (query.status && query.status !== 'All') {
+          searchRequest = searchRequest.eq('status', query.status);
+        }
+
+        const { data: matches, error: searchError, count } = await searchRequest;
+        if (searchError) throw searchError;
+
+        const ids = (matches || []).map((row: { employee_id: string }) => row.employee_id);
+        if (ids.length === 0) {
+          return {
+            data: [],
+            total: count || 0,
+            page,
+            pageSize
+          };
+        }
+
+        const { data, error } = await supabase
+          .from(TABLE_NAME)
+          .select(
+            `
+        *,
+        personal_info:employee_personal_info(*),
+        official_info:employee_official_info(*),
+        location:locations(name, city, country),
+        client:clients(name, code)
+      `
+          )
+          .in('id', ids)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const order = new Map(ids.map((id, index) => [id, index]));
+        const sorted = (data || []).sort((a, b) => {
+          return (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0);
+        });
+
+        return {
+          data: sorted.map(transformEmployeeFromDB),
+          total: count || 0,
+          page,
+          pageSize
+        };
+      } catch (error: any) {
+        if (error?.code !== 'PGRST205') {
+          throw error;
+        }
+        console.warn('employee_search_view missing; falling back to table search.');
+        let fallbackRequest = supabase
+          .from(TABLE_NAME)
+          .select(
+            `
+        *,
+        personal_info:employee_personal_info(*),
+        official_info:employee_official_info(*),
+        location:locations(name, city, country),
+        client:clients(name, code)
+      `,
+            { count: 'exact' }
+          )
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (query.status && query.status !== 'All') {
+          fallbackRequest = fallbackRequest.eq('status', query.status);
+        }
+
+        fallbackRequest = fallbackRequest.or([`employee_id.ilike.${pattern}`, `name.ilike.${pattern}`].join(','));
+        fallbackRequest = fallbackRequest.or(
+          [
+            `first_name.ilike.${pattern}`,
+            `last_name.ilike.${pattern}`,
+            `personal_email.ilike.${pattern}`
+          ].join(','),
+          { foreignTable: 'employee_personal_info' }
+        );
+        fallbackRequest = fallbackRequest.or(
+          [`official_email.ilike.${pattern}`, `division.ilike.${pattern}`].join(','),
+          { foreignTable: 'employee_official_info' }
+        );
+
+        const { data, error: fallbackError, count } = await fallbackRequest;
+        if (fallbackError) throw fallbackError;
+
+        return {
+          data: (data || []).map(transformEmployeeFromDB),
+          total: count || 0,
+          page,
+          pageSize
+        };
+      }
+    }
+
     let request = supabase
       .from(TABLE_NAME)
       .select(
@@ -67,23 +171,6 @@ export const getEmployeesPage = async (query: EmployeeQuery): Promise<PaginatedR
 
     if (query.status && query.status !== 'All') {
       request = request.eq('status', query.status);
-    }
-
-    if (search) {
-      const pattern = `%${search}%`;
-      request = request.or([`employee_id.ilike.${pattern}`, `name.ilike.${pattern}`].join(','));
-      request = request.or(
-        [
-          `first_name.ilike.${pattern}`,
-          `last_name.ilike.${pattern}`,
-          `personal_email.ilike.${pattern}`
-        ].join(','),
-        { foreignTable: 'employee_personal_info' }
-      );
-      request = request.or(
-        [`official_email.ilike.${pattern}`, `division.ilike.${pattern}`].join(','),
-        { foreignTable: 'employee_official_info' }
-      );
     }
 
     const { data, error, count } = await request;
