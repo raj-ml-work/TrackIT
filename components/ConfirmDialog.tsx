@@ -4,6 +4,7 @@ import { AlertTriangle, X, Check, AlertCircle } from 'lucide-react';
 
 export enum DialogType {
   CONFIRM = 'confirm',
+  DANGER = 'danger',
   ERROR = 'error',
   WARNING = 'warning',
   INFO = 'info'
@@ -47,6 +48,14 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           borderColor: 'border-yellow-200',
           textColor: 'text-yellow-700',
           buttonColor: 'bg-yellow-500 hover:bg-yellow-600'
+        };
+      case DialogType.DANGER:
+        return {
+          icon: <AlertTriangle size={24} className="text-red-500" />,
+          bgColor: 'bg-red-50',
+          borderColor: 'border-red-200',
+          textColor: 'text-red-700',
+          buttonColor: 'bg-red-600 hover:bg-red-700'
         };
       case DialogType.INFO:
         return {
@@ -92,7 +101,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             </button>
 
             <div className="flex items-start gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-gray-100">
+              <div className={`p-2 rounded-lg ${config.bgColor}`}>
                 {config.icon}
               </div>
               <div>
@@ -102,7 +111,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
-              {type === DialogType.CONFIRM && (
+              {(type === DialogType.CONFIRM || type === DialogType.DANGER) && (
                 <>
                   <button
                     type="button"
@@ -123,7 +132,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                   </button>
                 </>
               )}
-              {type !== DialogType.CONFIRM && (
+              {type !== DialogType.CONFIRM && type !== DialogType.DANGER && (
                 <button
                   type="button"
                   onClick={() => {

@@ -454,7 +454,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       return;
     }
 
-    showDialog(DialogType.CONFIRM, 'Confirm Deletion', `Are you sure you want to delete ${employee.name}?`, async () => {
+    showDialog(DialogType.DANGER, 'Confirm Deletion', `Are you sure you want to delete ${employee.name}?`, async () => {
       try {
         await onDelete(employee.id);
       } catch (error: any) {
