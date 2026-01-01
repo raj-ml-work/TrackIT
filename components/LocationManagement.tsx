@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
 import { Location, Asset } from '../types';
-import { MapPin, Plus, X, Trash2, Loader, Edit2 } from 'lucide-react';
+import { MapPin, Plus, X, Trash2, Loader, Edit2, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface LocationManagementProps {
@@ -171,6 +171,10 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
       meta: {
         backgroundColor: palette.metaBg,
         color: palette.metaText
+      },
+      city: {
+        backgroundColor: palette.iconBg,
+        color: palette.iconText
       }
     };
   };
@@ -295,17 +299,28 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
   return (
     <div className="space-y-6">
       <GlassCard>
-        {canCreate && (
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={openNew}
-              className="relative inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-600 text-white text-sm font-semibold shadow-lg shadow-green-600/20 hover:-translate-y-0.5 hover:bg-green-700 transition-transform overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
-            >
-              <Plus size={18} />
-              Add Location
-            </button>
+        <div className="flex flex-wrap gap-3 items-center mb-4">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl w-full md:w-80">
+            <Search size={16} className="text-gray-400" />
+            <input
+              className="w-full bg-transparent focus:outline-none text-sm"
+              placeholder="Search by name or city"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
-        )}
+          {canCreate && (
+            <div className="ml-auto">
+              <button
+                onClick={openNew}
+                className="relative inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-600 text-white text-sm font-semibold shadow-lg shadow-green-600/20 hover:-translate-y-0.5 hover:bg-green-700 transition-transform overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
+              >
+                <Plus size={18} />
+                Add Location
+              </button>
+            </div>
+          )}
+        </div>
         <div>
           {locations.length === 0 ? (
             <div className="text-center py-12">
@@ -348,14 +363,9 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
                             <MapPin size={14} />
                           </div>
                           <span className="font-medium text-gray-800">{location.name}</span>
-                          <span className="text-xs px-2 py-1 rounded-full" style={tagStyle.meta}>
+                          <span className="text-xs px-2 py-1 rounded-full" style={tagStyle.city}>
                             {location.city}
                           </span>
-                          {location.comments && (
-                            <span className="text-xs px-2 py-1 rounded-full truncate max-w-[100px]" style={tagStyle.meta}>
-                              {location.comments}
-                            </span>
-                          )}
                           <span className="text-xs font-semibold px-2 py-1 rounded-full" style={tagStyle.meta}>
                             {locationUsage[location.id] || 0}
                           </span>

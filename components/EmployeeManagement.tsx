@@ -1107,7 +1107,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
             <span className="col-span-2">Department</span>
             <span className="col-span-2">Status</span>
             <span className="col-span-2">Assets</span>
-            <span className="col-span-1"></span>
+            <span className="col-span-1 text-right">Actions</span>
           </div>
 
           <AnimatePresence>

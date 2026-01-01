@@ -233,11 +233,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
         <div className="space-y-2">
           <div className="grid grid-cols-12 text-xs text-gray-400 px-2">
             <span className="col-span-3">Name</span>
-            <span className="col-span-3">Email</span>
+            <span className="col-span-2">Email</span>
             <span className="col-span-2">Role</span>
-            <span className="col-span-2">Status</span>
-            <span className="col-span-1 text-right">Last Login</span>
-            <span className="col-span-1 text-right">Actions</span>
+            <span className="col-span-1">Status</span>
+            <span className="col-span-3 text-center">Last Login</span>
+            <span className="col-span-1 text-right pl-2">Actions</span>
           </div>
 
           <AnimatePresence>
@@ -273,7 +273,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                     </div>
                   </div>
                 </div>
-                <div className="col-span-3 flex items-center gap-2 text-gray-700">
+                <div className="col-span-2 flex items-center gap-2 text-gray-700">
                   <Mail size={14} className="text-gray-400" />
                   <span className="text-sm truncate">{user.email}</span>
                 </div>
@@ -283,15 +283,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                     {user.role}
                   </span>
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-1">
                   <span className={statusBadge(user.status)}>{user.status}</span>
                 </div>
-                <div className="col-span-1 flex items-center justify-end text-sm text-gray-500">
+                <div className="col-span-3 flex items-center justify-center text-sm text-gray-500 pr-4">
                   <Clock size={14} className="hidden md:block mr-1" />
-                  <span className="text-xs md:text-sm">{user.lastLogin}</span>
+                  <span className="text-xs md:text-sm whitespace-nowrap">{user.lastLogin}</span>
                 </div>
                 {canManageUsers && (
-                  <div className="col-span-1 flex items-center justify-end gap-1">
+                  <div className="col-span-1 flex items-center justify-end gap-1 pl-2">
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.95 }}
