@@ -453,15 +453,24 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       errors.personalEmail = 'Invalid email format';
     }
     
-    // Phone validation (basic)
-    if (formData.personalInfo.mobileNumber && 
-        !/^[\d\s\-\+\(\)]+$/.test(formData.personalInfo.mobileNumber)) {
-      errors.mobileNumber = 'Invalid phone number format';
+    // Phone validation (basic format + digit count)
+    const countDigits = (value: string) => (value.match(/\d/g) || []).length;
+    if (formData.personalInfo.mobileNumber) {
+      const mobileDigits = countDigits(formData.personalInfo.mobileNumber);
+      if (!/^[\d\s\-\+\(\)]+$/.test(formData.personalInfo.mobileNumber)) {
+        errors.mobileNumber = 'Invalid phone number format';
+      } else if (mobileDigits < 10 || mobileDigits > 15) {
+        errors.mobileNumber = 'Mobile number must be 10 to 15 digits';
+      }
     }
     
-    if (formData.personalInfo.emergencyContactNumber && 
-        !/^[\d\s\-\+\(\)]+$/.test(formData.personalInfo.emergencyContactNumber)) {
-      errors.emergencyContactNumber = 'Invalid phone number format';
+    if (formData.personalInfo.emergencyContactNumber) {
+      const emergencyDigits = countDigits(formData.personalInfo.emergencyContactNumber);
+      if (!/^[\d\s\-\+\(\)]+$/.test(formData.personalInfo.emergencyContactNumber)) {
+        errors.emergencyContactNumber = 'Invalid phone number format';
+      } else if (emergencyDigits < 10 || emergencyDigits > 15) {
+        errors.emergencyContactNumber = 'Emergency contact number must be 10 to 15 digits';
+      }
     }
     
     // URL validation
