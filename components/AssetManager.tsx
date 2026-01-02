@@ -92,6 +92,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   
   // Comment State
   const [commentText, setCommentText] = useState('');
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(timeout);
+  }, [toast]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -276,15 +283,20 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         if (selectedAsset && selectedAsset.id === editingId) {
           setSelectedAsset({ ...finalFormData, id: editingId } as Asset);
         }
+        setToast({ message: `Asset "${finalFormData.name}" updated.`, type: 'success' });
       } else {
         await onAdd(finalFormData);
+        setToast({ message: `Asset "${finalFormData.name}" created.`, type: 'success' });
       }
       if (useBackend) {
         setRefreshToken(prev => prev + 1);
       }
       closeModal();
     } catch (error) {
-      // Error is already handled in the handler
+      const message = error instanceof Error && error.message
+        ? error.message
+        : 'Failed to save asset. Please try again.';
+      setToast({ message, type: 'error' });
       console.error('Error submitting asset:', error);
     }
   };
@@ -345,6 +357,33 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     } catch (error) {
       // Error is already handled in the handler
       console.error('Error adding comment:', error);
+    }
+  };
+
+  const handleDeleteAsset = async (asset: Asset) => {
+    try {
+      await onDelete(asset.id);
+      if (useBackend) {
+        setPageAssets(prev => prev.filter(item => item.id !== asset.id));
+        setTotalAssets(prev => Math.max(0, prev - 1));
+        setRefreshToken(prev => prev + 1);
+      }
+      if (selectedAsset?.id === asset.id) {
+        setSelectedAsset(null);
+      }
+      if (viewingAsset?.id === asset.id) {
+        setViewingAsset(null);
+      }
+      setToast({ message: `Asset "${asset.name}" deleted.`, type: 'success' });
+    } catch (error) {
+      if (error instanceof Error && (error.message === 'Delete cancelled' || error.message === 'Delete blocked')) {
+        return;
+      }
+      const message = error instanceof Error && error.message
+        ? error.message
+        : 'Failed to delete asset. Please try again.';
+      setToast({ message, type: 'error' });
+      console.error('Error deleting asset:', error);
     }
   };
 
@@ -751,6 +790,23 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           </div>
         </div>
 
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className={`mb-3 px-4 py-2 rounded-xl border text-sm text-center mx-auto max-w-2xl ${
+                toast.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-red-50 text-red-800 border-red-200'
+              }`}
+            >
+              {toast.message}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Asset List */}
         <div className="space-y-2 pt-2">
           <div className="grid grid-cols-12 text-xs text-gray-400 px-2">
@@ -859,20 +915,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   )}
                   {canDelete && (
                     <button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        try {
-                          await onDelete(asset.id);
-                          if (useBackend) {
-                            setRefreshToken(prev => prev + 1);
-                          }
-                        } catch (error) {
-                          console.error('Error deleting asset:', error);
-                        }
-                      }}
-                      className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
-                      title="Delete"
-                    >
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      await handleDeleteAsset(asset);
+                    }}
+                    className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                    title="Delete"
+                  >
                       <Trash2 size={16} />
                     </button>
                   )}
@@ -1126,12 +1175,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                         <button
                           onClick={async () => {
                             if(confirm('Delete this asset?')) {
-                              try {
-                                await onDelete(selectedAsset.id);
-                                setSelectedAsset(null);
-                              } catch (error) {
-                                console.error('Error deleting asset:', error);
-                              }
+                              await handleDeleteAsset(selectedAsset);
                             }
                           }}
                           className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
@@ -1293,12 +1337,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       <button
                         onClick={async () => {
                           if(confirm('Delete this asset?')) {
-                            try {
-                              await onDelete(selectedAsset.id);
-                              setSelectedAsset(null);
-                            } catch (error) {
-                              console.error('Error deleting asset:', error);
-                            }
+                            await handleDeleteAsset(selectedAsset);
                           }
                         }}
                         className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"

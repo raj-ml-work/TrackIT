@@ -542,6 +542,8 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       try {
         await onDelete(employee.id);
         if (useBackend) {
+          setPageEmployees(prev => prev.filter(item => item.id !== employee.id));
+          setTotalEmployees(prev => Math.max(0, prev - 1));
           setRefreshToken(prev => prev + 1);
         }
       } catch (error: any) {

@@ -14,6 +14,7 @@ export interface ConfirmDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm?: () => void;
+  onCancel?: () => void;
   title: string;
   message: string;
   type?: DialogType;
@@ -25,6 +26,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   isOpen,
   onClose,
   onConfirm,
+  onCancel,
   title,
   message,
   type = DialogType.CONFIRM,
@@ -86,7 +88,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={onClose}
+          onClick={() => {
+            onCancel?.();
+            onClose();
+          }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -96,7 +101,13 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             onClick={(e) => e.stopPropagation()}
             className={`bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md relative border ${config.borderColor}`}
           >
-            <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-600" onClick={onClose}>
+            <button
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
+              onClick={() => {
+                onCancel?.();
+                onClose();
+              }}
+            >
               <X size={18} />
             </button>
 
@@ -115,7 +126,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 <>
                   <button
                     type="button"
-                    onClick={onClose}
+                    onClick={() => {
+                      onCancel?.();
+                      onClose();
+                    }}
                     className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     {cancelText}
