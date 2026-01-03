@@ -145,6 +145,9 @@ export interface LoginCredentials {
 export interface AuthSession {
   user: UserAccount;
   token?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
   rememberMe: boolean;
 }
 

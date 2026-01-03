@@ -23,7 +23,7 @@ A modern, glassmorphic inventory management system with role-based access contro
 - **Styling**: Tailwind CSS, Framer Motion
 - **Charts**: Recharts
 - **Icons**: Lucide React
-- **Backend**: Supabase (PostgreSQL) or Local PostgreSQL
+- **Backend**: Supabase (PostgreSQL) or Fastify API with SQLite/PostgreSQL
 - **AI**: Google Gemini (optional, for insights)
 
 ## Prerequisites
@@ -32,7 +32,7 @@ Before you begin, ensure you have the following installed:
 
 - **Node.js** 18+ and npm (or yarn/pnpm)
 - **Git** for cloning the repository
-- **Supabase account** (for cloud database) OR **PostgreSQL** (for local database)
+- **Supabase account** (for cloud database) OR **SQLite/PostgreSQL** (for local database)
 
 ## Quick Start
 
@@ -67,8 +67,9 @@ cp .env.example .env  # If you have an example file
 ### 4. Choose Your Database Configuration
 
 You can run the application with either:
-- **Supabase** (cloud, recommended for initial setup)
-- **Local PostgreSQL** (for local development)
+- **Local SQLite** (backend + local DB, recommended for local testing)
+- **PostgreSQL** (backend + Postgres, recommended for deployment)
+- **Supabase** (cloud, frontend uses Supabase client)
 - **Mock Data** (no database, for UI testing only)
 
 See [Database Configuration](#database-configuration) below for details.
@@ -80,18 +81,109 @@ npm run dev
 ```
 
 The application will be available at:
-- **Local**: http://localhost:3000
-- **Network**: http://0.0.0.0:3000 (accessible from other devices on your network)
+- **Local**: http://localhost:5173
+- **Network**: http://0.0.0.0:5173 (accessible from other devices on your network)
 
 ### 6. Default Login Credentials
 
 When using mock data (no database configured):
-- **Admin**: `admin@trackit.inc` / `admin123`
-- **User**: `liam@trackit.inc` / `user123`
+- **Admin**: `admin@trackit.com` / `admin123`
+- **User**: `user@auralis.inc` / `user123`
 
 ## Database Configuration
 
-### Option 1: Supabase (Recommended)
+### Option 1: Local SQLite (Backend + Local DB)
+
+This uses the new Fastify backend with SQLite and httpOnly refresh tokens.
+
+#### Step 1: Install backend dependencies
+
+```bash
+cd TrackIT_inventory_management/server
+npm install
+```
+
+#### Step 2: Configure backend env
+
+Set these in your shell or a `.env` in `TrackIT_inventory_management/server`:
+
+```env
+DB_PROVIDER=sqlite
+SQLITE_PATH=../data/inventory.db
+JWT_ACCESS_SECRET=change_me
+JWT_REFRESH_SECRET=change_me
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL=1d
+CORS_ORIGIN=http://localhost:5173
+```
+
+#### Step 3: Start backend
+
+```bash
+npm run dev
+```
+
+#### Step 4: Configure frontend to use backend auth
+
+In `TrackIT_inventory_management/.env`:
+
+```env
+VITE_API_URL=http://localhost:4000
+```
+
+Then start the frontend:
+
+```bash
+cd TrackIT_inventory_management
+npm run dev
+```
+
+### Option 2: Local PostgreSQL (Backend + Postgres)
+
+#### Step 1: Install PostgreSQL
+
+- **macOS**: `brew install postgresql`
+- **Ubuntu/Debian**: `sudo apt-get install postgresql`
+- **Windows**: Download from [postgresql.org](https://www.postgresql.org/download/windows/)
+
+#### Step 2: Create Database
+
+```bash
+createdb trackit_inventory
+```
+
+#### Step 3: Apply schema
+
+```bash
+cd TrackIT_inventory_management/server
+PG_URL=postgres://user:pass@localhost:5432/trackit_inventory npm run apply-schema
+```
+
+#### Step 4: Configure backend env
+
+```env
+DB_PROVIDER=postgres
+PG_URL=postgres://user:pass@localhost:5432/trackit_inventory
+JWT_ACCESS_SECRET=change_me
+JWT_REFRESH_SECRET=change_me
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL=1d
+CORS_ORIGIN=http://localhost:5173
+```
+
+#### Step 5: Start backend + frontend
+
+```bash
+cd TrackIT_inventory_management/server
+npm run dev
+```
+
+```bash
+cd TrackIT_inventory_management
+VITE_API_URL=http://localhost:4000 npm run dev
+```
+
+### Option 3: Supabase (Cloud)
 
 Supabase provides a managed PostgreSQL database with authentication, real-time subscriptions, and Row Level Security.
 
@@ -139,6 +231,8 @@ VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
 ```
 
+Ensure `VITE_API_URL` is not set so the frontend uses Supabase directly.
+
 #### Step 5: Create Initial Admin User
 
 The app will automatically attempt to create a default admin user on first launch:
@@ -146,63 +240,15 @@ The app will automatically attempt to create a default admin user on first launc
 1. Start the app: `npm run dev`
 2. Check the browser console - you should see a message about admin creation
 3. If successful, default credentials are:
-   - **Email**: `admin@trackit.inc`
-   - **Password**: `Admin@123`
+   - **Email**: `admin@trackit.com`
+   - **Password**: `admin123`
 4. **Important**: Change the password after first login!
 
 **If automatic creation fails** (due to RLS policies), you'll see instructions in the console. You can also:
 - Run `SELECT initialize_default_admin();` in Supabase SQL Editor
 - Or manually create the user (see `database/README.md` for details)
 
-### Option 2: Local PostgreSQL
-
-For local development with PostgreSQL:
-
-#### Step 1: Install PostgreSQL
-
-- **macOS**: `brew install postgresql`
-- **Ubuntu/Debian**: `sudo apt-get install postgresql`
-- **Windows**: Download from [postgresql.org](https://www.postgresql.org/download/windows/)
-
-#### Step 2: Create Database
-
-```bash
-createdb trackit_inventory
-```
-
-Or using psql:
-
-```bash
-psql postgres
-CREATE DATABASE trackit_inventory;
-\q
-```
-
-#### Step 3: Run Schema
-
-```bash
-psql trackit_inventory < database/schema.sql
-```
-
-#### Step 4: Configure Environment Variables
-
-Update your `.env` file:
-
-```env
-# Database Type
-VITE_DB_TYPE=postgres
-
-# PostgreSQL Connection
-VITE_DB_HOST=localhost
-VITE_DB_PORT=5432
-VITE_DB_NAME=trackit_inventory
-VITE_DB_USER=postgres
-VITE_DB_PASSWORD=your_password
-```
-
-**Note**: Local PostgreSQL support requires additional implementation in the service layer. Currently, only Supabase is fully implemented.
-
-### Option 3: Mock Data (No Database)
+### Option 4: Mock Data (No Database)
 
 If you don't configure a database, the app will run with in-memory mock data:
 

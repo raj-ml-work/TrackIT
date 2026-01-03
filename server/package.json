@@ -1,0 +1,19 @@
+{
+  "name": "trackit-inventory-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node src/index.js",
+    "apply-schema": "node scripts/apply_schema.js"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^10.0.0",
+    "@fastify/cors": "^11.0.0",
+    "better-sqlite3": "^11.6.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.5"
+  }
+}

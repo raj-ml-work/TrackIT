@@ -104,6 +104,9 @@ export interface UserAccount {
 export interface AuthSession {
   user: UserAccount;
   token?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
   rememberMe: boolean;
 }
 

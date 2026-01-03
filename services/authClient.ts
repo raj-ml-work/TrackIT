@@ -4,6 +4,49 @@ import { dbConfig } from './database';
 import * as userService from './userService';
 import { hashPassword, hashPasswordSHA1, isSha256Hash, isSha1Hash } from './passwordUtil';
 
+const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+const useApiAuth = (): boolean => Boolean(apiBaseUrl);
+
+let accessToken: string | null = null;
+let accessTokenExpiry: string | null = null;
+
+const setAccessToken = (token: string | null, expiresAt?: string | null) => {
+  accessToken = token;
+  accessTokenExpiry = expiresAt ?? null;
+};
+
+export const getAccessToken = (): string | null => accessToken;
+
+const apiRequest = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
+  if (!apiBaseUrl) {
+    throw new Error('VITE_API_URL is not configured.');
+  }
+
+  const headers = new Headers(options.headers || {});
+  if (options.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...options,
+    headers,
+    credentials: 'include'
+  });
+
+  if (!response.ok) {
+    let message = 'Request failed.';
+    try {
+      const data = await response.json();
+      message = data?.error || message;
+    } catch {
+      // Ignore JSON parse errors.
+    }
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<T>;
+};
+
 // Fallback mock users for development when Supabase is not configured
 const DEFAULT_USERS = [
   {
@@ -40,6 +83,10 @@ const isSupabaseConfigured = (): boolean => {
  * Uses users table only (custom auth), not Supabase Auth.
  */
 export const initializeDefaultAdmin = async (): Promise<void> => {
+  if (useApiAuth()) {
+    return;
+  }
+
   if (!isSupabaseConfigured()) {
     // In mock mode, default users are already available
     return;
@@ -187,6 +234,30 @@ export const login = async (credentials: LoginCredentials): Promise<AuthSession>
     email: credentials.email.trim(),
     password: credentials.password
   };
+
+  if (useApiAuth()) {
+    const response = await apiRequest<{
+      user: UserAccount;
+      accessToken: string;
+      expiresAt: string;
+    }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: normalizedCredentials.email,
+        password: normalizedCredentials.password
+      })
+    });
+
+    setAccessToken(response.accessToken, response.expiresAt);
+
+    return {
+      user: response.user,
+      accessToken: response.accessToken,
+      expiresAt: response.expiresAt,
+      rememberMe: normalizedCredentials.rememberMe || false
+    };
+  }
+
   // Custom auth: check users table directly
   if (isSupabaseConfigured()) {
     const user = await userService.getUserByEmail(normalizedCredentials.email);
@@ -257,8 +328,36 @@ export const login = async (credentials: LoginCredentials): Promise<AuthSession>
  * Logout function - uses Supabase Auth when configured
  */
 export const logout = async (): Promise<void> => {
+  if (useApiAuth()) {
+    try {
+      await apiRequest('/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.warn('Logout request failed:', error);
+    } finally {
+      setAccessToken(null, null);
+    }
+    return;
+  }
+
   // Clear session from storage
   localStorage.removeItem('auralis_session');
+};
+
+export const refreshAccessToken = async (): Promise<{ accessToken: string; expiresAt: string } | null> => {
+  if (!useApiAuth()) {
+    return null;
+  }
+
+  try {
+    const response = await apiRequest<{ accessToken: string; expiresAt: string }>('/auth/refresh', {
+      method: 'POST'
+    });
+    setAccessToken(response.accessToken, response.expiresAt);
+    return response;
+  } catch (error) {
+    setAccessToken(null, null);
+    return null;
+  }
 };
 
 /**
@@ -266,6 +365,27 @@ export const logout = async (): Promise<void> => {
  * Returns Promise for Supabase, synchronous for mock
  */
 export const restoreSession = async (): Promise<AuthSession | null> => {
+  if (useApiAuth()) {
+    const refreshed = await refreshAccessToken();
+    if (!refreshed) {
+      return null;
+    }
+
+    const response = await apiRequest<{ user: UserAccount }>('/auth/me', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${refreshed.accessToken}`
+      }
+    });
+
+    return {
+      user: response.user,
+      accessToken: refreshed.accessToken,
+      expiresAt: refreshed.expiresAt,
+      rememberMe: false
+    };
+  }
+
   // Custom auth uses local storage session only
   const stored = localStorage.getItem('auralis_session');
   if (!stored) return null;
@@ -281,6 +401,10 @@ export const restoreSession = async (): Promise<AuthSession | null> => {
  * Save session to storage
  */
 export const saveSession = (session: AuthSession): void => {
+  if (useApiAuth()) {
+    return;
+  }
+
   if (session.rememberMe) {
     localStorage.setItem('auralis_session', JSON.stringify(session));
   }
