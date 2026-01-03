@@ -186,6 +186,59 @@ const buildServer = async () => {
     }
   });
 
+  app.get('/departments', async () => {
+    return provider.getDepartments();
+  });
+
+  app.get('/departments/:id', async (request, reply) => {
+    const department = await provider.getDepartmentById(request.params.id);
+    if (!department) {
+      return reply.code(404).send({ error: 'Department not found.' });
+    }
+    return department;
+  });
+
+  app.post('/departments', async (request, reply) => {
+    const { name, description } = request.body || {};
+    if (!name) {
+      return reply.code(400).send({ error: 'Name is required.' });
+    }
+
+    try {
+      const created = await provider.createDepartment({ name, description }, null);
+      return reply.code(201).send(created);
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
+
+  app.put('/departments/:id', async (request, reply) => {
+    const { name, description } = request.body || {};
+    if (!name) {
+      return reply.code(400).send({ error: 'Name is required.' });
+    }
+
+    try {
+      const updated = await provider.updateDepartment(
+        { id: request.params.id, name, description },
+        null
+      );
+      return updated;
+    } catch (error) {
+      const status = error.message === 'Department not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
+  app.delete('/departments/:id', async (request, reply) => {
+    try {
+      await provider.deleteDepartment(request.params.id, null);
+      return { ok: true };
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
+
   return app;
 };
 

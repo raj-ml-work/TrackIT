@@ -6,6 +6,7 @@
 
 import { Department, UserAccount, Employee } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { apiFetchJson, isApiConfigured } from './apiClient';
 import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'departments';
@@ -15,6 +16,10 @@ const TABLE_NAME = 'departments';
  */
 export const getDepartments = async (): Promise<Department[]> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<Department[]>('/departments');
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -35,6 +40,10 @@ export const getDepartments = async (): Promise<Department[]> => {
  */
 export const getDepartmentById = async (id: string): Promise<Department | null> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<Department>(`/departments/${id}`);
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -57,6 +66,12 @@ export const getDepartmentById = async (id: string): Promise<Department | null> 
  */
 export const getDepartmentByName = async (name: string): Promise<Department | null> => {
   try {
+    if (isApiConfigured()) {
+      const departments = await apiFetchJson<Department[]>('/departments');
+      const match = departments.find(department => department.name === name);
+      return match || null;
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -84,6 +99,14 @@ export const createDepartment = async (department: Omit<Department, 'id'>, curre
     // Check permission - only admins can create departments
     if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('create', currentUser?.role || null));
+    }
+
+    if (isApiConfigured()) {
+      return await apiFetchJson<Department>('/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(department)
+      });
     }
 
     const supabase = await getSupabaseClient();
@@ -116,6 +139,14 @@ export const updateDepartment = async (department: Department, currentUser: User
       throw new Error(getPermissionError('update', currentUser?.role || null));
     }
 
+    if (isApiConfigured()) {
+      return await apiFetchJson<Department>(`/departments/${department.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: department.name, description: department.description })
+      });
+    }
+
     const supabase = await getSupabaseClient();
     const departmentData = transformDepartmentToDB(department);
     
@@ -145,6 +176,11 @@ export const deleteDepartment = async (id: string, currentUser: UserAccount | nu
     // Check permission - only admins can delete departments
     if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('delete', currentUser?.role || null));
+    }
+
+    if (isApiConfigured()) {
+      await apiFetchJson<{ ok: boolean }>(`/departments/${id}`, { method: 'DELETE' });
+      return;
     }
 
     // Check foreign key constraints - ensure no employees are assigned to this department

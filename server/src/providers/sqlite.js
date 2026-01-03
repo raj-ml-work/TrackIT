@@ -24,6 +24,24 @@ const ensureSchema = (db) => {
   db.exec(schemaSQL);
 };
 
+const ensureDepartmentsTable = (db) => {
+  const table = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='departments'")
+    .get();
+
+  if (table) return;
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS departments (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+      name TEXT UNIQUE NOT NULL,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+};
+
 const ensureDefaultAdmin = (db, config) => {
   const existing = db.prepare('SELECT COUNT(*) as count FROM users').get();
   if (existing?.count > 0) return;
@@ -61,6 +79,7 @@ export const createSqliteProvider = (config) => {
   db.pragma('journal_mode = WAL');
 
   ensureSchema(db);
+  ensureDepartmentsTable(db);
   ensureDefaultAdmin(db, config);
 
   const getUserByEmail = async (email) => {
@@ -102,6 +121,90 @@ export const createSqliteProvider = (config) => {
   const updateUserPassword = async (userId, newPassword) => {
     const hashedPassword = hashPasswordSha256(newPassword);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, userId);
+  };
+
+  const mapDepartmentRow = (row) => {
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description || null
+    };
+  };
+
+  const getDepartments = async () => {
+    const rows = db.prepare('SELECT id, name, description FROM departments ORDER BY name ASC').all();
+    return rows.map(mapDepartmentRow);
+  };
+
+  const getDepartmentById = async (id) => {
+    const row = db
+      .prepare('SELECT id, name, description FROM departments WHERE id = ? LIMIT 1')
+      .get(id);
+    return mapDepartmentRow(row);
+  };
+
+  const getDepartmentByName = async (name) => {
+    const row = db
+      .prepare('SELECT id, name, description FROM departments WHERE lower(name) = lower(?) LIMIT 1')
+      .get(name.trim());
+    return mapDepartmentRow(row);
+  };
+
+  const createDepartment = async (department) => {
+    const trimmedName = department.name?.trim();
+    if (!trimmedName) {
+      throw new Error('Department name is required');
+    }
+
+    const existing = await getDepartmentByName(trimmedName);
+    if (existing) {
+      throw new Error(`Department "${trimmedName}" already exists`);
+    }
+
+    const description = department.description?.trim() || null;
+    const info = db
+      .prepare('INSERT INTO departments (name, description) VALUES (?, ?)')
+      .run(trimmedName, description);
+    const created = db
+      .prepare('SELECT id, name, description FROM departments WHERE rowid = ?')
+      .get(info.lastInsertRowid);
+    return mapDepartmentRow(created);
+  };
+
+  const updateDepartment = async (department) => {
+    if (!department?.id) {
+      throw new Error('Department id is required');
+    }
+
+    const trimmedName = department.name?.trim();
+    if (!trimmedName) {
+      throw new Error('Department name is required');
+    }
+
+    const existing = await getDepartmentById(department.id);
+    if (!existing) {
+      throw new Error('Department not found');
+    }
+
+    const duplicate = db
+      .prepare('SELECT id FROM departments WHERE lower(name) = lower(?) AND id != ? LIMIT 1')
+      .get(trimmedName, department.id);
+    if (duplicate) {
+      throw new Error(`Department "${trimmedName}" already exists`);
+    }
+
+    const description = department.description?.trim() || null;
+    db.prepare('UPDATE departments SET name = ?, description = ? WHERE id = ?')
+      .run(trimmedName, description, department.id);
+    return await getDepartmentById(department.id);
+  };
+
+  const deleteDepartment = async (id) => {
+    if (!id) {
+      throw new Error('Department id is required');
+    }
+    db.prepare('DELETE FROM departments WHERE id = ?').run(id);
   };
 
   const getLocations = async () => {
@@ -219,11 +322,11 @@ export const createSqliteProvider = (config) => {
     updateLastLogin,
 
     // Departments
-    getDepartments: notImplemented('getDepartments'),
-    getDepartmentById: notImplemented('getDepartmentById'),
-    getDepartmentByName: notImplemented('getDepartmentByName'),
-    createDepartment: notImplemented('createDepartment'),
-    updateDepartment: notImplemented('updateDepartment'),
-    deleteDepartment: notImplemented('deleteDepartment')
+    getDepartments,
+    getDepartmentById,
+    getDepartmentByName,
+    createDepartment,
+    updateDepartment,
+    deleteDepartment
   };
 };
