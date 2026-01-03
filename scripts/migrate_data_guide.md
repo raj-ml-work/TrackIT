@@ -124,7 +124,7 @@ WHERE location_id IS NULL AND location IS NOT NULL;
 
 SELECT COUNT(*) as assets_unassigned_but_in_use
 FROM assets 
-WHERE assigned_to IS NULL AND status = 'In Use';
+WHERE assigned_to IS NULL AND status = 'Shared Resource';
 
 -- Check for duplicate serial numbers
 SELECT serial_number, COUNT(*) 

@@ -13,9 +13,11 @@ const TABLE_NAME = 'assets';
 const COMMENTS_TABLE_NAME = 'asset_comments';
 const SPECS_TABLE_NAME = 'asset_specs';
 const LEGACY_UNDER_MAINTENANCE = 'Under Maintenance';
+const LEGACY_IN_USE = 'In Use';
 
 const normalizeAssetStatus = (status: string | null | undefined): AssetStatus => {
   if (!status) return AssetStatus.AVAILABLE;
+  if (status === LEGACY_IN_USE) return AssetStatus.IN_USE;
   if (status === LEGACY_UNDER_MAINTENANCE) return AssetStatus.MAINTENANCE;
   return status as AssetStatus;
 };
@@ -49,6 +51,14 @@ const attachAssetSpecs = async (supabase: any, assets: Asset[]): Promise<Asset[]
  */
 export const checkSerialNumberExists = async (serialNumber: string, excludeAssetId?: string): Promise<boolean> => {
   try {
+    if (isApiConfigured()) {
+      const params = new URLSearchParams();
+      params.set('serial', serialNumber);
+      if (excludeAssetId) params.set('excludeId', excludeAssetId);
+      const result = await apiFetchJson<{ exists: boolean }>(`/assets/check-serial?${params.toString()}`);
+      return result.exists;
+    }
+
     const supabase = await getSupabaseClient();
     let query = supabase
       .from(TABLE_NAME)
@@ -276,6 +286,10 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
  */
 export const getAssetById = async (id: string): Promise<Asset | null> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<Asset>(`/assets/${id}`);
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -335,6 +349,14 @@ export const createAsset = async (asset: Omit<Asset, 'id'>, currentUser: UserAcc
       throw new Error(getPermissionError('create', currentUser?.role || null));
     }
 
+    if (isApiConfigured()) {
+      return await apiFetchJson<Asset>('/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(asset)
+      });
+    }
+
     const supabase = await getSupabaseClient();
     
     // Check serial number uniqueness
@@ -382,6 +404,27 @@ export const updateAsset = async (asset: Asset, currentUser: UserAccount | null 
     // Check permission - only admins can update assets
     if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('update', currentUser?.role || null));
+    }
+
+    if (isApiConfigured()) {
+      const updatedAsset = await apiFetchJson<Asset>(`/assets/${asset.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(asset)
+      });
+      const changes = getAssetChanges(asset, updatedAsset);
+      if (changes.length > 0) {
+        const systemComment: Omit<AssetComment, 'id'> = {
+          assetId: asset.id,
+          authorName: 'System',
+          authorId: undefined,
+          message: `Asset updated: ${changes.join(', ')}`,
+          type: AssetCommentType.SYSTEM,
+          createdAt: new Date().toISOString()
+        };
+        await addAssetComment(systemComment);
+      }
+      return updatedAsset;
     }
 
     const supabase = await getSupabaseClient();
@@ -512,6 +555,11 @@ export const deleteAsset = async (id: string, currentUser: UserAccount | null = 
       throw new Error(getPermissionError('delete', currentUser?.role || null));
     }
 
+    if (isApiConfigured()) {
+      await apiFetchJson<{ ok: boolean }>(`/assets/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     const supabase = await getSupabaseClient();
     
     // Delete asset specs (if exists)
@@ -550,6 +598,10 @@ export const deleteAsset = async (id: string, currentUser: UserAccount | null = 
  */
 export const getAssetComments = async (assetId: string): Promise<AssetComment[]> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<AssetComment[]>(`/assets/${assetId}/comments`);
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(COMMENTS_TABLE_NAME)
@@ -571,6 +623,20 @@ export const getAssetComments = async (assetId: string): Promise<AssetComment[]>
  */
 export const addAssetComment = async (comment: Omit<AssetComment, 'id'>): Promise<AssetComment> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<AssetComment>(`/assets/${comment.assetId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          authorName: comment.authorName,
+          authorId: comment.authorId,
+          message: comment.message,
+          type: comment.type,
+          createdAt: comment.createdAt
+        })
+      });
+    }
+
     const supabase = await getSupabaseClient();
     const commentData = transformCommentToDB(comment);
     

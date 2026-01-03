@@ -55,7 +55,7 @@ export const getDashboardMetrics = async (): Promise<DashboardMetrics> => {
   const { count: inUseAssets, error: utilizationError } = await supabase
     .from('assets')
     .select('*', { count: 'exact', head: true })
-    .in('status', ['In Use', 'Assigned']);
+    .in('status', ['Shared Resource', 'Assigned']);
 
   if (utilizationError) {
     console.error('Error fetching utilization rate:', utilizationError);
@@ -108,7 +108,7 @@ export const getAssets = async (
       id: `asset-${i + 1}`,
       name: `Laptop ${i + 1}`,
       type: 'Laptop' as any,
-      status: i % 3 === 0 ? 'In Use' : 'Available',
+      status: i % 3 === 0 ? 'Shared Resource' : 'Available',
       serialNumber: `SN-${i + 1}`,
       assignedTo: i % 3 === 0 ? `Employee ${i + 1}` : undefined,
       purchaseDate: '2024-01-01',
@@ -543,7 +543,7 @@ export const getAssetById = async (id: string): Promise<Asset | null> => {
       id,
       name: 'Laptop 1',
       type: 'Laptop' as any,
-      status: 'In Use',
+      status: 'Shared Resource',
       serialNumber: 'SN-001',
       assignedTo: 'Employee 1',
       purchaseDate: '2024-01-01',

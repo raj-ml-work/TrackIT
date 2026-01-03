@@ -253,6 +253,88 @@ const buildServer = async () => {
     });
   });
 
+  app.get('/assets/check-serial', async (request) => {
+    const { serial, excludeId } = request.query || {};
+    return {
+      exists: await provider.checkSerialNumberExists(serial, excludeId)
+    };
+  });
+
+  app.get('/assets/:id', async (request, reply) => {
+    const asset = await provider.getAssetById(request.params.id);
+    if (!asset) {
+      return reply.code(404).send({ error: 'Asset not found.' });
+    }
+    return asset;
+  });
+
+  app.post('/assets', async (request, reply) => {
+    const { name, type, serialNumber } = request.body || {};
+    if (!name || !type || !serialNumber) {
+      return reply.code(400).send({ error: 'Name, type, and serial number are required.' });
+    }
+
+    try {
+      const created = await provider.createAsset(request.body, null);
+      return reply.code(201).send(created);
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
+
+  app.put('/assets/:id', async (request, reply) => {
+    const { name, type, serialNumber } = request.body || {};
+    if (!name || !type || !serialNumber) {
+      return reply.code(400).send({ error: 'Name, type, and serial number are required.' });
+    }
+
+    try {
+      const updated = await provider.updateAsset(
+        { ...request.body, id: request.params.id },
+        null
+      );
+      return updated;
+    } catch (error) {
+      const status = error.message === 'Asset not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
+  app.delete('/assets/:id', async (request, reply) => {
+    try {
+      await provider.deleteAsset(request.params.id, null);
+      return { ok: true };
+    } catch (error) {
+      const status = error.message === 'Asset not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
+  app.get('/assets/:id/comments', async (request) => {
+    return provider.getAssetComments(request.params.id);
+  });
+
+  app.post('/assets/:id/comments', async (request, reply) => {
+    const { authorName, message, type, authorId, createdAt } = request.body || {};
+    if (!authorName || !message) {
+      return reply.code(400).send({ error: 'Author name and message are required.' });
+    }
+
+    try {
+      const created = await provider.addAssetComment({
+        assetId: request.params.id,
+        authorName,
+        authorId,
+        message,
+        type,
+        createdAt
+      });
+      return reply.code(201).send(created);
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
+
   app.get('/employees', async (request) => {
     const { employeeId } = request.query || {};
     if (employeeId) {

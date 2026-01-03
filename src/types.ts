@@ -97,7 +97,7 @@ export interface Asset {
 }
 
 export type AssetType = 'Laptop' | 'Desktop' | 'Monitor' | 'Keyboard' | 'Mouse' | 'Headphone' | 'Other';
-export type AssetStatus = 'Available' | 'In Use' | 'Maintenance' | 'Retired';
+export type AssetStatus = 'Available' | 'Shared Resource' | 'Maintenance' | 'Retired';
 
 export interface AssetComment {
   id: string;

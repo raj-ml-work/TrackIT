@@ -150,7 +150,7 @@ export const EnhancedAssetManager: React.FC<AssetManagerProps> = ({ insights: in
   const getStatusColor = (status: AssetStatus) => {
     switch (status) {
       case 'Available': return 'text-green-600 bg-green-100 border-green-200';
-      case 'In Use': return 'text-blue-600 bg-blue-100 border-blue-200';
+      case 'Shared Resource': return 'text-blue-600 bg-blue-100 border-blue-200';
       case 'Maintenance': return 'text-yellow-600 bg-yellow-100 border-yellow-200';
       case 'Retired': return 'text-gray-600 bg-gray-100 border-gray-200';
       default: return 'text-gray-600 bg-gray-100 border-gray-200';
@@ -381,7 +381,7 @@ export const EnhancedAssetManager: React.FC<AssetManagerProps> = ({ insights: in
               >
                 <option value="all">All Status</option>
                 <option value="Available">Available</option>
-                <option value="In Use">In Use</option>
+                <option value="Shared Resource">Shared Resource</option>
                 <option value="Maintenance">Maintenance</option>
                 <option value="Retired">Retired</option>
               </select>
@@ -608,7 +608,7 @@ export const EnhancedAssetManager: React.FC<AssetManagerProps> = ({ insights: in
               </div>
               <div className="flex gap-6 text-sm text-slate-600">
                 <span>Available: {assets.filter(a => a.status === 'Available').length}</span>
-                <span>In Use: {assets.filter(a => a.status === 'In Use').length}</span>
+                <span>Shared Resource: {assets.filter(a => a.status === 'Shared Resource').length}</span>
                 <span>Maintenance: {assets.filter(a => a.status === 'Maintenance').length}</span>
                 <span>Retired: {assets.filter(a => a.status === 'Retired').length}</span>
               </div>

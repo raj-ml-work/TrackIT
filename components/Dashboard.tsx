@@ -212,7 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
              <div className="flex items-center gap-3 text-xs text-gray-600">
                <span className="flex items-center gap-1.5">
                  <span className="w-2.5 h-2.5 rounded-full bg-orange-400" />
-                 In Use
+                 Shared Resource
                </span>
                <span className="flex items-center gap-1.5">
                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />

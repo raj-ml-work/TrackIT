@@ -10,7 +10,7 @@ export enum AssetType {
 }
 
 export enum AssetStatus {
-  IN_USE = 'In Use',
+  IN_USE = 'Shared Resource',
   AVAILABLE = 'Available',
   MAINTENANCE = 'Maintenance',
   RETIRED = 'Retired',

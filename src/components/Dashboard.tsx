@@ -141,7 +141,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
     trackUserAction('dashboard_filter', { status });
   }, [trackUserAction]);
 
-  const usedStatuses = useMemo(() => new Set(['In Use', 'Assigned']), []);
+  const usedStatuses = useMemo(() => new Set(['Shared Resource', 'Assigned']), []);
 
   const laptopLocationStats = useMemo(() => {
     const stats = new Map<string, { used: number; available: number; total: number }>();
@@ -210,7 +210,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
 
   // Calculate asset distribution
   const assetDistribution = [
-    { name: 'In Use', value: activeAssets.length, color: '#10b981' },
+    { name: 'Shared Resource', value: activeAssets.length, color: '#10b981' },
     { name: 'Available', value: Math.max(0, metrics?.totalAssets - activeAssets.length), color: '#3b82f6' },
     { name: 'Maintenance', value: 5, color: '#f59e0b' },
     { name: 'Retired', value: 2, color: '#6b7280' }
@@ -488,7 +488,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ insights: initialInsights 
                     className="px-3 py-1 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="all">All Status</option>
-                    <option value="In Use">In Use</option>
+                    <option value="Shared Resource">Shared Resource</option>
                     <option value="Available">Available</option>
                     <option value="Maintenance">Maintenance</option>
                   </select>

@@ -42,6 +42,90 @@ const ensureDepartmentsTable = (db) => {
   `);
 };
 
+const ensureAssetTables = (db) => {
+  const tables = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('assets','asset_specs','asset_history','asset_comments')")
+    .all()
+    .map(row => row.name);
+
+  const missing = (name) => !tables.includes(name);
+
+  if (missing('assets')) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS assets (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Available',
+        serial_number TEXT NOT NULL UNIQUE,
+        assigned_to TEXT,
+        assigned_to_uuid TEXT,
+        employee_id TEXT REFERENCES employees(id) ON DELETE SET NULL,
+        purchase_date DATE,
+        acquisition_date DATE,
+        warranty_expiry DATE,
+        cost DECIMAL(10, 2) DEFAULT 0,
+        location TEXT,
+        location_id TEXT REFERENCES locations(id) ON DELETE SET NULL,
+        manufacturer TEXT,
+        previous_tag TEXT,
+        notes TEXT,
+        specs TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }
+
+  if (missing('asset_specs')) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS asset_specs (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+        asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+        asset_type TEXT NOT NULL,
+        brand TEXT,
+        model TEXT,
+        processor_type TEXT,
+        ram_capacity TEXT,
+        storage_capacity TEXT,
+        screen_size TEXT,
+        is_touchscreen BOOLEAN DEFAULT 0,
+        printer_type TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }
+
+  if (missing('asset_history')) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS asset_history (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+        asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+        field_name TEXT NOT NULL,
+        old_value TEXT,
+        new_value TEXT,
+        changed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        changed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }
+
+  if (missing('asset_comments')) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS asset_comments (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+        asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+        author_name TEXT NOT NULL,
+        author_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        message TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'Note',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }
+};
+
 const ensureDefaultAdmin = (db, config) => {
   const existing = db.prepare('SELECT COUNT(*) as count FROM users').get();
   if (existing?.count > 0) return;
@@ -79,13 +163,16 @@ const parseJsonSafe = (value) => {
 
 const mapAssetRow = (row) => {
   if (!row) return null;
+  const assignedName = row.assigned_first_name
+    ? `${row.assigned_first_name || ''} ${row.assigned_last_name || ''}`.trim()
+    : undefined;
   return {
     id: row.id,
     name: row.name,
     type: row.type,
     status: row.status,
     serialNumber: row.serial_number,
-    assignedTo: row.assigned_to || undefined,
+    assignedTo: assignedName || row.assigned_to || undefined,
     assignedToId: row.assigned_to_uuid || undefined,
     employeeId: row.employee_id || undefined,
     purchaseDate: row.purchase_date || '',
@@ -157,6 +244,7 @@ export const createSqliteProvider = (config) => {
 
   ensureSchema(db);
   ensureDepartmentsTable(db);
+  ensureAssetTables(db);
   ensureDefaultAdmin(db, config);
 
   const getUserByEmail = async (email) => {
@@ -199,6 +287,20 @@ export const createSqliteProvider = (config) => {
     const hashedPassword = hashPasswordSha256(newPassword);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, userId);
   };
+
+  const assetSelect = `
+    SELECT assets.*,
+           locations.name AS location_name,
+           personal.first_name AS assigned_first_name,
+           personal.last_name AS assigned_last_name
+      FROM assets
+      LEFT JOIN locations
+        ON locations.id = assets.location_id
+      LEFT JOIN employees
+        ON employees.id = assets.employee_id
+      LEFT JOIN employee_personal_info AS personal
+        ON personal.id = employees.personal_info_id
+  `;
 
   const employeeSelect = `
     SELECT employees.*,
@@ -360,9 +462,7 @@ export const createSqliteProvider = (config) => {
 
   const getAssets = async () => {
     const rows = db.prepare(`
-      SELECT assets.*, locations.name AS location_name
-      FROM assets
-      LEFT JOIN locations ON locations.id = assets.location_id
+      ${assetSelect}
       ORDER BY assets.created_at DESC
     `).all();
     return rows.map(mapAssetRow);
@@ -390,9 +490,7 @@ export const createSqliteProvider = (config) => {
       .prepare(`SELECT COUNT(*) as count FROM assets ${whereClause}`)
       .get(params);
     const rows = db.prepare(`
-      SELECT assets.*, locations.name AS location_name
-      FROM assets
-      LEFT JOIN locations ON locations.id = assets.location_id
+      ${assetSelect}
       ${whereClause}
       ORDER BY assets.created_at DESC
       LIMIT @limit OFFSET @offset
@@ -404,6 +502,242 @@ export const createSqliteProvider = (config) => {
       page,
       pageSize
     };
+  };
+
+  const getAssetById = async (id) => {
+    const row = db
+      .prepare(`${assetSelect} WHERE assets.id = ? LIMIT 1`)
+      .get(id);
+    return mapAssetRow(row);
+  };
+
+  const checkSerialNumberExists = async (serialNumber, excludeAssetId) => {
+    if (!serialNumber) return false;
+    if (excludeAssetId) {
+      const row = db
+        .prepare('SELECT id FROM assets WHERE serial_number = ? AND id != ? LIMIT 1')
+        .get(serialNumber.trim(), excludeAssetId);
+      return !!row;
+    }
+    const row = db
+      .prepare('SELECT id FROM assets WHERE serial_number = ? LIMIT 1')
+      .get(serialNumber.trim());
+    return !!row;
+  };
+
+  const createAsset = async (asset) => {
+    if (!asset?.name) {
+      throw new Error('Asset name is required');
+    }
+    if (!asset?.type) {
+      throw new Error('Asset type is required');
+    }
+    if (!asset?.serialNumber) {
+      throw new Error('Serial number is required');
+    }
+
+    const serialExists = await checkSerialNumberExists(asset.serialNumber);
+    if (serialExists) {
+      throw new Error(`Serial number "${asset.serialNumber}" already exists`);
+    }
+
+    const specs = asset.specs ? JSON.stringify(asset.specs) : null;
+    const assignedEmployeeId = asset.assignedToId || asset.employeeId || null;
+
+    db.prepare(`
+      INSERT INTO assets (
+        name,
+        type,
+        status,
+        serial_number,
+        assigned_to,
+        assigned_to_uuid,
+        employee_id,
+        purchase_date,
+        acquisition_date,
+        warranty_expiry,
+        cost,
+        location,
+        location_id,
+        manufacturer,
+        previous_tag,
+        notes,
+        specs
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      asset.name,
+      asset.type,
+      asset.status || 'Available',
+      asset.serialNumber.trim(),
+      asset.assignedTo || null,
+      assignedEmployeeId,
+      assignedEmployeeId,
+      asset.purchaseDate || null,
+      asset.acquisitionDate || null,
+      asset.warrantyExpiry || null,
+      asset.cost || 0,
+      asset.location || null,
+      asset.locationId || null,
+      asset.manufacturer || null,
+      asset.previousTag || null,
+      asset.notes || null,
+      specs
+    );
+
+    const row = db
+      .prepare('SELECT id FROM assets WHERE serial_number = ? LIMIT 1')
+      .get(asset.serialNumber.trim());
+    return row ? await getAssetById(row.id) : null;
+  };
+
+  const updateAsset = async (asset) => {
+    if (!asset?.id) {
+      throw new Error('Asset id is required');
+    }
+    if (!asset?.name) {
+      throw new Error('Asset name is required');
+    }
+    if (!asset?.type) {
+      throw new Error('Asset type is required');
+    }
+    if (!asset?.serialNumber) {
+      throw new Error('Serial number is required');
+    }
+
+    const existing = await getAssetById(asset.id);
+    if (!existing) {
+      throw new Error('Asset not found');
+    }
+
+    const serialExists = await checkSerialNumberExists(asset.serialNumber, asset.id);
+    if (serialExists) {
+      throw new Error(`Serial number "${asset.serialNumber}" already exists`);
+    }
+
+    const specs = asset.specs ? JSON.stringify(asset.specs) : null;
+    const assignedEmployeeId = asset.assignedToId || asset.employeeId || null;
+
+    db.prepare(`
+      UPDATE assets
+         SET name = ?,
+             type = ?,
+             status = ?,
+             serial_number = ?,
+             assigned_to = ?,
+             assigned_to_uuid = ?,
+             employee_id = ?,
+             purchase_date = ?,
+             acquisition_date = ?,
+             warranty_expiry = ?,
+             cost = ?,
+             location = ?,
+             location_id = ?,
+             manufacturer = ?,
+             previous_tag = ?,
+             notes = ?,
+             specs = ?
+       WHERE id = ?
+    `).run(
+      asset.name,
+      asset.type,
+      asset.status || existing.status,
+      asset.serialNumber.trim(),
+      asset.assignedTo || null,
+      assignedEmployeeId,
+      assignedEmployeeId,
+      asset.purchaseDate || null,
+      asset.acquisitionDate || null,
+      asset.warrantyExpiry || null,
+      asset.cost || 0,
+      asset.location || null,
+      asset.locationId || null,
+      asset.manufacturer || null,
+      asset.previousTag || null,
+      asset.notes || null,
+      specs,
+      asset.id
+    );
+
+    return await getAssetById(asset.id);
+  };
+
+  const deleteAsset = async (id) => {
+    if (!id) {
+      throw new Error('Asset id is required');
+    }
+
+    const existing = await getAssetById(id);
+    if (!existing) {
+      throw new Error('Asset not found');
+    }
+
+    db.prepare('DELETE FROM asset_comments WHERE asset_id = ?').run(id);
+    db.prepare('DELETE FROM asset_history WHERE asset_id = ?').run(id);
+    db.prepare('DELETE FROM asset_specs WHERE asset_id = ?').run(id);
+    db.prepare('DELETE FROM assets WHERE id = ?').run(id);
+  };
+
+  const getAssetComments = async (assetId) => {
+    const rows = db.prepare(`
+      SELECT id, asset_id, author_name, author_id, message, type, created_at
+        FROM asset_comments
+       WHERE asset_id = ?
+       ORDER BY created_at DESC
+    `).all(assetId);
+    return rows.map(row => ({
+      id: row.id,
+      assetId: row.asset_id,
+      authorName: row.author_name,
+      authorId: row.author_id || undefined,
+      message: row.message,
+      type: row.type,
+      createdAt: row.created_at
+    }));
+  };
+
+  const addAssetComment = async (comment) => {
+    if (!comment?.assetId) {
+      throw new Error('Asset id is required for comment');
+    }
+    if (!comment?.authorName) {
+      throw new Error('Author name is required');
+    }
+    if (!comment?.message) {
+      throw new Error('Comment message is required');
+    }
+
+    const info = db.prepare(`
+      INSERT INTO asset_comments (
+        asset_id,
+        author_name,
+        author_id,
+        message,
+        type,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      comment.assetId,
+      comment.authorName,
+      comment.authorId || null,
+      comment.message,
+      comment.type || 'Note',
+      comment.createdAt || new Date().toISOString()
+    );
+
+    const row = db
+      .prepare('SELECT id, asset_id, author_name, author_id, message, type, created_at FROM asset_comments WHERE rowid = ?')
+      .get(info.lastInsertRowid);
+    return row
+      ? {
+          id: row.id,
+          assetId: row.asset_id,
+          authorName: row.author_name,
+          authorId: row.author_id || undefined,
+          message: row.message,
+          type: row.type,
+          createdAt: row.created_at
+        }
+      : null;
   };
 
   const getEmployees = async () => {
@@ -754,13 +1088,13 @@ export const createSqliteProvider = (config) => {
     // Assets
     getAssets,
     getAssetsPage,
-    getAssetById: notImplemented('getAssetById'),
-    createAsset: notImplemented('createAsset'),
-    updateAsset: notImplemented('updateAsset'),
-    deleteAsset: notImplemented('deleteAsset'),
-    getAssetComments: notImplemented('getAssetComments'),
-    addAssetComment: notImplemented('addAssetComment'),
-    checkSerialNumberExists: notImplemented('checkSerialNumberExists'),
+    getAssetById,
+    createAsset,
+    updateAsset,
+    deleteAsset,
+    getAssetComments,
+    addAssetComment,
+    checkSerialNumberExists,
 
     // Employees
     getEmployees,

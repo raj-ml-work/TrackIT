@@ -238,9 +238,9 @@ const MOCK_EMPLOYEES: Employee[] = [
 ];
 
 const App: React.FC = () => {
-  const [assets, setAssets] = useState<Asset[]>(MOCK_ASSETS);
-  const [users, setUsers] = useState<UserAccount[]>(MOCK_USERS);
-  const [employees, setEmployees] = useState<Employee[]>(MOCK_EMPLOYEES);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [users, setUsers] = useState<UserAccount[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
@@ -301,6 +301,9 @@ const App: React.FC = () => {
         if (dbReady) {
           await loadDataFromBackend();
         } else {
+          setAssets(MOCK_ASSETS);
+          setEmployees(MOCK_EMPLOYEES);
+          setUsers(MOCK_USERS);
           console.warn('Database not configured. Location data will be unavailable.');
         }
       } catch (error) {
@@ -325,7 +328,7 @@ const App: React.FC = () => {
         }),
         getEmployees().catch(err => {
           console.error('Error loading employees:', err);
-          return MOCK_EMPLOYEES;
+          return [];
         }),
         getLocations().catch(err => {
           console.error('Error loading locations:', err);

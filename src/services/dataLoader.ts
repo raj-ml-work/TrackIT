@@ -74,7 +74,7 @@ export class DataLoader {
     }
 
     const promise = this.withRetry(async () => {
-      const { data } = await dataService.getAssets(1, 50, { status: ['In Use', 'Assigned'] });
+      const { data } = await dataService.getAssets(1, 50, { status: ['Shared Resource', 'Assigned'] });
       this.setCachedData(cacheKey, data);
       return data;
     });
@@ -316,7 +316,7 @@ export class DataLoader {
       const summary = {
         totalAssets: assets.total,
         availableAssets: assets.data.filter(a => a.status === 'Available').length,
-        inUseAssets: assets.data.filter(a => a.status === 'In Use').length,
+        inUseAssets: assets.data.filter(a => a.status === 'Shared Resource').length,
         maintenanceAssets: assets.data.filter(a => a.status === 'Maintenance').length,
         totalValue: metrics.totalValue,
         locations: [...new Set(assets.data.map(a => a.location))] as string[],
@@ -337,7 +337,7 @@ export class DataLoader {
   async loadInventoryWithFilters(
     page: number,
     filters: {
-      status?: 'Available' | 'In Use' | 'Maintenance' | 'Retired' | 'all';
+      status?: 'Available' | 'Shared Resource' | 'Maintenance' | 'Retired' | 'all';
       type?: 'Laptop' | 'Desktop' | 'Monitor' | 'Keyboard' | 'Mouse' | 'Headphone' | 'Other' | 'all';
       location?: string;
       assignedTo?: string;

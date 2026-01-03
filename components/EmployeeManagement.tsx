@@ -1691,7 +1691,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                                   <div className="flex items-center gap-2 text-gray-600">
                                     <span className="text-xs text-gray-500">Status:</span>
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                      asset.status === 'In Use' ? 'bg-blue-100 text-blue-800' :
+                                      asset.status === 'Shared Resource' ? 'bg-blue-100 text-blue-800' :
                                       asset.status === 'Available' ? 'bg-green-100 text-green-800' :
                                       'bg-gray-100 text-gray-800'
                                     }`}>
