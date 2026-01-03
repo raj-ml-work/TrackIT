@@ -239,6 +239,113 @@ const buildServer = async () => {
     }
   });
 
+  app.get('/assets', async () => {
+    return provider.getAssets();
+  });
+
+  app.get('/assets/page', async (request) => {
+    const { page, pageSize, search, type } = request.query || {};
+    return provider.getAssetsPage({
+      page: Number(page || 1),
+      pageSize: Number(pageSize || 20),
+      search,
+      type
+    });
+  });
+
+  app.get('/employees', async (request) => {
+    const { employeeId } = request.query || {};
+    if (employeeId) {
+      return provider.getEmployeeByEmployeeId(employeeId);
+    }
+    return provider.getEmployees();
+  });
+
+  app.get('/employees/page', async (request) => {
+    const { page, pageSize, search, status } = request.query || {};
+    return provider.getEmployeesPage({
+      page: Number(page || 1),
+      pageSize: Number(pageSize || 20),
+      search,
+      status
+    });
+  });
+
+  app.get('/employees/:id', async (request, reply) => {
+    const employee = await provider.getEmployeeById(request.params.id);
+    if (!employee) {
+      return reply.code(404).send({ error: 'Employee not found.' });
+    }
+    return employee;
+  });
+
+  app.post('/employees', async (request, reply) => {
+    const { employeeId, personalInfo } = request.body || {};
+    if (!employeeId) {
+      return reply.code(400).send({ error: 'Employee ID is required.' });
+    }
+    if (!personalInfo?.firstName) {
+      return reply.code(400).send({ error: 'Employee first name is required.' });
+    }
+
+    try {
+      const created = await provider.createEmployee(request.body, null);
+      return reply.code(201).send(created);
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
+
+  app.put('/employees/:id', async (request, reply) => {
+    const { employeeId, personalInfo } = request.body || {};
+    if (!employeeId) {
+      return reply.code(400).send({ error: 'Employee ID is required.' });
+    }
+    if (!personalInfo?.firstName) {
+      return reply.code(400).send({ error: 'Employee first name is required.' });
+    }
+
+    try {
+      const updated = await provider.updateEmployee(
+        { ...request.body, id: request.params.id },
+        null
+      );
+      return updated;
+    } catch (error) {
+      const status = error.message === 'Employee not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
+  app.delete('/employees/:id', async (request, reply) => {
+    try {
+      await provider.deleteEmployee(request.params.id, null);
+      return { ok: true };
+    } catch (error) {
+      const status = error.message === 'Employee not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
+  app.get('/users', async (request) => {
+    const { email } = request.query || {};
+    if (email) {
+      const user = await provider.getUserByEmail(email);
+      return user ? sanitizeUser(user) : null;
+    }
+
+    const users = await provider.getUsers();
+    return users.map(sanitizeUser);
+  });
+
+  app.get('/users/:id', async (request, reply) => {
+    const user = await provider.getUserById(request.params.id);
+    if (!user) {
+      return reply.code(404).send({ error: 'User not found.' });
+    }
+    return sanitizeUser(user);
+  });
+
   return app;
 };
 

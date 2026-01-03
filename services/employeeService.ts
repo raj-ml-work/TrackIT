@@ -6,6 +6,7 @@
 
 import { Employee, EmployeeQuery, EmployeeStatus, PaginatedResult, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { apiFetchJson, isApiConfigured } from './apiClient';
 import { isAdmin, getPermissionError } from './permissionUtil';
 import { createEmployeePersonalInfo, updateEmployeePersonalInfo } from './employeePersonalInfoService';
 import { createEmployeeOfficialInfo, updateEmployeeOfficialInfo } from './employeeOfficialInfoService';
@@ -17,6 +18,10 @@ const TABLE_NAME = 'employees';
  */
 export const getEmployees = async (): Promise<Employee[]> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<Employee[]>('/employees');
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -43,6 +48,15 @@ export const getEmployees = async (): Promise<Employee[]> => {
  */
 export const getEmployeesPage = async (query: EmployeeQuery): Promise<PaginatedResult<Employee>> => {
   try {
+    if (isApiConfigured()) {
+      const params = new URLSearchParams();
+      params.set('page', String(query.page || 1));
+      params.set('pageSize', String(query.pageSize || 20));
+      if (query.search) params.set('search', query.search);
+      if (query.status) params.set('status', query.status);
+      return await apiFetchJson<PaginatedResult<Employee>>(`/employees/page?${params.toString()}`);
+    }
+
     const supabase = await getSupabaseClient();
     const page = Math.max(1, query.page || 1);
     const pageSize = Math.max(1, Math.min(query.pageSize || 20, 100));
@@ -194,6 +208,10 @@ export const getEmployeesPage = async (query: EmployeeQuery): Promise<PaginatedR
  */
 export const getEmployeeById = async (id: string): Promise<Employee | null> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<Employee>(`/employees/${id}`);
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -222,6 +240,10 @@ export const getEmployeeById = async (id: string): Promise<Employee | null> => {
  */
 export const getEmployeeByEmployeeId = async (employeeId: string): Promise<Employee | null> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<Employee | null>(`/employees?employeeId=${encodeURIComponent(employeeId)}`);
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -255,6 +277,14 @@ export const createEmployee = async (employee: Omit<Employee, 'id'>, currentUser
     // Check permission - only admins can create employees
     if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('create', currentUser?.role || null));
+    }
+
+    if (isApiConfigured()) {
+      return await apiFetchJson<Employee>('/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(employee)
+      });
     }
 
     // Check if employee ID already exists
@@ -337,6 +367,14 @@ export const updateEmployee = async (employee: Employee, currentUser: UserAccoun
     // Check permission - only admins can update employees
     if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('update', currentUser?.role || null));
+    }
+
+    if (isApiConfigured()) {
+      return await apiFetchJson<Employee>(`/employees/${employee.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(employee)
+      });
     }
 
     const supabase = await getSupabaseClient();
@@ -427,6 +465,11 @@ export const deleteEmployee = async (id: string, currentUser: UserAccount | null
     // Check permission - only admins can delete employees
     if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('delete', currentUser?.role || null));
+    }
+
+    if (isApiConfigured()) {
+      await apiFetchJson<{ ok: boolean }>(`/employees/${id}`, { method: 'DELETE' });
+      return;
     }
 
     const supabase = await getSupabaseClient();

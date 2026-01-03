@@ -68,6 +68,83 @@ const mapLocationRow = (row) => {
   };
 };
 
+const parseJsonSafe = (value) => {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+};
+
+const mapAssetRow = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    status: row.status,
+    serialNumber: row.serial_number,
+    assignedTo: row.assigned_to || undefined,
+    assignedToId: row.assigned_to_uuid || undefined,
+    employeeId: row.employee_id || undefined,
+    purchaseDate: row.purchase_date || '',
+    acquisitionDate: row.acquisition_date || undefined,
+    warrantyExpiry: row.warranty_expiry || '',
+    cost: Number(row.cost || 0),
+    location: row.location_name || row.location || '',
+    locationId: row.location_id || undefined,
+    manufacturer: row.manufacturer || undefined,
+    previousTag: row.previous_tag || undefined,
+    notes: row.notes || undefined,
+    specs: parseJsonSafe(row.specs)
+  };
+};
+
+const mapEmployeeRow = (row) => {
+  if (!row) return null;
+  const firstName = row.personal_first_name || '';
+  const lastName = row.personal_last_name || '';
+  const fullName = `${firstName} ${lastName}`.trim();
+
+  return {
+    id: row.id,
+    employeeId: row.employee_id,
+    clientId: row.client_id || undefined,
+    locationId: row.location_id || undefined,
+    personalInfoId: row.personal_info_id || undefined,
+    officialInfoId: row.official_info_id || undefined,
+    status: row.status,
+    name: fullName || row.name || undefined,
+    email: row.official_official_email || row.personal_personal_email || undefined,
+    department: row.official_division || undefined,
+    location: row.location_name || undefined,
+    title: row.official_division || undefined,
+    personalInfo: row.personal_id ? {
+      id: row.personal_id,
+      firstName: row.personal_first_name,
+      lastName: row.personal_last_name,
+      gender: row.personal_gender || undefined,
+      mobileNumber: row.personal_mobile_number || undefined,
+      emergencyContactName: row.personal_emergency_contact_name || undefined,
+      emergencyContactNumber: row.personal_emergency_contact_number || undefined,
+      personalEmail: row.personal_personal_email || undefined,
+      linkedinUrl: row.personal_linkedin_url || undefined,
+      additionalComments: row.personal_additional_comments || undefined
+    } : undefined,
+    officialInfo: row.official_id ? {
+      id: row.official_id,
+      division: row.official_division || undefined,
+      biometricId: row.official_biometric_id || undefined,
+      rfidSerial: row.official_rfid_serial || undefined,
+      agreementSigned: Boolean(row.official_agreement_signed),
+      startDate: row.official_start_date || undefined,
+      officialDob: row.official_official_dob || undefined,
+      officialEmail: row.official_official_email || undefined
+    } : undefined
+  };
+};
+
 export const createSqliteProvider = (config) => {
   const dbDir = path.dirname(config.sqlitePath);
   if (!fs.existsSync(dbDir)) {
@@ -121,6 +198,398 @@ export const createSqliteProvider = (config) => {
   const updateUserPassword = async (userId, newPassword) => {
     const hashedPassword = hashPasswordSha256(newPassword);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, userId);
+  };
+
+  const employeeSelect = `
+    SELECT employees.*,
+           personal.id AS personal_id,
+           personal.first_name AS personal_first_name,
+           personal.last_name AS personal_last_name,
+           personal.gender AS personal_gender,
+           personal.mobile_number AS personal_mobile_number,
+           personal.emergency_contact_name AS personal_emergency_contact_name,
+           personal.emergency_contact_number AS personal_emergency_contact_number,
+           personal.personal_email AS personal_personal_email,
+           personal.linkedin_url AS personal_linkedin_url,
+           personal.additional_comments AS personal_additional_comments,
+           official.id AS official_id,
+           official.division AS official_division,
+           official.biometric_id AS official_biometric_id,
+           official.rfid_serial AS official_rfid_serial,
+           official.agreement_signed AS official_agreement_signed,
+           official.start_date AS official_start_date,
+           official.official_dob AS official_official_dob,
+           official.official_email AS official_official_email,
+           locations.name AS location_name
+      FROM employees
+      LEFT JOIN employee_personal_info AS personal
+        ON personal.id = employees.personal_info_id
+      LEFT JOIN employee_official_info AS official
+        ON official.id = employees.official_info_id
+      LEFT JOIN locations
+        ON locations.id = employees.location_id
+  `;
+
+  const getEmployeeById = async (id) => {
+    const row = db
+      .prepare(`${employeeSelect} WHERE employees.id = ? LIMIT 1`)
+      .get(id);
+    return mapEmployeeRow(row);
+  };
+
+  const getEmployeeByEmployeeId = async (employeeId) => {
+    const row = db
+      .prepare(`${employeeSelect} WHERE employees.employee_id = ? LIMIT 1`)
+      .get(employeeId.trim().toUpperCase());
+    return mapEmployeeRow(row);
+  };
+
+  const createPersonalInfo = (personalInfo) => {
+    if (!personalInfo?.firstName) {
+      throw new Error('Employee first name is required');
+    }
+
+    const info = db.prepare(`
+      INSERT INTO employee_personal_info (
+        first_name,
+        last_name,
+        gender,
+        mobile_number,
+        emergency_contact_name,
+        emergency_contact_number,
+        personal_email,
+        linkedin_url,
+        additional_comments
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      personalInfo.firstName.trim(),
+      personalInfo.lastName || null,
+      personalInfo.gender || null,
+      personalInfo.mobileNumber || null,
+      personalInfo.emergencyContactName || null,
+      personalInfo.emergencyContactNumber || null,
+      personalInfo.personalEmail || null,
+      personalInfo.linkedinUrl || null,
+      personalInfo.additionalComments || null
+    );
+
+    return db
+      .prepare('SELECT id FROM employee_personal_info WHERE rowid = ?')
+      .get(info.lastInsertRowid)?.id;
+  };
+
+  const updatePersonalInfo = (id, personalInfo) => {
+    if (!id) return null;
+    db.prepare(`
+      UPDATE employee_personal_info
+         SET first_name = ?,
+             last_name = ?,
+             gender = ?,
+             mobile_number = ?,
+             emergency_contact_name = ?,
+             emergency_contact_number = ?,
+             personal_email = ?,
+             linkedin_url = ?,
+             additional_comments = ?
+       WHERE id = ?
+    `).run(
+      personalInfo.firstName?.trim() || null,
+      personalInfo.lastName || null,
+      personalInfo.gender || null,
+      personalInfo.mobileNumber || null,
+      personalInfo.emergencyContactName || null,
+      personalInfo.emergencyContactNumber || null,
+      personalInfo.personalEmail || null,
+      personalInfo.linkedinUrl || null,
+      personalInfo.additionalComments || null,
+      id
+    );
+    return id;
+  };
+
+  const createOfficialInfo = (officialInfo) => {
+    const info = db.prepare(`
+      INSERT INTO employee_official_info (
+        division,
+        biometric_id,
+        rfid_serial,
+        agreement_signed,
+        start_date,
+        official_dob,
+        official_email
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      officialInfo?.division || null,
+      officialInfo?.biometricId || null,
+      officialInfo?.rfidSerial || null,
+      officialInfo?.agreementSigned ? 1 : 0,
+      officialInfo?.startDate || null,
+      officialInfo?.officialDob || null,
+      officialInfo?.officialEmail || null
+    );
+
+    return db
+      .prepare('SELECT id FROM employee_official_info WHERE rowid = ?')
+      .get(info.lastInsertRowid)?.id;
+  };
+
+  const updateOfficialInfo = (id, officialInfo) => {
+    if (!id) return null;
+    db.prepare(`
+      UPDATE employee_official_info
+         SET division = ?,
+             biometric_id = ?,
+             rfid_serial = ?,
+             agreement_signed = ?,
+             start_date = ?,
+             official_dob = ?,
+             official_email = ?
+       WHERE id = ?
+    `).run(
+      officialInfo?.division || null,
+      officialInfo?.biometricId || null,
+      officialInfo?.rfidSerial || null,
+      officialInfo?.agreementSigned ? 1 : 0,
+      officialInfo?.startDate || null,
+      officialInfo?.officialDob || null,
+      officialInfo?.officialEmail || null,
+      id
+    );
+    return id;
+  };
+
+  const getAssets = async () => {
+    const rows = db.prepare(`
+      SELECT assets.*, locations.name AS location_name
+      FROM assets
+      LEFT JOIN locations ON locations.id = assets.location_id
+      ORDER BY assets.created_at DESC
+    `).all();
+    return rows.map(mapAssetRow);
+  };
+
+  const getAssetsPage = async (query) => {
+    const page = Math.max(1, Number(query.page || 1));
+    const pageSize = Math.max(1, Math.min(Number(query.pageSize || 20), 100));
+    const offset = (page - 1) * pageSize;
+    const params = {};
+    const filters = [];
+
+    if (query.type && query.type !== 'All') {
+      filters.push('assets.type = @type');
+      params.type = query.type;
+    }
+
+    if (query.search) {
+      filters.push('(lower(assets.name) LIKE @search OR lower(assets.serial_number) LIKE @search)');
+      params.search = `%${query.search.trim().toLowerCase()}%`;
+    }
+
+    const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const totalRow = db
+      .prepare(`SELECT COUNT(*) as count FROM assets ${whereClause}`)
+      .get(params);
+    const rows = db.prepare(`
+      SELECT assets.*, locations.name AS location_name
+      FROM assets
+      LEFT JOIN locations ON locations.id = assets.location_id
+      ${whereClause}
+      ORDER BY assets.created_at DESC
+      LIMIT @limit OFFSET @offset
+    `).all({ ...params, limit: pageSize, offset });
+
+    return {
+      data: rows.map(mapAssetRow),
+      total: Number(totalRow?.count || 0),
+      page,
+      pageSize
+    };
+  };
+
+  const getEmployees = async () => {
+    const rows = db.prepare(`
+      ${employeeSelect}
+      ORDER BY employees.created_at DESC
+    `).all();
+    return rows.map(mapEmployeeRow);
+  };
+
+  const getEmployeesPage = async (query) => {
+    const page = Math.max(1, Number(query.page || 1));
+    const pageSize = Math.max(1, Math.min(Number(query.pageSize || 20), 100));
+    const offset = (page - 1) * pageSize;
+    const params = {};
+    const filters = [];
+
+    if (query.status && query.status !== 'All') {
+      filters.push('employees.status = @status');
+      params.status = query.status;
+    }
+
+    if (query.search) {
+      filters.push(`
+        (
+          lower(employees.employee_id) LIKE @search OR
+          lower(personal.first_name || ' ' || ifnull(personal.last_name, '')) LIKE @search OR
+          lower(ifnull(official.official_email, '')) LIKE @search OR
+          lower(ifnull(personal.personal_email, '')) LIKE @search
+        )
+      `);
+      params.search = `%${query.search.trim().toLowerCase()}%`;
+    }
+
+    const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const totalRow = db.prepare(`
+      SELECT COUNT(*) as count
+      FROM employees
+      LEFT JOIN employee_personal_info AS personal
+        ON personal.id = employees.personal_info_id
+      LEFT JOIN employee_official_info AS official
+        ON official.id = employees.official_info_id
+      ${whereClause}
+    `).get(params);
+
+    const rows = db.prepare(`
+      ${employeeSelect}
+      ${whereClause}
+      ORDER BY employees.created_at DESC
+      LIMIT @limit OFFSET @offset
+    `).all({ ...params, limit: pageSize, offset });
+
+    return {
+      data: rows.map(mapEmployeeRow),
+      total: Number(totalRow?.count || 0),
+      page,
+      pageSize
+    };
+  };
+
+  const createEmployee = async (employee) => {
+    const employeeId = employee.employeeId?.trim().toUpperCase();
+    if (!employeeId) {
+      throw new Error('Employee ID is required');
+    }
+
+    const existing = await getEmployeeByEmployeeId(employeeId);
+    if (existing) {
+      throw new Error(`Employee ID "${employeeId}" already exists`);
+    }
+
+    const personalInfoId = createPersonalInfo(employee.personalInfo);
+    const officialInfoId = createOfficialInfo(employee.officialInfo);
+    const name = employee.personalInfo
+      ? `${employee.personalInfo.firstName || ''} ${employee.personalInfo.lastName || ''}`.trim()
+      : employee.name || employeeId;
+
+    db.prepare(`
+      INSERT INTO employees (
+        employee_id,
+        name,
+        status,
+        client_id,
+        location_id,
+        personal_info_id,
+        official_info_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      employeeId,
+      name,
+      employee.status || 'Active',
+      employee.clientId || null,
+      employee.locationId || null,
+      personalInfoId,
+      officialInfoId
+    );
+
+    return await getEmployeeByEmployeeId(employeeId);
+  };
+
+  const updateEmployee = async (employee) => {
+    if (!employee?.id) {
+      throw new Error('Employee id is required');
+    }
+
+    const existing = await getEmployeeById(employee.id);
+    if (!existing) {
+      throw new Error('Employee not found');
+    }
+
+    const employeeId = employee.employeeId?.trim().toUpperCase();
+    if (!employeeId) {
+      throw new Error('Employee ID is required');
+    }
+
+    const duplicate = db
+      .prepare('SELECT id FROM employees WHERE employee_id = ? AND id != ? LIMIT 1')
+      .get(employeeId, employee.id);
+    if (duplicate) {
+      throw new Error(`Employee ID "${employeeId}" already exists`);
+    }
+
+    let personalInfoId = existing.personalInfoId;
+    if (employee.personalInfo) {
+      if (personalInfoId) {
+        updatePersonalInfo(personalInfoId, employee.personalInfo);
+      } else {
+        personalInfoId = createPersonalInfo(employee.personalInfo);
+      }
+    }
+
+    let officialInfoId = existing.officialInfoId;
+    if (employee.officialInfo) {
+      if (officialInfoId) {
+        updateOfficialInfo(officialInfoId, employee.officialInfo);
+      } else {
+        officialInfoId = createOfficialInfo(employee.officialInfo);
+      }
+    }
+
+    const name = employee.personalInfo
+      ? `${employee.personalInfo.firstName || ''} ${employee.personalInfo.lastName || ''}`.trim()
+      : existing.name || employeeId;
+
+    db.prepare(`
+      UPDATE employees
+         SET employee_id = ?,
+             name = ?,
+             status = ?,
+             client_id = ?,
+             location_id = ?,
+             personal_info_id = ?,
+             official_info_id = ?
+       WHERE id = ?
+    `).run(
+      employeeId,
+      name,
+      employee.status || existing.status,
+      employee.clientId || null,
+      employee.locationId || null,
+      personalInfoId || null,
+      officialInfoId || null,
+      employee.id
+    );
+
+    return await getEmployeeById(employee.id);
+  };
+
+  const deleteEmployee = async (id) => {
+    if (!id) {
+      throw new Error('Employee id is required');
+    }
+
+    const existing = await getEmployeeById(id);
+    if (!existing) {
+      throw new Error('Employee not found');
+    }
+
+    db.prepare('DELETE FROM employees WHERE id = ?').run(id);
+
+    if (existing.personalInfoId) {
+      db.prepare('DELETE FROM employee_personal_info WHERE id = ?').run(existing.personalInfoId);
+    }
+    if (existing.officialInfoId) {
+      db.prepare('DELETE FROM employee_official_info WHERE id = ?').run(existing.officialInfoId);
+    }
   };
 
   const mapDepartmentRow = (row) => {
@@ -283,8 +752,8 @@ export const createSqliteProvider = (config) => {
 
   return {
     // Assets
-    getAssets: notImplemented('getAssets'),
-    getAssetsPage: notImplemented('getAssetsPage'),
+    getAssets,
+    getAssetsPage,
     getAssetById: notImplemented('getAssetById'),
     createAsset: notImplemented('createAsset'),
     updateAsset: notImplemented('updateAsset'),
@@ -294,13 +763,13 @@ export const createSqliteProvider = (config) => {
     checkSerialNumberExists: notImplemented('checkSerialNumberExists'),
 
     // Employees
-    getEmployees: notImplemented('getEmployees'),
-    getEmployeesPage: notImplemented('getEmployeesPage'),
-    getEmployeeById: notImplemented('getEmployeeById'),
-    getEmployeeByEmployeeId: notImplemented('getEmployeeByEmployeeId'),
-    createEmployee: notImplemented('createEmployee'),
-    updateEmployee: notImplemented('updateEmployee'),
-    deleteEmployee: notImplemented('deleteEmployee'),
+    getEmployees,
+    getEmployeesPage,
+    getEmployeeById,
+    getEmployeeByEmployeeId,
+    createEmployee,
+    updateEmployee,
+    deleteEmployee,
 
     // Locations
     getLocations,

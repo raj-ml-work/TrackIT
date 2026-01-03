@@ -6,6 +6,7 @@
 
 import { Asset, AssetComment, AssetCommentType, AssetQuery, AssetStatus, PaginatedResult, UserAccount } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { apiFetchJson, isApiConfigured } from './apiClient';
 import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'assets';
@@ -74,6 +75,10 @@ export const checkSerialNumberExists = async (serialNumber: string, excludeAsset
  */
 export const getAssets = async (): Promise<Asset[]> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<Asset[]>('/assets');
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -105,6 +110,15 @@ export const getAssets = async (): Promise<Asset[]> => {
  */
 export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<Asset>> => {
   try {
+    if (isApiConfigured()) {
+      const params = new URLSearchParams();
+      params.set('page', String(query.page || 1));
+      params.set('pageSize', String(query.pageSize || 20));
+      if (query.search) params.set('search', query.search);
+      if (query.type) params.set('type', query.type);
+      return await apiFetchJson<PaginatedResult<Asset>>(`/assets/page?${params.toString()}`);
+    }
+
     const supabase = await getSupabaseClient();
     const page = Math.max(1, query.page || 1);
     const pageSize = Math.max(1, Math.min(query.pageSize || 20, 100));

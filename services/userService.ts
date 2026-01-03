@@ -6,6 +6,7 @@
 
 import { UserAccount, UserRole, UserStatus } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { apiFetchJson, isApiConfigured } from './apiClient';
 import { hashPassword, hashPasswordSHA1 } from './passwordUtil';
 import { isAdmin, getPermissionError } from './permissionUtil';
 
@@ -16,6 +17,10 @@ const TABLE_NAME = 'users';
  */
 export const getUsers = async (): Promise<UserAccount[]> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<UserAccount[]>('/users');
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -36,6 +41,10 @@ export const getUsers = async (): Promise<UserAccount[]> => {
  */
 export const getUserById = async (id: string): Promise<UserAccount | null> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<UserAccount>(`/users/${id}`);
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -58,6 +67,10 @@ export const getUserById = async (id: string): Promise<UserAccount | null> => {
  */
 export const getUserByEmail = async (email: string): Promise<UserAccount | null> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<UserAccount | null>(`/users?email=${encodeURIComponent(email)}`);
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
