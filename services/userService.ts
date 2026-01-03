@@ -115,6 +115,20 @@ export const createUser = async (user: Omit<UserAccount, 'id' | 'lastLogin'>, pa
       throw new Error(getPermissionError('manageUsers', currentUser?.role || null));
     }
 
+    if (isApiConfigured()) {
+      return await apiFetchJson<UserAccount>('/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          password
+        })
+      });
+    }
+
     // Check if email already exists in users table
     const existing = await getUserByEmail(user.email);
     if (existing) {
@@ -153,6 +167,20 @@ export const updateUser = async (user: UserAccount, requestingUser: UserAccount 
     // Check permission - only admins can update users
     if (!isAdmin(requestingUser)) {
       throw new Error(getPermissionError('manageUsers', requestingUser?.role || null));
+    }
+
+    if (isApiConfigured()) {
+      return await apiFetchJson<UserAccount>(`/users/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status
+        })
+      });
     }
 
     const supabase = await getSupabaseClient();
@@ -199,6 +227,15 @@ export const updateUser = async (user: UserAccount, requestingUser: UserAccount 
  */
 export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
   try {
+    if (isApiConfigured()) {
+      await apiFetchJson<{ ok: boolean }>(`/users/${userId}/password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword })
+      });
+      return;
+    }
+
     const supabase = await getSupabaseClient();
     const hashedPassword = await hashPassword(newPassword);
     
@@ -236,6 +273,15 @@ export const resetUserPassword = async (
     // Prevent admins from resetting their own password (security measure)
     if (requestingUser && requestingUser.id === userId) {
       throw new Error('Admins cannot reset their own password. Please ask another admin for assistance.');
+    }
+
+    if (isApiConfigured()) {
+      const result = await apiFetchJson<{ temporaryPassword: string }>(`/users/${userId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passwordOption })
+      });
+      return result.temporaryPassword;
     }
 
     // Get the target user
@@ -302,6 +348,11 @@ export const deleteUser = async (id: string, requestingUser: UserAccount | null 
     // Check permission - only admins can delete users
     if (!isAdmin(requestingUser)) {
       throw new Error(getPermissionError('manageUsers', requestingUser?.role || null));
+    }
+
+    if (isApiConfigured()) {
+      await apiFetchJson<{ ok: boolean }>(`/users/${id}`, { method: 'DELETE' });
+      return;
     }
 
     const supabase = await getSupabaseClient();

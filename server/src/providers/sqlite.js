@@ -283,6 +283,68 @@ export const createSqliteProvider = (config) => {
     return getUserByEmail(user.email);
   };
 
+  const updateUser = async (user, currentUser) => {
+    if (!currentUser || currentUser.role !== 'Admin') {
+      throw new Error('Permission denied: admin access required');
+    }
+
+    const result = db
+      .prepare('UPDATE users SET name = ?, email = ?, role = ?, status = ? WHERE id = ?')
+      .run(user.name, user.email.toLowerCase(), user.role, user.status, user.id);
+
+    if (result.changes === 0) {
+      throw new Error('User not found');
+    }
+
+    return getUserById(user.id);
+  };
+
+  const deleteUser = async (userId, currentUser) => {
+    if (!currentUser || currentUser.role !== 'Admin') {
+      throw new Error('Permission denied: admin access required');
+    }
+
+    const result = db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    if (result.changes === 0) {
+      throw new Error('User not found');
+    }
+  };
+
+  const generateTemporaryPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*()_+';
+    let password = '';
+    const pick = (set) => set[Math.floor(Math.random() * set.length)];
+
+    password += pick('ABCDEFGHJKLMNPQRSTUVWXYZ');
+    password += pick('abcdefghijkmnpqrstuvwxyz');
+    password += pick('23456789');
+    password += pick('!@#$%^&*()_+');
+    while (password.length < 12) {
+      password += pick(chars);
+    }
+
+    return password.split('').sort(() => Math.random() - 0.5).join('');
+  };
+
+  const resetUserPassword = async (userId, currentUser, passwordOption) => {
+    if (!currentUser || currentUser.role !== 'Admin') {
+      throw new Error('Permission denied: admin access required');
+    }
+
+    if (currentUser.id === userId) {
+      throw new Error('Admins cannot reset their own password. Please ask another admin for assistance.');
+    }
+
+    const target = await getUserById(userId);
+    if (!target) {
+      throw new Error('User not found');
+    }
+
+    const passwordToSet = passwordOption || generateTemporaryPassword();
+    await updateUserPassword(userId, passwordToSet);
+    return passwordToSet;
+  };
+
   const updateUserPassword = async (userId, newPassword) => {
     const hashedPassword = hashPasswordSha256(newPassword);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, userId);
@@ -1118,10 +1180,10 @@ export const createSqliteProvider = (config) => {
     getUserById,
     getUserByEmail,
     createUser,
-    updateUser: notImplemented('updateUser'),
+    updateUser,
     updateUserPassword,
-    resetUserPassword: notImplemented('resetUserPassword'),
-    deleteUser: notImplemented('deleteUser'),
+    resetUserPassword,
+    deleteUser,
     updateLastLogin,
 
     // Departments

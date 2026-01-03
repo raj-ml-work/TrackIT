@@ -635,7 +635,7 @@ const App: React.FC = () => {
   const handleUpdateUser = async (updated: UserAccount) => {
     try {
       if (useBackend) {
-        const updatedUser = await updateUser(updated);
+        const updatedUser = await updateUser(updated, session?.user || null);
         setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
       } else {
         setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
@@ -655,7 +655,7 @@ const App: React.FC = () => {
       const newStatus = user.status === UserStatus.ACTIVE ? UserStatus.INACTIVE : UserStatus.ACTIVE;
 
       if (useBackend) {
-        const updatedUser = await updateUser({ ...user, status: newStatus });
+        const updatedUser = await updateUser({ ...user, status: newStatus }, session?.user || null);
         setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
       } else {
         setUsers(prev => prev.map(u => u.id === id ? { ...u, status: newStatus } : u));

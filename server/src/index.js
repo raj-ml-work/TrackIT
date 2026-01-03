@@ -133,6 +133,20 @@ const buildServer = async () => {
     return { user: sanitizeUser(user) };
   });
 
+  const getRequestUser = async (request) => {
+    const authHeader = request.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) return null;
+
+    try {
+      const payload = verifyAccessToken(token);
+      const user = await provider.getUserById(payload.sub);
+      return user || null;
+    } catch {
+      return null;
+    }
+  };
+
   app.get('/locations', async () => {
     return provider.getLocations();
   });
@@ -426,6 +440,110 @@ const buildServer = async () => {
       return reply.code(404).send({ error: 'User not found.' });
     }
     return sanitizeUser(user);
+  });
+
+  app.post('/users', async (request, reply) => {
+    const { name, email, role, status, password } = request.body || {};
+    if (!name || !email || !role || !status || !password) {
+      return reply.code(400).send({ error: 'Name, email, role, status, and password are required.' });
+    }
+
+    const currentUser = await getRequestUser(request);
+    if (!currentUser) {
+      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
+    }
+
+    try {
+      const created = await provider.createUser(
+        { name, email, role, status },
+        password,
+        currentUser
+      );
+      return reply.code(201).send(sanitizeUser(created));
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
+
+  app.put('/users/:id', async (request, reply) => {
+    const { name, email, role, status } = request.body || {};
+    if (!name || !email || !role || !status) {
+      return reply.code(400).send({ error: 'Name, email, role, and status are required.' });
+    }
+
+    const currentUser = await getRequestUser(request);
+    if (!currentUser) {
+      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
+    }
+
+    try {
+      const updated = await provider.updateUser(
+        { id: request.params.id, name, email, role, status },
+        currentUser
+      );
+      return sanitizeUser(updated);
+    } catch (error) {
+      const statusCode = error.message === 'User not found' ? 404 : 400;
+      return reply.code(statusCode).send({ error: error.message });
+    }
+  });
+
+  app.put('/users/:id/password', async (request, reply) => {
+    const { password } = request.body || {};
+    if (!password) {
+      return reply.code(400).send({ error: 'Password is required.' });
+    }
+
+    const currentUser = await getRequestUser(request);
+    if (!currentUser) {
+      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
+    }
+
+    if (currentUser.id !== request.params.id && currentUser.role !== 'Admin') {
+      return reply.code(403).send({ error: 'Permission denied: admin access required.' });
+    }
+
+    try {
+      await provider.updateUserPassword(request.params.id, password);
+      return { ok: true };
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
+
+  app.post('/users/:id/reset-password', async (request, reply) => {
+    const { passwordOption } = request.body || {};
+
+    const currentUser = await getRequestUser(request);
+    if (!currentUser) {
+      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
+    }
+
+    try {
+      const temporaryPassword = await provider.resetUserPassword(
+        request.params.id,
+        currentUser,
+        passwordOption
+      );
+      return { temporaryPassword };
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
+
+  app.delete('/users/:id', async (request, reply) => {
+    const currentUser = await getRequestUser(request);
+    if (!currentUser) {
+      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
+    }
+
+    try {
+      await provider.deleteUser(request.params.id, currentUser);
+      return { ok: true };
+    } catch (error) {
+      const statusCode = error.message === 'User not found' ? 404 : 400;
+      return reply.code(statusCode).send({ error: error.message });
+    }
   });
 
   return app;
