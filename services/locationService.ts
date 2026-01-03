@@ -6,6 +6,7 @@
 
 import { Location, UserAccount, Asset, Employee } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { apiFetchJson, isApiConfigured } from './apiClient';
 import { isAdmin, getPermissionError } from './permissionUtil';
 
 const TABLE_NAME = 'locations';
@@ -15,6 +16,10 @@ const TABLE_NAME = 'locations';
  */
 export const getLocations = async (): Promise<Location[]> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<Location[]>('/locations');
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -35,6 +40,10 @@ export const getLocations = async (): Promise<Location[]> => {
  */
 export const getLocationById = async (id: string): Promise<Location | null> => {
   try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<Location>(`/locations/${id}`);
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -57,6 +66,12 @@ export const getLocationById = async (id: string): Promise<Location | null> => {
  */
 export const getLocationByName = async (name: string): Promise<Location | null> => {
   try {
+    if (isApiConfigured()) {
+      const locations = await apiFetchJson<Location[]>('/locations');
+      const match = locations.find(location => location.name === name);
+      return match || null;
+    }
+
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -84,6 +99,14 @@ export const createLocation = async (location: Omit<Location, 'id'>, currentUser
     // Check permission - only admins can create locations
     if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('create', currentUser?.role || null));
+    }
+
+    if (isApiConfigured()) {
+      return await apiFetchJson<Location>('/locations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(location)
+      });
     }
 
     const supabase = await getSupabaseClient();
@@ -116,6 +139,14 @@ export const updateLocation = async (location: Location, currentUser: UserAccoun
       throw new Error(getPermissionError('update', currentUser?.role || null));
     }
 
+    if (isApiConfigured()) {
+      return await apiFetchJson<Location>(`/locations/${location.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: location.name, city: location.city })
+      });
+    }
+
     const supabase = await getSupabaseClient();
     const locationData = transformLocationToDB(location);
     
@@ -145,6 +176,11 @@ export const deleteLocation = async (id: string, currentUser: UserAccount | null
     // Check permission - only admins can delete locations
     if (!isAdmin(currentUser)) {
       throw new Error(getPermissionError('delete', currentUser?.role || null));
+    }
+
+    if (isApiConfigured()) {
+      await apiFetchJson<{ ok: boolean }>(`/locations/${id}`, { method: 'DELETE' });
+      return;
     }
 
     // Check foreign key constraints - ensure no assets or employees are assigned to this location
@@ -206,4 +242,3 @@ const transformLocationToDB = (location: Location | Omit<Location, 'id'>): any =
     comments: location.comments || null
   };
 };
-

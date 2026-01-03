@@ -1,6 +1,6 @@
 import { LoginCredentials, AuthSession, UserAccount, UserRole, UserStatus } from '../types';
 import { getSupabaseClient } from './supabaseClient';
-import { dbConfig } from './database';
+import { isSupabaseConfigured } from './database';
 import * as userService from './userService';
 import { hashPassword, isSha256Hash } from './passwordUtil';
 
@@ -26,14 +26,6 @@ const DEFAULT_USERS = [
   }
 ];
 
-/**
- * Check if Supabase is configured (still used for data access, not auth)
- */
-const isSupabaseConfigured = (): boolean => {
-  return dbConfig.type === 'supabase' && 
-         !!dbConfig.supabaseUrl && 
-         !!dbConfig.supabaseAnonKey;
-};
 
 /**
  * Initialize default admin user if none exists.

@@ -43,7 +43,9 @@ const buildServer = async () => {
 
       cb(new Error('CORS origin not allowed'), false);
     },
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
   });
 
   app.get('/health', async () => ({ ok: true }));
@@ -129,6 +131,59 @@ const buildServer = async () => {
     }
 
     return { user: sanitizeUser(user) };
+  });
+
+  app.get('/locations', async () => {
+    return provider.getLocations();
+  });
+
+  app.get('/locations/:id', async (request, reply) => {
+    const location = await provider.getLocationById(request.params.id);
+    if (!location) {
+      return reply.code(404).send({ error: 'Location not found.' });
+    }
+    return location;
+  });
+
+  app.post('/locations', async (request, reply) => {
+    const { name, city } = request.body || {};
+    if (!name || !city) {
+      return reply.code(400).send({ error: 'Name and city are required.' });
+    }
+
+    try {
+      const created = await provider.createLocation({ name, city }, null);
+      return reply.code(201).send(created);
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
+
+  app.put('/locations/:id', async (request, reply) => {
+    const { name, city } = request.body || {};
+    if (!name || !city) {
+      return reply.code(400).send({ error: 'Name and city are required.' });
+    }
+
+    try {
+      const updated = await provider.updateLocation(
+        { id: request.params.id, name, city },
+        null
+      );
+      return updated;
+    } catch (error) {
+      const status = error.message === 'Location not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
+  app.delete('/locations/:id', async (request, reply) => {
+    try {
+      await provider.deleteLocation(request.params.id, null);
+      return { ok: true };
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
   });
 
   return app;

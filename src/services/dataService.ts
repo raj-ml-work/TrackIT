@@ -10,16 +10,7 @@ import {
   EmployeeOfficialInfo
 } from '../types';
 import { getSupabaseClient } from './supabaseClient';
-import { dbConfig } from './database';
-
-/**
- * Check if Supabase is configured
- */
-const isSupabaseConfigured = (): boolean => {
-  return dbConfig.type === 'supabase' && 
-         !!dbConfig.supabaseUrl && 
-         !!dbConfig.supabaseAnonKey;
-};
+import { isSupabaseConfigured } from './database';
 
 /**
  * Get dashboard metrics with optimized queries

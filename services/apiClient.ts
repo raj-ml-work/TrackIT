@@ -2,6 +2,8 @@ import { getAccessToken, refreshAccessToken } from './authClient';
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || '';
 
+export const isApiConfigured = (): boolean => Boolean(apiBaseUrl);
+
 const buildHeaders = (headers?: HeadersInit) => {
   const merged = new Headers(headers || {});
   const token = getAccessToken();

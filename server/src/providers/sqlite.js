@@ -41,6 +41,15 @@ const notImplemented = (name) => {
   };
 };
 
+const mapLocationRow = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    city: row.city
+  };
+};
+
 export const createSqliteProvider = (config) => {
   const dbDir = path.dirname(config.sqlitePath);
   if (!fs.existsSync(dbDir)) {
@@ -95,6 +104,80 @@ export const createSqliteProvider = (config) => {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, userId);
   };
 
+  const getLocations = async () => {
+    const rows = db.prepare('SELECT id, name, city FROM locations ORDER BY name ASC').all();
+    return rows.map(mapLocationRow);
+  };
+
+  const getLocationById = async (id) => {
+    const row = db
+      .prepare('SELECT id, name, city FROM locations WHERE id = ? LIMIT 1')
+      .get(id);
+    return mapLocationRow(row);
+  };
+
+  const getLocationByName = async (name) => {
+    const row = db
+      .prepare('SELECT id, name, city FROM locations WHERE lower(name) = lower(?) LIMIT 1')
+      .get(name.trim());
+    return mapLocationRow(row);
+  };
+
+  const createLocation = async (location) => {
+    const trimmedName = location.name?.trim();
+    const trimmedCity = location.city?.trim();
+    if (!trimmedName || !trimmedCity) {
+      throw new Error('Location name and city are required');
+    }
+
+    const existing = await getLocationByName(trimmedName);
+    if (existing) {
+      throw new Error(`Location "${trimmedName}" already exists`);
+    }
+
+    const info = db
+      .prepare('INSERT INTO locations (name, city) VALUES (?, ?)')
+      .run(trimmedName, trimmedCity);
+    const created = db
+      .prepare('SELECT id, name, city FROM locations WHERE rowid = ?')
+      .get(info.lastInsertRowid);
+    return mapLocationRow(created);
+  };
+
+  const updateLocation = async (location) => {
+    if (!location?.id) {
+      throw new Error('Location id is required');
+    }
+    const trimmedName = location.name?.trim();
+    const trimmedCity = location.city?.trim();
+    if (!trimmedName || !trimmedCity) {
+      throw new Error('Location name and city are required');
+    }
+
+    const existing = await getLocationById(location.id);
+    if (!existing) {
+      throw new Error('Location not found');
+    }
+
+    const duplicate = db
+      .prepare('SELECT id FROM locations WHERE lower(name) = lower(?) AND id != ? LIMIT 1')
+      .get(trimmedName, location.id);
+    if (duplicate) {
+      throw new Error(`Location "${trimmedName}" already exists`);
+    }
+
+    db.prepare('UPDATE locations SET name = ?, city = ? WHERE id = ?')
+      .run(trimmedName, trimmedCity, location.id);
+    return await getLocationById(location.id);
+  };
+
+  const deleteLocation = async (id) => {
+    if (!id) {
+      throw new Error('Location id is required');
+    }
+    db.prepare('DELETE FROM locations WHERE id = ?').run(id);
+  };
+
   return {
     // Assets
     getAssets: notImplemented('getAssets'),
@@ -117,12 +200,12 @@ export const createSqliteProvider = (config) => {
     deleteEmployee: notImplemented('deleteEmployee'),
 
     // Locations
-    getLocations: notImplemented('getLocations'),
-    getLocationById: notImplemented('getLocationById'),
-    getLocationByName: notImplemented('getLocationByName'),
-    createLocation: notImplemented('createLocation'),
-    updateLocation: notImplemented('updateLocation'),
-    deleteLocation: notImplemented('deleteLocation'),
+    getLocations,
+    getLocationById,
+    getLocationByName,
+    createLocation,
+    updateLocation,
+    deleteLocation,
 
     // Users
     getUsers,

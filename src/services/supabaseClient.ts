@@ -1,13 +1,13 @@
-import { createClient } from '@supabase/supabase-js';
-import { dbConfig } from './database';
+import { getDataProvider } from './dataProvider';
 
 /**
  * Create and configure Supabase client
  */
 export const getSupabaseClient = async () => {
-  if (!dbConfig.supabaseUrl || !dbConfig.supabaseAnonKey) {
+  const provider = getDataProvider();
+  if (provider.mode !== 'supabase') {
     throw new Error('Supabase configuration is missing');
   }
 
-  return createClient(dbConfig.supabaseUrl, dbConfig.supabaseAnonKey);
+  return provider.client;
 };

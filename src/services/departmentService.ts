@@ -1,5 +1,14 @@
 import { Department } from '../types';
 import { getSupabaseClient } from './supabaseClient';
+import { isSupabaseConfigured } from './database';
+
+const normalizeDepartmentName = (name: string) => name.trim().toLowerCase();
+
+const mockDepartments: Department[] = [
+  { id: 'dept-1', name: 'Engineering', description: 'Software development team' },
+  { id: 'dept-2', name: 'Sales', description: 'Sales and marketing team' },
+  { id: 'dept-3', name: 'HR', description: 'Human resources team' }
+];
 
 export interface DepartmentService {
   getAll(): Promise<Department[]>;
@@ -16,6 +25,12 @@ class DepartmentServiceImpl implements DepartmentService {
    */
   async getAll(): Promise<Department[]> {
     try {
+      if (!isSupabaseConfigured()) {
+        return [...mockDepartments]
+          .filter(department => department.name)
+          .sort((a, b) => a.name.localeCompare(b.name));
+      }
+
       const supabase = await getSupabaseClient();
       const { data, error } = await supabase
         .from('departments')
@@ -40,6 +55,10 @@ class DepartmentServiceImpl implements DepartmentService {
    */
   async getById(id: string): Promise<Department | null> {
     try {
+      if (!isSupabaseConfigured()) {
+        return mockDepartments.find(department => department.id === id) || null;
+      }
+
       const supabase = await getSupabaseClient();
       const { data, error } = await supabase
         .from('departments')
@@ -70,6 +89,24 @@ class DepartmentServiceImpl implements DepartmentService {
       // Validate required fields
       if (!department.name || department.name.trim() === '') {
         throw new Error('Department name is required');
+      }
+
+      if (!isSupabaseConfigured()) {
+        const normalized = normalizeDepartmentName(department.name);
+        const existing = mockDepartments.find(
+          item => normalizeDepartmentName(item.name) === normalized
+        );
+        if (existing) {
+          throw new Error(`Department "${department.name}" already exists`);
+        }
+
+        const created: Department = {
+          id: `dept-${Date.now()}`,
+          name: department.name.trim(),
+          description: department.description || ''
+        };
+        mockDepartments.push(created);
+        return created;
       }
 
       // Check for duplicate department names (case-insensitive)
@@ -105,6 +142,32 @@ class DepartmentServiceImpl implements DepartmentService {
    */
   async update(id: string, updates: Partial<Department>): Promise<Department> {
     try {
+      if (!isSupabaseConfigured()) {
+        const existingIndex = mockDepartments.findIndex(department => department.id === id);
+        if (existingIndex === -1) {
+          throw new Error('Department not found');
+        }
+
+        const existing = mockDepartments[existingIndex];
+        if (updates.name && updates.name !== existing.name) {
+          const normalized = normalizeDepartmentName(updates.name);
+          const duplicate = mockDepartments.find(
+            item => item.id !== id && normalizeDepartmentName(item.name) === normalized
+          );
+          if (duplicate) {
+            throw new Error(`Department "${updates.name}" already exists`);
+          }
+        }
+
+        const updated: Department = {
+          ...existing,
+          name: updates.name ? updates.name.trim() : existing.name,
+          description: updates.description !== undefined ? updates.description || '' : existing.description
+        };
+        mockDepartments[existingIndex] = updated;
+        return updated;
+      }
+
       // Validate that the department exists
       const existing = await this.getById(id);
       if (!existing) {
@@ -147,6 +210,19 @@ class DepartmentServiceImpl implements DepartmentService {
    */
   async delete(id: string): Promise<void> {
     try {
+      if (!isSupabaseConfigured()) {
+        const usageCount = await this.checkUsage(id);
+        if (usageCount > 0) {
+          throw new Error(`Cannot delete department. It is being used by ${usageCount} employee(s).`);
+        }
+
+        const index = mockDepartments.findIndex(department => department.id === id);
+        if (index !== -1) {
+          mockDepartments.splice(index, 1);
+        }
+        return;
+      }
+
       // Check if department is in use
       const usageCount = await this.checkUsage(id);
       if (usageCount > 0) {
@@ -175,6 +251,10 @@ class DepartmentServiceImpl implements DepartmentService {
    */
   async checkUsage(id: string): Promise<number> {
     try {
+      if (!isSupabaseConfigured()) {
+        return 0;
+      }
+
       // First get the department name
       const department = await this.getById(id);
       if (!department) {
@@ -205,6 +285,13 @@ class DepartmentServiceImpl implements DepartmentService {
    */
   private async checkDuplicateName(name: string): Promise<boolean> {
     try {
+      if (!isSupabaseConfigured()) {
+        const normalized = normalizeDepartmentName(name);
+        return mockDepartments.some(
+          department => normalizeDepartmentName(department.name) === normalized
+        );
+      }
+
       const supabase = await getSupabaseClient();
       const { data, error } = await supabase
         .from('departments')

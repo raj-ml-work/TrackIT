@@ -12,11 +12,16 @@ import * as locationService from './locationService';
 import * as userService from './userService';
 import * as departmentService from './departmentService';
 import { dbConfig, DatabaseType } from './database';
+import { isApiConfigured } from './apiClient';
 
 /**
  * Check if database is configured and ready
  */
 export const isDatabaseReady = (): boolean => {
+  if (isApiConfigured()) {
+    return true;
+  }
+
   if (dbConfig.type === DatabaseType.SUPABASE) {
     return !!(dbConfig.supabaseUrl && dbConfig.supabaseAnonKey);
   }
@@ -34,6 +39,10 @@ export const initializeDatabase = async (): Promise<void> => {
   }
 
   try {
+    if (isApiConfigured()) {
+      return;
+    }
+
     if (dbConfig.type === DatabaseType.SUPABASE) {
       // Supabase client is initialized lazily
       const { getSupabaseClient } = await import('./supabaseClient');

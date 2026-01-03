@@ -1,20 +1,16 @@
 import { Location } from '../types';
 import { getSupabaseClient } from './supabaseClient';
-import { dbConfig } from './database';
-
-/**
- * Check if Supabase is configured
- */
-const isSupabaseConfigured = (): boolean => {
-  return dbConfig.type === 'supabase' && 
-         !!dbConfig.supabaseUrl && 
-         !!dbConfig.supabaseAnonKey;
-};
+import { isSupabaseConfigured } from './database';
+import { isApiConfigured, request } from './apiClient';
 
 /**
  * Get all locations
  */
 export const getLocations = async (): Promise<Location[]> => {
+  if (isApiConfigured()) {
+    return request<Location[]>('/locations');
+  }
+
   if (!isSupabaseConfigured()) {
     return [
       { id: 'loc-1', name: 'Headquarters', city: 'New York' },
@@ -40,6 +36,10 @@ export const getLocations = async (): Promise<Location[]> => {
  * Get location by ID
  */
 export const getLocationById = async (id: string): Promise<Location | null> => {
+  if (isApiConfigured()) {
+    return request<Location>(`/locations/${id}`);
+  }
+
   if (!isSupabaseConfigured()) {
     return {
       id,
@@ -67,6 +67,13 @@ export const getLocationById = async (id: string): Promise<Location | null> => {
  * Create a new location
  */
 export const createLocation = async (location: Omit<Location, 'id'>): Promise<Location> => {
+  if (isApiConfigured()) {
+    return request<Location>('/locations', {
+      method: 'POST',
+      body: JSON.stringify(location)
+    });
+  }
+
   if (!isSupabaseConfigured()) {
     // Mock implementation for development
     return {
@@ -101,6 +108,13 @@ export const createLocation = async (location: Omit<Location, 'id'>): Promise<Lo
  * Update a location
  */
 export const updateLocation = async (id: string, updates: Partial<Location>): Promise<Location> => {
+  if (isApiConfigured()) {
+    return request<Location>(`/locations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+  }
+
   if (!isSupabaseConfigured()) {
     // Mock implementation for development
     return {
@@ -137,6 +151,11 @@ export const updateLocation = async (id: string, updates: Partial<Location>): Pr
  * Delete a location
  */
 export const deleteLocation = async (id: string): Promise<void> => {
+  if (isApiConfigured()) {
+    await request<{ ok: boolean }>(`/locations/${id}`, { method: 'DELETE' });
+    return;
+  }
+
   if (!isSupabaseConfigured()) {
     // Mock implementation for development
     return;
