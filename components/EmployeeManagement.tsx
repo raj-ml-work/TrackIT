@@ -100,6 +100,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const [currentStep, setCurrentStep] = useState(1);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
+  const [fullNameInput, setFullNameInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [employeeIdError, setEmployeeIdError] = useState('');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -218,6 +219,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const openNew = () => {
     setEditingEmployee(null);
     setFormData(initialFormData);
+    setFullNameInput('');
     setCurrentStep(1);
     setIsModalOpen(true);
     setFormErrors({});
@@ -233,7 +235,8 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     const personalInfo = employee.personalInfo;
     
     const officialInfo = employee.officialInfo;
-    
+    const displayName = `${personalInfo?.firstName || nameParts[0] || ''} ${personalInfo?.lastName || nameParts.slice(1).join(' ') || ''}`.trim();
+
     setFormData({
       employeeId: employee.employeeId,
       locationId: employee.locationId,
@@ -259,6 +262,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         officialEmail: officialInfo?.officialEmail || employee.email || ''
       }
     });
+    setFullNameInput(displayName);
     
     setCurrentStep(1);
     setIsModalOpen(true);
@@ -270,6 +274,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     setIsModalOpen(false);
     setEditingEmployee(null);
     setFormData(initialFormData);
+    setFullNameInput('');
     setCurrentStep(1);
     setFormErrors({});
     setEmployeeIdError('');
@@ -376,7 +381,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           if (fieldMatch) {
             const fieldName = fieldMatch[1];
             if (fieldName === 'name' || fieldName === 'first_name') {
-              setFormErrors({ firstName: 'First name is required' });
+              setFormErrors({ firstName: 'Full name is required' });
               setCurrentStep(2);
             } else if (fieldName === 'official_email') {
               setFormErrors({ officialEmail: 'Official email is required' });
@@ -423,8 +428,9 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const validateStep2 = (): boolean => {
     const errors: Record<string, string> = {};
 
-    if (!formData.personalInfo.firstName || formData.personalInfo.firstName.trim() === '') {
-      errors.firstName = 'First name is required';
+    const fullNameValue = `${formData.personalInfo.firstName || ''} ${formData.personalInfo.lastName || ''}`.trim();
+    if (!fullNameValue) {
+      errors.firstName = 'Full name is required';
     }
 
     if (!formData.personalInfo.gender) {
@@ -661,9 +667,9 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <div>
-          <label className="text-xs text-gray-500 uppercase block mb-1">First Name *</label>
+          <label className="text-xs text-gray-500 uppercase block mb-1">Full Name *</label>
           <input
             required
             disabled={isSubmitting}
@@ -672,32 +678,25 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                 ? 'border-red-300 focus:ring-red-100' 
                 : 'border-gray-200 focus:ring-blue-100'
             }`}
-            value={formData.personalInfo.firstName}
+            value={fullNameInput}
             onChange={e => {
+              const rawValue = e.target.value;
+              const trimmed = rawValue.trim();
+              const parts = trimmed ? trimmed.split(/\s+/).filter(Boolean) : [];
+              const firstName = parts[0] || '';
+              const lastName = parts.slice(1).join(' ');
+              setFullNameInput(rawValue);
               setFormData(prev => ({
                 ...prev,
-                personalInfo: { ...prev.personalInfo, firstName: e.target.value }
+                personalInfo: { ...prev.personalInfo, firstName, lastName }
               }));
               if (formErrors.firstName) setFormErrors(prev => ({ ...prev, firstName: undefined }));
             }}
-            placeholder="e.g. John"
+            placeholder="e.g. John Doe"
           />
           {formErrors.firstName && (
             <p className="text-xs text-red-600 mt-1">{formErrors.firstName}</p>
           )}
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 uppercase block mb-1">Last Name</label>
-          <input
-            disabled={isSubmitting}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-            value={formData.personalInfo.lastName}
-            onChange={e => setFormData(prev => ({
-              ...prev,
-              personalInfo: { ...prev.personalInfo, lastName: e.target.value }
-            }))}
-            placeholder="e.g. Doe"
-          />
         </div>
       </div>
 
