@@ -96,7 +96,16 @@ export interface Asset {
   location: string;
 }
 
-export type AssetType = 'Laptop' | 'Desktop' | 'Monitor' | 'Keyboard' | 'Mouse' | 'Headphone' | 'Other';
+export type AssetType =
+  | 'Laptop'
+  | 'Desktop'
+  | 'Monitor'
+  | 'Keyboard'
+  | 'Mouse'
+  | 'Headphone'
+  | 'Network devices'
+  | 'Storage'
+  | 'Other';
 export type AssetStatus = 'Available' | 'Shared Resource' | 'Maintenance' | 'Retired';
 
 export interface AssetComment {

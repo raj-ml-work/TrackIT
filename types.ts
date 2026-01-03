@@ -4,9 +4,13 @@ export enum AssetType {
   MONITOR = 'Monitor',
   PRINTER = 'Printer',
   ACCESSORY = 'Accessory',
+  HEADPHONE = 'Headphone',
   MOBILE = 'Mobile',
   PROJECTOR = 'Projector',
-  TV = 'TV'
+  TV = 'TV',
+  NETWORK_DEVICES = 'Network devices',
+  STORAGE = 'Storage',
+  OTHER = 'Other'
 }
 
 export enum AssetStatus {

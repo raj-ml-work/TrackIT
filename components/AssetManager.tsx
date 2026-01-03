@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType, Location, Employee, EmployeeStatus } from '../types';
 import GlassCard from './GlassCard';
-import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, IndianRupee, MapPin, Hash, User, FileText, Cpu, Layers, MessageSquare, Send, Eye, DollarSign, Loader } from 'lucide-react';
+import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, IndianRupee, MapPin, Hash, User, FileText, Cpu, Layers, Headphones, MessageSquare, Send, Eye, DollarSign, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAssetsPage } from '../services/dataService';
+import { getAssetsPage, getAssetComments } from '../services/dataService';
 
 interface AssetManagerProps {
   assets: Asset[];
@@ -50,7 +50,21 @@ const getIcon = (type: AssetType) => {
     case AssetType.PRINTER: return <Printer size={18} />;
     case AssetType.TV: return <Tv size={18} />;
     case AssetType.PROJECTOR: return <ProjectorIcon size={18} />;
+    case AssetType.NETWORK_DEVICES: return <Layers size={18} />;
+    case AssetType.STORAGE: return <HardDrive size={18} />;
+    case AssetType.HEADPHONE: return <Headphones size={18} />;
     default: return <HardDrive size={18} />;
+  }
+};
+
+const formatAssetTypeLabel = (type: AssetType) => {
+  switch (type) {
+    case AssetType.HEADPHONE:
+      return 'Head Phones';
+    case AssetType.OTHER:
+      return 'Others';
+    default:
+      return type;
   }
 };
 
@@ -173,12 +187,38 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     }
   }, [page, totalPages]);
 
+  const loadAssetComments = async (asset: Asset, target: 'view' | 'select') => {
+    if (target === 'view') {
+      setViewingAsset(asset);
+    } else {
+      setSelectedAsset(asset);
+    }
+
+    if (!useBackend) {
+      return;
+    }
+
+    try {
+      const comments = await getAssetComments(asset.id);
+      if (target === 'view') {
+        setViewingAsset((current) => (current && current.id === asset.id ? { ...current, comments } : current));
+      } else {
+        setSelectedAsset((current) => (current && current.id === asset.id ? { ...current, comments } : current));
+      }
+    } catch (error) {
+      console.warn('Failed to load asset comments:', error);
+    }
+  };
+
   // Update selected asset when assets change (e.g., when a comment is added)
   useEffect(() => {
     if (selectedAsset) {
       const updated = visibleAssets.find(a => a.id === selectedAsset.id);
       if (updated) {
-        setSelectedAsset(updated);
+        const merged = updated.comments && updated.comments.length > 0
+          ? updated
+          : { ...updated, comments: selectedAsset.comments };
+        setSelectedAsset(merged);
       }
     }
   }, [visibleAssets, selectedAsset?.id]);
@@ -429,7 +469,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Type *</label>
           <select className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg outline-none"
             value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as AssetType})}>
-              {Object.values(AssetType).map(t => <option key={t} value={t}>{t}</option>)}
+              {Object.values(AssetType).map(t => <option key={t} value={t}>{formatAssetTypeLabel(t)}</option>)}
           </select>
         </div>
         <div>
@@ -762,7 +802,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none"
             >
               <option value="All">All Types</option>
-              {Object.values(AssetType).map(t => <option key={t} value={t}>{t}</option>)}
+              {Object.values(AssetType).map(t => <option key={t} value={t}>{formatAssetTypeLabel(t)}</option>)}
             </select>
           </div>
           <div className="flex items-center gap-3 ml-auto">
@@ -897,7 +937,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                 </div>
                 <div className="col-span-2 flex items-center gap-2 justify-end">
                   <button
-                    onClick={() => setViewingAsset(asset)}
+                    onClick={() => loadAssetComments(asset, 'view')}
                     className="p-2 hover:bg-green-50 text-green-600 rounded-lg transition-colors"
                     title="View Details"
                   >

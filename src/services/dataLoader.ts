@@ -338,7 +338,17 @@ export class DataLoader {
     page: number,
     filters: {
       status?: 'Available' | 'Shared Resource' | 'Maintenance' | 'Retired' | 'all';
-      type?: 'Laptop' | 'Desktop' | 'Monitor' | 'Keyboard' | 'Mouse' | 'Headphone' | 'Other' | 'all';
+      type?:
+        | 'Laptop'
+        | 'Desktop'
+        | 'Monitor'
+        | 'Keyboard'
+        | 'Mouse'
+        | 'Headphone'
+        | 'Network devices'
+        | 'Storage'
+        | 'Other'
+        | 'all';
       location?: string;
       assignedTo?: string;
       search?: string;

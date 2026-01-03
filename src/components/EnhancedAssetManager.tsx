@@ -398,8 +398,10 @@ export const EnhancedAssetManager: React.FC<AssetManagerProps> = ({ insights: in
                 <option value="Monitor">Monitors</option>
                 <option value="Keyboard">Keyboards</option>
                 <option value="Mouse">Mice</option>
-                <option value="Headphone">Headphones</option>
-                <option value="Other">Other</option>
+                <option value="Network devices">Network devices</option>
+                <option value="Headphone">Head Phones</option>
+                <option value="Storage">Storage</option>
+                <option value="Other">Others</option>
               </select>
 
               {/* Advanced Filters Toggle */}
