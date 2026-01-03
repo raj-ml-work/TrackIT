@@ -240,7 +240,7 @@ CREATE TABLE IF NOT EXISTS assets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(255) NOT NULL,
   type VARCHAR(50) NOT NULL, -- 'Laptop', 'Desktop', 'Monitor', etc.
-  status VARCHAR(50) NOT NULL DEFAULT 'Available', -- 'In Use', 'Available', 'Maintenance', 'Retired'
+  status VARCHAR(50) NOT NULL DEFAULT 'Available', -- 'Shared Resource', 'Available', 'Maintenance', 'Retired'
   serial_number VARCHAR(255) NOT NULL,
   assigned_to VARCHAR(255), -- Legacy: employee name (for backward compatibility)
   purchase_date DATE,
@@ -324,7 +324,7 @@ BEGIN
   ) THEN
     BEGIN
       ALTER TABLE assets ADD CONSTRAINT check_status 
-        CHECK (status IN ('In Use', 'Available', 'Maintenance', 'Retired', 'Assigned', 'Under Maintenance'));
+        CHECK (status IN ('Shared Resource', 'Available', 'Maintenance', 'Retired', 'Assigned', 'Under Maintenance'));
     EXCEPTION WHEN duplicate_object THEN
       NULL;
     END;

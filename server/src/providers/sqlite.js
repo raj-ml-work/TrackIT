@@ -127,14 +127,18 @@ const ensureAssetTables = (db) => {
 };
 
 const ensureDefaultAdmin = (db, config) => {
-  const existing = db.prepare('SELECT COUNT(*) as count FROM users').get();
+  const adminEmail = config.defaults.adminEmail.trim().toLowerCase();
+  const adminPassword = config.defaults.adminPassword.trim();
+  const existing = db.prepare(
+    "SELECT COUNT(*) as count FROM users WHERE role = 'Admin' OR lower(email) = ?"
+  ).get(adminEmail);
   if (existing?.count > 0) return;
 
-  const hashedPassword = hashPasswordSha256(config.defaults.adminPassword);
+  const hashedPassword = hashPasswordSha256(adminPassword);
   db.prepare(
     `INSERT INTO users (name, email, password_hash, role, status)
      VALUES (?, ?, ?, ?, ?)`
-  ).run('System Administrator', config.defaults.adminEmail.toLowerCase(), hashedPassword, 'Admin', 'Active');
+  ).run('System Administrator', adminEmail, hashedPassword, 'Admin', 'Active');
 };
 
 const notImplemented = (name) => {

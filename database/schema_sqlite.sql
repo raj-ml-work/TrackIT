@@ -49,6 +49,19 @@ CREATE INDEX IF NOT EXISTS idx_locations_name ON locations(name);
 CREATE INDEX IF NOT EXISTS idx_locations_country ON locations(country);
 
 -- ============================================
+-- DEPARTMENTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS departments (
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+  name TEXT UNIQUE NOT NULL,
+  description TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_departments_name ON departments(name);
+
+-- ============================================
 -- EMPLOYEE PERSONAL INFO TABLE (New - Normalized)
 -- ============================================
 CREATE TABLE IF NOT EXISTS employee_personal_info (
@@ -119,7 +132,7 @@ CREATE TABLE IF NOT EXISTS assets (
   id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   name TEXT NOT NULL,
   type TEXT NOT NULL, -- 'Laptop', 'Desktop', 'Monitor', etc.
-  status TEXT NOT NULL DEFAULT 'Available', -- 'In Use', 'Available', 'Maintenance', 'Retired'
+  status TEXT NOT NULL DEFAULT 'Available', -- 'Shared Resource', 'Available', 'Maintenance', 'Retired'
   serial_number TEXT NOT NULL UNIQUE,
   assigned_to TEXT, -- Legacy: employee name (for backward compatibility)
   assigned_to_uuid TEXT, -- UUID foreign key
@@ -154,7 +167,7 @@ CREATE INDEX IF NOT EXISTS idx_assets_status_location ON assets(status, location
 -- ASSET SPECS TABLE (New - Normalized Specs)
 -- ============================================
 CREATE TABLE IF NOT EXISTS asset_specs (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
   asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
   asset_type TEXT NOT NULL,
   brand TEXT,
@@ -207,18 +220,6 @@ CREATE INDEX IF NOT EXISTS idx_asset_comments_asset_id ON asset_comments(asset_i
 CREATE INDEX IF NOT EXISTS idx_asset_comments_created_at ON asset_comments(created_at DESC);
 
 -- ============================================
--- DEFAULT ADMIN BOOTSTRAP
--- ============================================
-INSERT OR IGNORE INTO users (name, email, role, status, password_hash)
-VALUES (
-  'System Administrator',
-  'admin@trackit.com',
-  'Admin',
-  'Active',
-  lower(hex(randomblob(32))) -- Simple hash placeholder, should be replaced with proper hashing
-);
-
--- ============================================
 -- TRIGGERS for updated_at
 -- ============================================
 
@@ -247,6 +248,15 @@ CREATE TRIGGER IF NOT EXISTS update_locations_updated_at
   WHEN NEW.updated_at = OLD.updated_at
 BEGIN
   UPDATE locations SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END;
+
+-- Trigger for departments
+CREATE TRIGGER IF NOT EXISTS update_departments_updated_at
+  AFTER UPDATE ON departments
+  FOR EACH ROW
+  WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+  UPDATE departments SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
 
 -- Trigger for employee_personal_info

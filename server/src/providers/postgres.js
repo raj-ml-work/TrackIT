@@ -11,15 +11,20 @@ const ensureUsersTable = async (pool) => {
 };
 
 const ensureDefaultAdmin = async (pool, config) => {
-  const result = await pool.query('SELECT COUNT(*) AS count FROM users');
+  const adminEmail = config.defaults.adminEmail.trim().toLowerCase();
+  const adminPassword = config.defaults.adminPassword.trim();
+  const result = await pool.query(
+    "SELECT COUNT(*) AS count FROM users WHERE role = 'Admin' OR lower(email) = lower($1)",
+    [adminEmail]
+  );
   const count = Number(result?.rows?.[0]?.count || 0);
   if (count > 0) return;
 
-  const hashedPassword = hashPasswordSha256(config.defaults.adminPassword);
+  const hashedPassword = hashPasswordSha256(adminPassword);
   await pool.query(
     `INSERT INTO users (name, email, password_hash, role, status)
      VALUES ($1, $2, $3, $4, $5)`,
-    ['System Administrator', config.defaults.adminEmail.toLowerCase(), hashedPassword, 'Admin', 'Active']
+    ['System Administrator', adminEmail, hashedPassword, 'Admin', 'Active']
   );
 };
 
