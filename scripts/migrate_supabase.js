@@ -11,6 +11,7 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const EXPORT_DIR = path.resolve(__dirname, '..', '..', 'data_export');
 const DUPLICATES_DIR = path.resolve(ROOT_DIR, 'data');
 const DUPLICATES_PATH = path.resolve(DUPLICATES_DIR, 'duplicates_assets.csv');
+const MISSING_SERIALS_PATH = path.resolve(DUPLICATES_DIR, 'missing_serial_assets.csv');
 
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
@@ -110,6 +111,94 @@ function readCsv(filePath) {
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function randomSerial(existingSerials) {
+  let serial = '';
+  do {
+    serial = `AUTO-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+  } while (existingSerials.has(serial));
+  existingSerials.add(serial);
+  return serial;
+}
+
+function normalizeAssetType(type, unknownTypes) {
+  const raw = String(type || '').trim();
+  if (!raw) {
+    return 'Other';
+  }
+  const key = raw.toLowerCase();
+  const mapping = new Map([
+    ['router', 'Network devices'],
+    ['routers', 'Network devices'],
+    ['switch', 'Network devices'],
+    ['switches', 'Network devices'],
+    ['mouse', 'Accessory'],
+    ['keyboard', 'Accessory'],
+    ['ram', 'Storage'],
+    ['cctv', 'Other'],
+    ['cctv set', 'Other'],
+    ['biometric', 'Other'],
+    ['android tab', 'Mobile'],
+    ['iphone', 'Mobile'],
+    ['earphone', 'Headphone'],
+    ['earphones', 'Headphone'],
+    ['hdmi', 'Other'],
+    ['lan_card', 'Other'],
+    ['lan card', 'Other'],
+    ['laptop battery', 'Other'],
+    ['refrigerator', 'Other'],
+    ['ssd', 'Storage'],
+    ['spike guard', 'Other'],
+    ['ups', 'Other'],
+    ['usb_drive', 'Storage'],
+    ['usb drive', 'Storage'],
+    ['testing_tool', 'Other'],
+    ['testing tool', 'Other'],
+    ['spikeguard', 'Other'],
+    ['spikegaurd', 'Other'],
+    ['smps', 'Other'],
+    ['headphone', 'Headphone'],
+    ['headphones', 'Headphone'],
+    ['usb drive', 'Storage'],
+    ['laptop charger', 'Other'],
+    ['usb hub', 'Other']
+  ]);
+  if (mapping.has(key)) {
+    return mapping.get(key);
+  }
+  if (key.includes('hard disk') || key.includes('harddisk') || key.includes('hdd')) {
+    return 'Storage';
+  }
+
+  const knownTypes = new Set([
+    'laptop',
+    'desktop',
+    'monitor',
+    'printer',
+    'accessory',
+    'mobile',
+    'projector',
+    'tv',
+    'network devices',
+    'storage',
+    'other',
+    'headphone'
+  ]);
+  if (!knownTypes.has(key) && unknownTypes) {
+    unknownTypes.add(raw);
+  }
+  return raw;
+}
+
+function generateSerial(existingSerials, assetTag) {
+  const tag = String(assetTag || 'UNKNOWN').trim().replace(/\s+/g, '');
+  let candidate = '';
+  do {
+    candidate = `AUTO-${tag}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  } while (existingSerials.has(candidate));
+  existingSerials.add(candidate);
+  return candidate;
 }
 
 function normalizeLocation(value) {
@@ -241,10 +330,13 @@ function buildCsvMigrationNote(payload) {
   return `CSV Migration Data: ${JSON.stringify(payload)}`;
 }
 
-async function main() {
-  loadEnv(path.resolve(ROOT_DIR, '.env'));
-  loadEnv(path.resolve(__dirname, '.env'));
-
+async function migrateViaSupabase({
+  personalInfoRows,
+  officialInfoRows,
+  employeeRows,
+  assetRows,
+  laptopRows
+}) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const serviceRoleKey =
     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
@@ -283,12 +375,6 @@ async function main() {
   }
 
   console.log('[load] reading CSV exports');
-  const personalInfoRows = readCsv(path.resolve(EXPORT_DIR, '02_employee_personal_info.csv'));
-  const officialInfoRows = readCsv(path.resolve(EXPORT_DIR, '03_employee_official_info.csv'));
-  const employeeRows = readCsv(path.resolve(EXPORT_DIR, '05_employees.csv'));
-  const assetRows = readCsv(path.resolve(EXPORT_DIR, '06_assets.csv'));
-  const laptopRows = readCsv(path.resolve(EXPORT_DIR, '07_laptop_assets.csv'));
-
   const locationSources = new Map();
   function trackLocation(raw) {
     const canonical = normalizeLocation(raw);
@@ -456,14 +542,37 @@ async function main() {
 
   console.log('[load] de-duplicating assets');
   const assetHeader = Object.keys(assetRows[0] || {});
+  const existingSerials = new Set();
   const seenSerials = new Set();
   const dedupedAssets = [];
   const duplicateAssets = [];
+  const missingSerialAssets = [];
   for (const row of assetRows) {
     const serial = (row.serial_number || '').trim();
+    if (serial && serial !== '-') {
+      existingSerials.add(serial);
+    }
+  }
+  for (const row of assetRows) {
+    const assetName = (row.name || '').trim();
+    if (assetName === 'BS_HYD_0072') {
+      row.serial_number = '5RHX193';
+    }
+
+    const assetTag = (row.name || row.id || 'UNKNOWN').trim();
+    let serial = (row.serial_number || '').trim();
+    if (serial === '-') {
+      serial = '';
+    }
     if (!serial) {
+      missingSerialAssets.push({ ...row });
+      serial = generateSerial(existingSerials, assetTag);
+      row.serial_number = serial;
+      seenSerials.add(serial);
+      dedupedAssets.push(row);
       continue;
     }
+
     if (seenSerials.has(serial)) {
       duplicateAssets.push(row);
       continue;
@@ -491,15 +600,40 @@ async function main() {
     console.log(`[load] wrote ${duplicateAssets.length} duplicate assets to ${DUPLICATES_PATH}`);
   }
 
+  if (missingSerialAssets.length > 0) {
+    fs.mkdirSync(DUPLICATES_DIR, { recursive: true });
+    const lines = [];
+    lines.push(assetHeader.join(','));
+    for (const row of missingSerialAssets) {
+      const line = assetHeader.map((key) => {
+        const value = row[key] ?? '';
+        const escaped = String(value).replace(/\"/g, '""');
+        if (escaped.includes(',') || escaped.includes('\n') || escaped.includes('\r')) {
+          return `"${escaped}"`;
+        }
+        return escaped;
+      });
+      lines.push(line.join(','));
+    }
+    fs.writeFileSync(MISSING_SERIALS_PATH, `${lines.join('\n')}\n`, 'utf8');
+    console.log(`[load] wrote ${missingSerialAssets.length} assets missing serials to ${MISSING_SERIALS_PATH}`);
+  }
+
   console.log('[load] inserting assets');
+  const unknownAssetTypes = new Set();
   const assetInsertRows = dedupedAssets.map((row) => {
     const locationName = normalizeLocation(row.location);
     const locationId = locationIdByName.get(locationName) || null;
     const originalLocation = row.location?.trim();
-    const notes = appendNote(row.notes?.trim() || null, originalLocation ? `Original location: ${originalLocation}` : null);
+    const migrationNote = buildCsvMigrationNote({ asset: row });
+    const notes = appendNote(
+      appendNote(row.notes?.trim() || null, originalLocation ? `Original location: ${originalLocation}` : null),
+      migrationNote
+    );
+    const normalizedType = normalizeAssetType(row.type, unknownAssetTypes);
     return {
       name: row.name?.trim() || 'Unknown',
-      type: row.type?.trim() || 'Other',
+      type: normalizedType,
       status: row.status?.trim() || 'Available',
       serial_number: row.serial_number?.trim(),
       assigned_to: row.assigned_to?.trim() || null,
@@ -514,6 +648,9 @@ async function main() {
       manufacturer: row.manufacturer?.trim() || null
     };
   });
+  if (unknownAssetTypes.size > 0) {
+    console.warn(`[load] unmapped asset types: ${Array.from(unknownAssetTypes).sort().join(', ')}`);
+  }
   await insertBatch(supabase, 'assets', assetInsertRows);
   const { data: assetData, error: assetError } = await supabase
     .from('assets')
@@ -600,6 +737,28 @@ async function main() {
   }
 
   console.log('[done] migration complete');
+}
+
+async function main() {
+  loadEnv(path.resolve(ROOT_DIR, '.env'));
+  loadEnv(path.resolve(__dirname, '.env'));
+
+  console.log('[load] reading CSV exports');
+  const personalInfoRows = readCsv(path.resolve(EXPORT_DIR, '02_employee_personal_info.csv'));
+  const officialInfoRows = readCsv(path.resolve(EXPORT_DIR, '03_employee_official_info.csv'));
+  const employeeRows = readCsv(path.resolve(EXPORT_DIR, '05_employees.csv'));
+  const assetRows = readCsv(path.resolve(EXPORT_DIR, '06_assets.csv'));
+  const laptopRows = readCsv(path.resolve(EXPORT_DIR, '07_laptop_assets.csv'));
+
+  const csvData = {
+    personalInfoRows,
+    officialInfoRows,
+    employeeRows,
+    assetRows,
+    laptopRows
+  };
+
+  await migrateViaSupabase(csvData);
 }
 
 main().catch((error) => {

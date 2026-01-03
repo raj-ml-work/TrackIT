@@ -346,6 +346,6 @@ DROP TABLE IF EXISTS official_info_id_mapping;
 
 -- Check for any data issues:
 -- SELECT * FROM assets WHERE location_id IS NULL AND location IS NOT NULL;
--- SELECT * FROM assets WHERE assigned_to IS NULL AND status = 'In Use';
+-- SELECT * FROM assets WHERE assigned_to IS NULL AND status = 'Shared Resource';
 
 
