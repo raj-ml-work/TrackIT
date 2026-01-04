@@ -77,6 +77,48 @@ const initialFormData: EmployeeFormData = {
   }
 };
 
+const AUDIT_COMMENT_SEPARATOR = '\n---\n';
+
+const splitEmployeeComments = (comments?: string): string[] => {
+  if (!comments || comments.trim().length === 0) {
+    return [];
+  }
+
+  const normalized = comments
+    .replace(/\r\n/g, '\n')
+    .replace(/\\n/g, '\n');
+  const blocks = normalized.includes(AUDIT_COMMENT_SEPARATOR)
+    ? normalized.split(AUDIT_COMMENT_SEPARATOR)
+    : [normalized];
+
+  const entries: string[] = [];
+  blocks.forEach((block) => {
+    const lines = block
+      .split('\n')
+      .map(entry => entry.trim())
+      .filter(Boolean);
+
+    let buffer: string[] = [];
+    lines.forEach((line) => {
+      if (line.startsWith('[') && line.includes(']')) {
+        if (buffer.length > 0) {
+          entries.push(buffer.join('\n'));
+          buffer = [];
+        }
+        entries.push(line);
+        return;
+      }
+      buffer.push(line);
+    });
+
+    if (buffer.length > 0) {
+      entries.push(buffer.join('\n'));
+    }
+  });
+
+  return entries.filter(Boolean);
+};
+
 const statusBadge = (status: EmployeeStatus) => {
   const base = 'text-xs px-3 py-1 rounded-full font-semibold';
   return status === EmployeeStatus.ACTIVE
@@ -1510,12 +1552,16 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                           </div>
                         </div>
                       </div>
-                      {viewingEmployee.personalInfo?.additionalComments && (
+                      {splitEmployeeComments(viewingEmployee.personalInfo?.additionalComments).length > 0 && (
                         <div className="p-4 bg-gray-50 rounded-xl">
                           <p className="text-xs text-gray-500 uppercase mb-1">Comments / Notes</p>
-                          <p className="text-sm text-gray-900 whitespace-pre-wrap">
-                            {viewingEmployee.personalInfo.additionalComments}
-                          </p>
+                          <div className="space-y-2">
+                            {splitEmployeeComments(viewingEmployee.personalInfo?.additionalComments).map((entry, index) => (
+                              <div key={`employee-comment-${viewingEmployee.id}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 whitespace-pre-wrap break-words">
+                                {entry}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </motion.div>
@@ -1578,10 +1624,16 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                               </a>
                             </div>
                           )}
-                          {viewingEmployee.personalInfo.additionalComments && (
+                          {splitEmployeeComments(viewingEmployee.personalInfo.additionalComments).length > 0 && (
                             <div className="col-span-2 p-4 bg-gray-50 rounded-xl">
                               <p className="text-xs text-gray-500 uppercase mb-1">Additional Comments</p>
-                              <p className="text-sm text-gray-900 whitespace-pre-wrap">{viewingEmployee.personalInfo.additionalComments}</p>
+                              <div className="space-y-2">
+                                {splitEmployeeComments(viewingEmployee.personalInfo.additionalComments).map((entry, index) => (
+                                  <div key={`employee-comment-detail-${viewingEmployee.id}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 whitespace-pre-wrap break-words">
+                                    {entry}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>

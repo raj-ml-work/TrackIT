@@ -407,12 +407,13 @@ export const updateAsset = async (asset: Asset, currentUser: UserAccount | null 
     }
 
     if (isApiConfigured()) {
+      const currentAsset = await apiFetchJson<Asset>(`/assets/${asset.id}`);
       const updatedAsset = await apiFetchJson<Asset>(`/assets/${asset.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(asset)
       });
-      const changes = getAssetChanges(asset, updatedAsset);
+      const changes = getAssetChanges(currentAsset, updatedAsset);
       if (changes.length > 0) {
         const systemComment: Omit<AssetComment, 'id'> = {
           assetId: asset.id,

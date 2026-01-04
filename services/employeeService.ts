@@ -370,11 +370,37 @@ export const updateEmployee = async (employee: Employee, currentUser: UserAccoun
     }
 
     if (isApiConfigured()) {
-      return await apiFetchJson<Employee>(`/employees/${employee.id}`, {
+      const currentEmployee = await apiFetchJson<Employee>(`/employees/${employee.id}`);
+      const mergedEmployee = mergeEmployeeForAudit(currentEmployee, employee);
+      const changes = getEmployeeChanges(currentEmployee, mergedEmployee);
+      const auditEntry = changes.length > 0 ? buildEmployeeAuditEntry(changes, currentUser) : null;
+      const payload = auditEntry
+        ? {
+            ...employee,
+            personalInfo: {
+              ...(mergedEmployee.personalInfo || {}),
+              additionalComments: appendAuditComments(
+                mergedEmployee.personalInfo?.additionalComments,
+                auditEntry
+              )
+            }
+          }
+        : employee;
+
+      const updatedEmployee = await apiFetchJson<Employee>(`/employees/${employee.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(employee)
+        body: JSON.stringify(payload)
       });
+
+      if (auditEntry && updatedEmployee.personalInfo) {
+        updatedEmployee.personalInfo = {
+          ...updatedEmployee.personalInfo,
+          additionalComments: (payload as Employee).personalInfo?.additionalComments
+        };
+      }
+
+      return updatedEmployee;
     }
 
     const supabase = await getSupabaseClient();
@@ -445,7 +471,17 @@ export const updateEmployee = async (employee: Employee, currentUser: UserAccoun
     // Log changes for audit purposes
     const changes = getEmployeeChanges(currentEmployee, updatedEmployee);
     if (changes.length > 0) {
-      console.log(`Employee update audit: ${changes.join(', ')}`);
+      const auditEntry = buildEmployeeAuditEntry(changes, currentUser);
+      if (updatedEmployee.personalInfo?.id) {
+        const updatedPersonalInfo = await updateEmployeePersonalInfo({
+          ...updatedEmployee.personalInfo,
+          additionalComments: appendAuditComments(
+            updatedEmployee.personalInfo.additionalComments,
+            auditEntry
+          )
+        });
+        updatedEmployee.personalInfo = updatedPersonalInfo;
+      }
     }
 
     return updatedEmployee;
@@ -577,8 +613,104 @@ const getEmployeeChanges = (oldEmployee: Employee, newEmployee: Employee): strin
   if (oldEmployee.title !== newEmployee.title) {
     changes.push(`title changed from "${oldEmployee.title || 'N/A'}" to "${newEmployee.title || 'N/A'}"`);
   }
+
+  const oldPersonal = oldEmployee.personalInfo || {};
+  const newPersonal = newEmployee.personalInfo || {};
+  if (oldPersonal.gender !== newPersonal.gender) {
+    changes.push(`gender changed from "${oldPersonal.gender || 'N/A'}" to "${newPersonal.gender || 'N/A'}"`);
+  }
+  if (oldPersonal.mobileNumber !== newPersonal.mobileNumber) {
+    changes.push(`mobile number changed from "${oldPersonal.mobileNumber || 'N/A'}" to "${newPersonal.mobileNumber || 'N/A'}"`);
+  }
+  if (oldPersonal.personalEmail !== newPersonal.personalEmail) {
+    changes.push(`personal email changed from "${oldPersonal.personalEmail || 'N/A'}" to "${newPersonal.personalEmail || 'N/A'}"`);
+  }
+  if (oldPersonal.emergencyContactName !== newPersonal.emergencyContactName) {
+    changes.push(`emergency contact name changed from "${oldPersonal.emergencyContactName || 'N/A'}" to "${newPersonal.emergencyContactName || 'N/A'}"`);
+  }
+  if (oldPersonal.emergencyContactNumber !== newPersonal.emergencyContactNumber) {
+    changes.push(`emergency contact number changed from "${oldPersonal.emergencyContactNumber || 'N/A'}" to "${newPersonal.emergencyContactNumber || 'N/A'}"`);
+  }
+  if (oldPersonal.linkedinUrl !== newPersonal.linkedinUrl) {
+    changes.push(`LinkedIn URL changed from "${oldPersonal.linkedinUrl || 'N/A'}" to "${newPersonal.linkedinUrl || 'N/A'}"`);
+  }
+
+  const oldOfficial = oldEmployee.officialInfo || {};
+  const newOfficial = newEmployee.officialInfo || {};
+  if (oldOfficial.officialEmail !== newOfficial.officialEmail) {
+    changes.push(`official email changed from "${oldOfficial.officialEmail || 'N/A'}" to "${newOfficial.officialEmail || 'N/A'}"`);
+  }
+  if (oldOfficial.startDate !== newOfficial.startDate) {
+    changes.push(`start date changed from "${oldOfficial.startDate || 'N/A'}" to "${newOfficial.startDate || 'N/A'}"`);
+  }
+  if (oldOfficial.officialDob !== newOfficial.officialDob) {
+    changes.push(`date of birth changed from "${oldOfficial.officialDob || 'N/A'}" to "${newOfficial.officialDob || 'N/A'}"`);
+  }
+  if (oldOfficial.biometricId !== newOfficial.biometricId) {
+    changes.push(`biometric ID changed from "${oldOfficial.biometricId || 'N/A'}" to "${newOfficial.biometricId || 'N/A'}"`);
+  }
+  if (oldOfficial.rfidSerial !== newOfficial.rfidSerial) {
+    changes.push(`RFID serial changed from "${oldOfficial.rfidSerial || 'N/A'}" to "${newOfficial.rfidSerial || 'N/A'}"`);
+  }
+  if (oldOfficial.agreementSigned !== newOfficial.agreementSigned) {
+    changes.push(
+      `agreement signed changed from "${oldOfficial.agreementSigned ? 'Yes' : 'No'}" to "${newOfficial.agreementSigned ? 'Yes' : 'No'}"`
+    );
+  }
   
   return changes;
+};
+
+const mergeEmployeeForAudit = (current: Employee, updated: Employee): Employee => {
+  return {
+    ...current,
+    ...updated,
+    personalInfo: {
+      ...(current.personalInfo || {}),
+      ...(updated.personalInfo || {})
+    },
+    officialInfo: {
+      ...(current.officialInfo || {}),
+      ...(updated.officialInfo || {})
+    }
+  };
+};
+
+const buildEmployeeAuditEntry = (changes: string[], currentUser: UserAccount | null): string => {
+  const author = currentUser?.name || 'System';
+  return `[${new Date().toISOString()}] ${author}: ${changes.join('; ')}`;
+};
+
+const AUDIT_COMMENT_SEPARATOR = '\n---\n';
+
+const splitEmployeeComments = (comments: string | undefined): string[] => {
+  if (!comments || comments.trim().length === 0) {
+    return [];
+  }
+
+  if (comments.includes(AUDIT_COMMENT_SEPARATOR)) {
+    return comments
+      .split(AUDIT_COMMENT_SEPARATOR)
+      .map(entry => entry.trim())
+      .filter(Boolean);
+  }
+
+  const lines = comments
+    .split('\n')
+    .map(entry => entry.trim())
+    .filter(Boolean);
+  const looksLikeAudit = lines.length > 1 && lines.every(line => line.startsWith('[') && line.includes(']'));
+  return looksLikeAudit ? lines : [comments.trim()];
+};
+
+const joinEmployeeComments = (entries: string[]): string => {
+  return entries.join(AUDIT_COMMENT_SEPARATOR);
+};
+
+const appendAuditComments = (existing: string | undefined, entry: string): string => {
+  const entries = splitEmployeeComments(existing);
+  entries.push(entry);
+  return joinEmployeeComments(entries);
 };
 
 /**
