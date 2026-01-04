@@ -106,6 +106,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   
   // Comment State
   const [commentText, setCommentText] = useState('');
+  const [viewCommentText, setViewCommentText] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
@@ -120,6 +121,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     }, 300);
     return () => clearTimeout(handle);
   }, [searchTerm]);
+
+  useEffect(() => {
+    setViewCommentText('');
+  }, [viewingAsset?.id]);
 
   useEffect(() => {
     if (!useBackend) return;
@@ -222,6 +227,18 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       }
     }
   }, [visibleAssets, selectedAsset?.id]);
+
+  useEffect(() => {
+    if (viewingAsset) {
+      const updated = visibleAssets.find(a => a.id === viewingAsset.id);
+      if (updated) {
+        const merged = updated.comments && updated.comments.length > 0
+          ? updated
+          : { ...updated, comments: viewingAsset.comments };
+        setViewingAsset(merged);
+      }
+    }
+  }, [visibleAssets, viewingAsset?.id]);
 
   const hasExtraSpecs = (type: AssetType) => {
     return [
@@ -387,13 +404,23 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     }));
   };
 
-  const handleSubmitComment = async (e: React.FormEvent) => {
+  const handleSubmitComment = async (
+    e: React.FormEvent,
+    assetId: string,
+    text: string,
+    reset: () => void
+  ) => {
     e.preventDefault();
-    if (!selectedAsset || !commentText.trim()) return;
+    if (!text.trim()) return;
     
     try {
-      await onAddComment(selectedAsset.id, commentText.trim());
-      setCommentText('');
+      await onAddComment(assetId, text.trim());
+      if (useBackend) {
+        const comments = await getAssetComments(assetId);
+        setViewingAsset((current) => (current && current.id === assetId ? { ...current, comments } : current));
+        setSelectedAsset((current) => (current && current.id === assetId ? { ...current, comments } : current));
+      }
+      reset();
     } catch (error) {
       // Error is already handled in the handler
       console.error('Error adding comment:', error);
@@ -1132,6 +1159,36 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   <span className="text-sm text-gray-500">({viewingAsset.comments?.length || 0})</span>
                 </div>
 
+                <form
+                  onSubmit={(e) => handleSubmitComment(
+                    e,
+                    viewingAsset.id,
+                    viewCommentText,
+                    () => setViewCommentText('')
+                  )}
+                  className="mt-4 pt-4 border-t border-gray-200"
+                >
+                  <div className="space-y-3">
+                    <textarea
+                      value={viewCommentText}
+                      onChange={(e) => setViewCommentText(e.target.value)}
+                      placeholder="Add a note about this asset..."
+                      rows={3}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all text-sm resize-none"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={!viewCommentText.trim()}
+                        className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg font-medium hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-md shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
+                      >
+                        <Send size={16} />
+                        Add Comment
+                      </button>
+                    </div>
+                  </div>
+                </form>
+
                 {viewingAsset.comments && viewingAsset.comments.length > 0 ? (
                   <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                     {viewingAsset.comments
@@ -1551,7 +1608,15 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   </div>
 
                   {/* Add Comment Form */}
-                  <form onSubmit={handleSubmitComment} className="mt-4 pt-4 border-t border-gray-200">
+                  <form
+                    onSubmit={(e) => handleSubmitComment(
+                      e,
+                      selectedAsset.id,
+                      commentText,
+                      () => setCommentText('')
+                    )}
+                    className="mt-4 pt-4 border-t border-gray-200"
+                  >
                     <div className="space-y-3">
                       <textarea
                         value={commentText}

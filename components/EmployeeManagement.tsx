@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import GlassCard from './GlassCard';
 import { Employee, EmployeeStatus, Asset, Location, Department, EmployeePersonalInfo, EmployeeOfficialInfo } from '../types';
-import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package, UserCircle, User, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
+import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package, UserCircle, User, CheckCircle, ArrowLeft, ArrowRight, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
 import { getEmployeesPage } from '../services/dataService';
@@ -119,6 +119,45 @@ const splitEmployeeComments = (comments?: string): string[] => {
   return entries.filter(Boolean);
 };
 
+const orderEmployeeComments = (comments?: string): string[] => {
+  const entries = splitEmployeeComments(comments);
+  const withMeta = entries.map((entry, index) => {
+    const match = entry.match(/^\[([^\]]+)\]/);
+    const timestamp = match ? Date.parse(match[1]) : Number.NaN;
+    return { entry, index, timestamp };
+  });
+  withMeta.sort((a, b) => {
+    const aValid = Number.isFinite(a.timestamp);
+    const bValid = Number.isFinite(b.timestamp);
+    if (aValid && bValid) {
+      return b.timestamp - a.timestamp;
+    }
+    if (aValid) return -1;
+    if (bValid) return 1;
+    return a.index - b.index;
+  });
+  return withMeta.map(item => item.entry);
+};
+
+const parseEmployeeCommentEntry = (entry: string) => {
+  const match = entry.match(/^\[([^\]]+)\]\s*([^:]+):\s*(.*)$/s);
+  if (!match) {
+    return { timestamp: undefined, author: 'Note', message: entry.trim() };
+  }
+  return {
+    timestamp: match[1]?.trim(),
+    author: match[2]?.trim() || 'Note',
+    message: match[3]?.trim() || ''
+  };
+};
+
+const formatCommentTime = (timestamp?: string) => {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString();
+};
+
 const statusBadge = (status: EmployeeStatus) => {
   const base = 'text-xs px-3 py-1 rounded-full font-semibold';
   return status === EmployeeStatus.ACTIVE
@@ -149,6 +188,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const [submitError, setSubmitError] = useState<string>(''); // General submission error
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'personal' | 'official' | 'assets'>('overview');
+  const [commentText, setCommentText] = useState('');
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     type: DialogType;
@@ -236,6 +276,18 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     }
   }, [page, totalPages]);
 
+  useEffect(() => {
+    if (!viewingEmployee) return;
+    const updated = visibleEmployees.find(employee => employee.id === viewingEmployee.id);
+    if (updated) {
+      setViewingEmployee(updated);
+    }
+  }, [visibleEmployees, viewingEmployee?.id]);
+
+  useEffect(() => {
+    setCommentText('');
+  }, [viewingEmployee?.id]);
+
   // Compute assigned asset counts
   const assetCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -256,6 +308,36 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       a.employeeId === employee.id || 
       a.assignedTo === employee.name
     );
+  };
+
+  const buildEmployeeCommentEntry = (text: string) => {
+    const author = currentUser?.name || 'System';
+    return `[${new Date().toISOString()}] ${author}: ${text.trim()}`;
+  };
+
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!viewingEmployee || !commentText.trim()) return;
+
+    const entries = splitEmployeeComments(viewingEmployee.personalInfo?.additionalComments);
+    entries.push(buildEmployeeCommentEntry(commentText));
+    const updatedComments = entries.join(AUDIT_COMMENT_SEPARATOR);
+
+    const updatedEmployee: Employee = {
+      ...viewingEmployee,
+      personalInfo: {
+        ...(viewingEmployee.personalInfo || {}),
+        additionalComments: updatedComments
+      }
+    };
+
+    try {
+      await onUpdate(updatedEmployee);
+      setViewingEmployee(updatedEmployee);
+      setCommentText('');
+    } catch (error) {
+      console.error('Error adding employee comment:', error);
+    }
   };
 
   const openNew = () => {
@@ -1552,18 +1634,65 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                           </div>
                         </div>
                       </div>
-                      {splitEmployeeComments(viewingEmployee.personalInfo?.additionalComments).length > 0 && (
-                        <div className="p-4 bg-gray-50 rounded-xl">
-                          <p className="text-xs text-gray-500 uppercase mb-1">Comments / Notes</p>
-                          <div className="space-y-2">
-                            {splitEmployeeComments(viewingEmployee.personalInfo?.additionalComments).map((entry, index) => (
-                              <div key={`employee-comment-${viewingEmployee.id}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 whitespace-pre-wrap break-words">
-                                {entry}
-                              </div>
-                            ))}
-                          </div>
+                      <div className="p-4 bg-gray-50 rounded-xl">
+                        <div className="flex items-center gap-2 mb-3">
+                          <MessageSquare size={16} className="text-gray-400" />
+                          <p className="text-xs text-gray-500 uppercase">Comments / Notes</p>
                         </div>
-                      )}
+                        <form onSubmit={handleSubmitComment} className="mb-3">
+                          <div className="space-y-2">
+                            <textarea
+                              value={commentText}
+                              onChange={(e) => setCommentText(e.target.value)}
+                              placeholder="Add a note about this employee..."
+                              rows={3}
+                              className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all text-sm resize-none"
+                            />
+                            <div className="flex justify-end">
+                              <button
+                                type="submit"
+                                disabled={!commentText.trim()}
+                                className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg font-medium hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-md shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
+                              >
+                                <Send size={16} />
+                                Add Comment
+                              </button>
+                            </div>
+                          </div>
+                        </form>
+                        {orderEmployeeComments(viewingEmployee.personalInfo?.additionalComments).length > 0 ? (
+                          <div className="space-y-3">
+                            {orderEmployeeComments(viewingEmployee.personalInfo?.additionalComments).map((entry, index) => {
+                              const parsed = parseEmployeeCommentEntry(entry);
+                              const timeLabel = formatCommentTime(parsed.timestamp);
+                              const avatar = parsed.author?.charAt(0)?.toUpperCase() || 'N';
+                              return (
+                                <div key={`employee-comment-${viewingEmployee.id}-${index}`} className="rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-900">
+                                  <div className="flex items-start justify-between gap-3 mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold bg-gradient-to-br from-emerald-500 to-green-600 text-white">
+                                        {avatar}
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-semibold text-gray-900">{parsed.author}</p>
+                                        {timeLabel && (
+                                          <p className="text-xs text-gray-500">{timeLabel}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{parsed.message}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-6 text-gray-400 border border-dashed border-gray-200 rounded-xl bg-white">
+                            <MessageSquare size={28} className="mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No comments yet</p>
+                          </div>
+                        )}
+                      </div>
                     </motion.div>
                   )}
 
@@ -1624,18 +1753,65 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                               </a>
                             </div>
                           )}
-                          {splitEmployeeComments(viewingEmployee.personalInfo.additionalComments).length > 0 && (
-                            <div className="col-span-2 p-4 bg-gray-50 rounded-xl">
-                              <p className="text-xs text-gray-500 uppercase mb-1">Additional Comments</p>
-                              <div className="space-y-2">
-                                {splitEmployeeComments(viewingEmployee.personalInfo.additionalComments).map((entry, index) => (
-                                  <div key={`employee-comment-detail-${viewingEmployee.id}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 whitespace-pre-wrap break-words">
-                                    {entry}
-                                  </div>
-                                ))}
-                              </div>
+                          <div className="col-span-2 p-4 bg-gray-50 rounded-xl">
+                            <div className="flex items-center gap-2 mb-3">
+                              <MessageSquare size={16} className="text-gray-400" />
+                              <p className="text-xs text-gray-500 uppercase">Additional Comments</p>
                             </div>
-                          )}
+                            <form onSubmit={handleSubmitComment} className="mb-3">
+                              <div className="space-y-2">
+                                <textarea
+                                  value={commentText}
+                                  onChange={(e) => setCommentText(e.target.value)}
+                                  placeholder="Add a note about this employee..."
+                                  rows={3}
+                                  className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all text-sm resize-none"
+                                />
+                                <div className="flex justify-end">
+                                  <button
+                                    type="submit"
+                                    disabled={!commentText.trim()}
+                                    className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg font-medium hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-md shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
+                                  >
+                                    <Send size={16} />
+                                    Add Comment
+                                  </button>
+                                </div>
+                              </div>
+                            </form>
+                            {orderEmployeeComments(viewingEmployee.personalInfo.additionalComments).length > 0 ? (
+                              <div className="space-y-3">
+                                {orderEmployeeComments(viewingEmployee.personalInfo.additionalComments).map((entry, index) => {
+                                  const parsed = parseEmployeeCommentEntry(entry);
+                                  const timeLabel = formatCommentTime(parsed.timestamp);
+                                  const avatar = parsed.author?.charAt(0)?.toUpperCase() || 'N';
+                                  return (
+                                    <div key={`employee-comment-detail-${viewingEmployee.id}-${index}`} className="rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-900">
+                                      <div className="flex items-start justify-between gap-3 mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold bg-gradient-to-br from-emerald-500 to-green-600 text-white">
+                                            {avatar}
+                                          </div>
+                                          <div>
+                                            <p className="text-sm font-semibold text-gray-900">{parsed.author}</p>
+                                            {timeLabel && (
+                                              <p className="text-xs text-gray-500">{timeLabel}</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{parsed.message}</p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="text-center py-6 text-gray-400 border border-dashed border-gray-200 rounded-xl bg-white">
+                                <MessageSquare size={28} className="mx-auto mb-2 opacity-50" />
+                                <p className="text-sm">No comments yet</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div className="text-center py-12 text-gray-400">
