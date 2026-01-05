@@ -599,8 +599,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
             }}
           >
             <option value="">Select Location</option>
-            {locations.map(loc => (
-              <option key={loc.id} value={loc.id}>{loc.name} - {loc.city}</option>
+            {locations.map((loc, index) => (
+              <option key={`${loc.id || loc.name || 'location'}-${index}`} value={loc.id}>
+                {loc.name} - {loc.city}
+              </option>
             ))}
           </select>
           {(formErrors.location || formErrors.locationId) && (

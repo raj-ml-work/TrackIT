@@ -1,4 +1,5 @@
 const rawBaseUrl =
+  (typeof window !== 'undefined' ? ((window as any).__APP_CONFIG__?.VITE_API_URL || '') : '') ||
   (import.meta && import.meta.env && import.meta.env.VITE_API_URL) ||
   (typeof process !== 'undefined' ? process.env.VITE_API_URL : '') ||
   '';

@@ -1,6 +1,7 @@
 import { getAccessToken, refreshAccessToken } from './authClient';
+import { getRuntimeConfig } from './runtimeConfig';
 
-const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+const apiBaseUrl = getRuntimeConfig().VITE_API_URL || import.meta.env.VITE_API_URL || '';
 
 export const isApiConfigured = (): boolean => Boolean(apiBaseUrl);
 

@@ -311,7 +311,7 @@ const DepartmentManagement: React.FC<DepartmentManagementProps> = ({ departments
                 const tagStyle = getDepartmentTagStyle(department.name);
                 return (
                   <motion.div
-                    key={department.id}
+                    key={`${department.id || department.name || 'department'}-${index}`}
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}

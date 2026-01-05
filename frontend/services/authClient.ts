@@ -3,8 +3,9 @@ import { getSupabaseClient } from './supabaseClient';
 import { dbConfig } from './database';
 import * as userService from './userService';
 import { hashPassword, hashPasswordSHA1, isSha256Hash, isSha1Hash } from './passwordUtil';
+import { getRuntimeConfig } from './runtimeConfig';
 
-const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+const apiBaseUrl = getRuntimeConfig().VITE_API_URL || import.meta.env.VITE_API_URL || '';
 const useApiAuth = (): boolean => Boolean(apiBaseUrl);
 
 let accessToken: string | null = null;

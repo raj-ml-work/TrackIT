@@ -36,6 +36,26 @@ Before you begin, ensure you have the following installed:
 
 ## Quick Start
 
+### Docker Compose (Recommended)
+
+Run the full stack (frontend, backend, PostgreSQL) with Docker Compose.
+
+```bash
+cp .env.example .env
+```
+
+Update `.env` with real values (especially `POSTGRES_PASSWORD`), then:
+
+```bash
+docker compose up --build
+```
+
+Logs for debugging:
+
+```bash
+docker compose logs -f --tail=200
+```
+
 ### 1. Clone the Repository
 
 ```bash

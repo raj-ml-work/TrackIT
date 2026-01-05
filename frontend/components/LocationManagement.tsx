@@ -347,7 +347,7 @@ const LocationManagement: React.FC<LocationManagementProps> = ({ locations, asse
                     const tagStyle = getLocationTagStyle(location.name);
                     return (
                       <motion.div
-                        key={location.id}
+                        key={`${location.id || location.name || 'location'}-${index}`}
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}

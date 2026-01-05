@@ -192,9 +192,13 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
           pageSize
         };
       } catch (error: any) {
-        if (error?.code !== 'PGRST205') {
+        const isPostgreSQLError = error?.code && typeof error.code === 'string';
+        const isSQLiteError = !isPostgreSQLError && error?.message && error.message.includes('no such table');
+
+        if (!isPostgreSQLError && !isSQLiteError) {
           throw error;
         }
+        
         console.warn('asset_search_view missing; falling back to table search.');
         let fallbackRequest = supabase
           .from(TABLE_NAME)
@@ -216,20 +220,23 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
 
         fallbackRequest = fallbackRequest.or(
           [
-            `name.ilike.${pattern}`,
-            `serial_number.ilike.${pattern}`,
-            `type.ilike.${pattern}`,
-            `specs->>brand.ilike.${pattern}`,
-            `specs->>model.ilike.${pattern}`
+            `UPPER(name) LIKE '%${search.toUpperCase()}%'`,
+            `UPPER(serial_number) LIKE '%${search.toUpperCase()}%'`,
+            `UPPER(type) LIKE '%${search.toUpperCase()}%'`,
+            `UPPER(specs) LIKE '%${search.toUpperCase()}%'`
           ].join(',')
         );
+
+        // Add asset_specs search
         fallbackRequest = fallbackRequest.or(
-          [`brand.ilike.${pattern}`, `model.ilike.${pattern}`].join(','),
-          { foreignTable: 'asset_specs' }
+          `UPPER(asset_specs.brand) LIKE '%${search.toUpperCase()}%'`,
+          `UPPER(asset_specs.model) LIKE '%${search.toUpperCase()}%'`
         );
-        fallbackRequest = fallbackRequest.or([`name.ilike.${pattern}`].join(','), {
-          foreignTable: 'locations'
-        });
+
+        // Add locations search
+        fallbackRequest = fallbackRequest.or(
+          `UPPER(locations.name) LIKE '%${search.toUpperCase()}%'`
+        );
 
         const { data, error: fallbackError, count } = await fallbackRequest;
         if (fallbackError) throw fallbackError;

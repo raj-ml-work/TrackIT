@@ -743,8 +743,10 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           }}
         >
           <option value="">Select Location</option>
-          {locations.map(loc => (
-            <option key={loc.id} value={loc.id}>{loc.name} - {loc.city}</option>
+          {locations.map((loc, index) => (
+            <option key={`${loc.id || loc.name || 'location'}-${index}`} value={loc.id}>
+              {loc.name} - {loc.city}
+            </option>
           ))}
         </select>
         {formErrors.locationId && (
@@ -1031,8 +1033,10 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           }}
         >
           <option value="">Select Department</option>
-          {departments.map(dept => (
-            <option key={dept.id} value={dept.name}>{dept.name}</option>
+          {departments.map((dept, index) => (
+            <option key={`${dept.id || dept.name || 'department'}-${index}`} value={dept.name}>
+              {dept.name}
+            </option>
           ))}
         </select>
         {formErrors.department && (

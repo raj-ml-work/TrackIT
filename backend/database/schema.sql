@@ -38,6 +38,19 @@ CREATE INDEX IF NOT EXISTS idx_clients_code ON clients(code);
 CREATE INDEX IF NOT EXISTS idx_clients_status ON clients(status);
 
 -- ============================================
+-- DEPARTMENTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS departments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) UNIQUE NOT NULL,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_departments_name ON departments(name);
+
+-- ============================================
 -- LOCATIONS TABLE (Enhanced with country)
 -- ============================================
 CREATE TABLE IF NOT EXISTS locations (
@@ -566,6 +579,10 @@ DROP TRIGGER IF EXISTS update_locations_updated_at ON locations;
 CREATE TRIGGER update_locations_updated_at BEFORE UPDATE ON locations
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_departments_updated_at ON departments;
+CREATE TRIGGER update_departments_updated_at BEFORE UPDATE ON departments
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 DROP TRIGGER IF EXISTS update_employee_personal_info_updated_at ON employee_personal_info;
 CREATE TRIGGER update_employee_personal_info_updated_at BEFORE UPDATE ON employee_personal_info
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -598,6 +615,7 @@ CREATE TRIGGER log_asset_changes AFTER UPDATE ON assets
 -- Enable RLS on all tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employee_personal_info ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employee_official_info ENABLE ROW LEVEL SECURITY;
@@ -624,6 +642,16 @@ DROP POLICY IF EXISTS "Authenticated users can insert clients" ON clients;
 CREATE POLICY "Authenticated users can insert clients" ON clients FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Authenticated users can update clients" ON clients;
 CREATE POLICY "Authenticated users can update clients" ON clients FOR UPDATE USING (true);
+
+-- Departments: All authenticated users can read/write
+DROP POLICY IF EXISTS "Authenticated users can read departments" ON departments;
+CREATE POLICY "Authenticated users can read departments" ON departments FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can insert departments" ON departments;
+CREATE POLICY "Authenticated users can insert departments" ON departments FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Authenticated users can update departments" ON departments;
+CREATE POLICY "Authenticated users can update departments" ON departments FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Only admins can delete departments" ON departments;
+CREATE POLICY "Only admins can delete departments" ON departments FOR DELETE USING (true);
 DROP POLICY IF EXISTS "Only admins can delete clients" ON clients;
 CREATE POLICY "Only admins can delete clients" ON clients FOR DELETE USING (true);
 
