@@ -358,12 +358,13 @@ const buildServer = async () => {
   });
 
   app.get('/employees/page', async (request) => {
-    const { page, pageSize, search, status } = request.query || {};
+    const { page, pageSize, search, status, department } = request.query || {};
     return provider.getEmployeesPage({
       page: Number(page || 1),
       pageSize: Number(pageSize || 20),
       search,
-      status
+      status,
+      department
     });
   });
 

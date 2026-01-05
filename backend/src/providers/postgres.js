@@ -763,6 +763,11 @@ export const createPostgresProvider = async (config) => {
       `);
     }
 
+    if (query.department && query.department !== 'All' && query.department !== 'all') {
+      values.push(query.department.trim().toLowerCase());
+      filters.push(`LOWER(COALESCE(official.division, '')) = $${values.length}`);
+    }
+
     const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const countResult = await pool.query(
       `

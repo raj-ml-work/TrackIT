@@ -83,7 +83,8 @@ export const getEmployees = async (
     query = query.eq('location.name', filters.location);
   }
   if (filters?.department) {
-    query = query.eq('personal_info.division', filters.department);
+    const normalizedDepartment = filters.department.trim().replace(/%/g, '\\%').replace(/_/g, '\\_');
+    query = query.ilike('official_info.division', normalizedDepartment);
   }
 
   // Apply pagination

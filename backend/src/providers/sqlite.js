@@ -838,6 +838,11 @@ export const createSqliteProvider = (config) => {
       params.search = `%${query.search.trim().toLowerCase()}%`;
     }
 
+    if (query.department && query.department !== 'All' && query.department !== 'all') {
+      filters.push('lower(ifnull(official.division, \'\')) = @department');
+      params.department = query.department.trim().toLowerCase();
+    }
+
     const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const totalRow = db.prepare(`
       SELECT COUNT(*) as count
