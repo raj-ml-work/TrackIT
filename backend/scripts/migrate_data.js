@@ -6,7 +6,8 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ROOT_DIR = path.resolve(__dirname, '..');
+const BACKEND_DIR = path.resolve(__dirname, '..');
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
 function loadEnv(envPath) {
   if (!fs.existsSync(envPath)) {
@@ -43,9 +44,10 @@ function run(scriptName) {
   process.exit(result.status ?? 1);
 }
 
-loadEnv(path.resolve(ROOT_DIR, '.env'));
+loadEnv(path.resolve(PROJECT_ROOT, '.env'));
+loadEnv(path.resolve(PROJECT_ROOT, 'frontend', '.env'));
 loadEnv(path.resolve(__dirname, '.env'));
-loadEnv(path.resolve(ROOT_DIR, 'server', '.env'));
+loadEnv(path.resolve(BACKEND_DIR, '.env'));
 
 const target = process.env.MIGRATION_TARGET;
 if (target === 'supabase') {

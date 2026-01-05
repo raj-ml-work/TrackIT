@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const loadSchema = () => {
-  const schemaPath = path.resolve(__dirname, '..', '..', '..', 'database', 'schema_sqlite.sql');
+  const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'schema_sqlite.sql');
   return fs.readFileSync(schemaPath, 'utf8');
 };
 

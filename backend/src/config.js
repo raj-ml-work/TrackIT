@@ -50,7 +50,7 @@ export const config = {
   pgUrl: readEnv('PG_URL', readEnv('DATABASE_URL', '')),
   sqlitePath: readEnv(
     'SQLITE_PATH',
-    path.resolve(__dirname, '..', '..', 'data', 'inventory.db')
+    path.resolve(__dirname, '..', 'data', 'inventory.db')
   ),
   corsOrigin: readEnv('CORS_ORIGIN', 'http://localhost:5173'),
   corsOrigins: readEnv('CORS_ORIGIN', 'http://localhost:5173')

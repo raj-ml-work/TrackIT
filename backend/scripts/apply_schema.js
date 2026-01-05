@@ -15,7 +15,7 @@ if (!pgUrl) {
   process.exit(1);
 }
 
-const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'schema.sql');
+const schemaPath = path.resolve(__dirname, '..', 'database', 'schema.sql');
 const schemaSql = fs.readFileSync(schemaPath, 'utf8');
 
 const client = new Client({ connectionString: pgUrl });
