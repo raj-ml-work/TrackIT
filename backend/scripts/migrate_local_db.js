@@ -116,6 +116,16 @@ function normalizeLocation(value) {
   }
   const key = raw.toLowerCase();
   const mapping = {
+    dwaraka: 'Dwaraka',
+    raheja: 'Raheja',
+    unispace: 'Unispace',
+    singapore: 'Singapore',
+    'sim lim towers': 'Penang',
+    penang: 'Penang',
+    malaysia: 'Penang',
+    california: 'California',
+    'hochi man city': 'Hochi Man City',
+    others: 'Others',
     bangalore: 'Unispace',
     bengaluru: 'Unispace',
     benguluru: 'Unispace',
@@ -127,13 +137,13 @@ function normalizeLocation(value) {
     dwaraka: 'Dwaraka',
     dwarka: 'Dwaraka',
     singapore: 'Singapore',
-    malaysia: 'Sim lim Towers',
+    malaysia: 'Penang',
     usa: 'California',
     vietnam: 'Hochi Man City',
     office: 'Others',
     delhi: 'Others'
   };
-  return mapping[key] || raw;
+  return mapping[key] || 'Others';
 }
 
 function normalizeDepartment(value) {
@@ -141,7 +151,7 @@ function normalizeDepartment(value) {
   if (!raw) {
     return null;
   }
-  const key = raw.toLowerCase().replace(/\s+/g, '');
+  const key = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (
     key.includes('dv') ||
     key.includes('dft') ||
@@ -158,15 +168,71 @@ function normalizeDepartment(value) {
     embedded: 'Embedded',
     management: 'Management',
     it: 'IT',
+    informationtechnology: 'IT',
     staffing: 'Staffing',
     hr: 'HR',
+    humanresources: 'HR',
     delivery: 'Delivery',
     finance: 'Finance',
+    financeaccounts: 'Finance',
+    accounts: 'Finance',
     sales: 'Sales',
+    salesmarketing: 'Sales',
     semicon: 'Semicon'
   };
 
-  return mapping[key] || raw;
+  return mapping[key] || 'Other';
+}
+
+function normalizeGender(value) {
+  const raw = (value || '').trim();
+  if (!raw) {
+    return null;
+  }
+  const key = raw.toLowerCase();
+  if (['m', 'male'].includes(key)) {
+    return 'Male';
+  }
+  if (['f', 'female'].includes(key)) {
+    return 'Female';
+  }
+  if (['o', 'other', 'nonbinary', 'non-binary', 'nb'].includes(key)) {
+    return 'Other';
+  }
+  return 'Other';
+}
+
+function normalizeAssetStatus(value, unknownStatuses) {
+  const raw = (value || '').trim();
+  if (!raw) {
+    return 'Available';
+  }
+  const key = raw.toLowerCase();
+  if (key.includes('maint') || key.includes('repair')) {
+    return 'Maintenance';
+  }
+  if (key.includes('retired') || key.includes('dispose') || key.includes('scrap') || key.includes('decom')) {
+    return 'Retired';
+  }
+  if (
+    key.includes('assigned') ||
+    key.includes('allocate') ||
+    key.includes('issued') ||
+    key.includes('in use') ||
+    key === 'inuse'
+  ) {
+    return 'Assigned';
+  }
+  if (key.includes('shared')) {
+    return 'Shared Resource';
+  }
+  if (key.includes('available') || key.includes('in stock') || key.includes('stock') || key.includes('free')) {
+    return 'Available';
+  }
+  if (unknownStatuses) {
+    unknownStatuses.add(raw);
+  }
+  return 'Available';
 }
 
 function appendNote(existing, note) {
@@ -209,7 +275,7 @@ function normalizeAssetType(type, unknownTypes) {
   if (!raw) {
     return 'Other';
   }
-  const key = raw.toLowerCase();
+  const key = raw.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
   const mapping = new Map([
     ['router', 'Network devices'],
     ['routers', 'Network devices'],
@@ -242,7 +308,6 @@ function normalizeAssetType(type, unknownTypes) {
     ['smps', 'Other'],
     ['headphone', 'Headphone'],
     ['headphones', 'Headphone'],
-    ['usb drive', 'Storage'],
     ['laptop charger', 'Other'],
     ['usb hub', 'Other']
   ]);
@@ -255,11 +320,29 @@ function normalizeAssetType(type, unknownTypes) {
   if (['accessory', 'accessories'].includes(key)) {
     return 'Accessory';
   }
-  if (['switch', 'switches', 'router', 'routers'].includes(key)) {
+  if (['mobile', 'mobile phone', 'phone', 'smartphone', 'tablet'].includes(key)) {
+    return 'Mobile';
+  }
+  if (['projector', 'projectors'].includes(key)) {
+    return 'Projector';
+  }
+  if (['tv', 'television'].includes(key)) {
+    return 'TV';
+  }
+  if (['printer', 'printers'].includes(key)) {
+    return 'Printer';
+  }
+  if (['switch', 'switches', 'router', 'routers', 'network device', 'network devices'].includes(key)) {
     return 'Network devices';
   }
   if (key === 'desktop' || key === 'desktops') {
     return 'Desktop';
+  }
+  if (key === 'laptop' || key === 'laptops') {
+    return 'Laptop';
+  }
+  if (key === 'monitor' || key === 'monitors') {
+    return 'Monitor';
   }
   const knownTypes = new Set([
     'laptop',
@@ -278,7 +361,7 @@ function normalizeAssetType(type, unknownTypes) {
   if (!knownTypes.has(key) && unknownTypes) {
     unknownTypes.add(raw);
   }
-  return raw;
+  return 'Other';
 }
 
 function generateSerial(existingSerials, assetTag) {
@@ -427,7 +510,7 @@ async function migrateViaApi({
     { name: 'Raheja', city: 'Hyderabad', country: 'India' },
     { name: 'Unispace', city: 'Bengaluru', country: 'India' },
     { name: 'Singapore', city: 'Singapore', country: 'Singapore' },
-    { name: 'Sim lim Towers', city: 'Penang', country: 'Malaysia' },
+    { name: 'Penang', city: 'Penang', country: 'Malaysia' },
     { name: 'California', city: 'California', country: 'USA' },
     { name: 'Hochi Man City', city: 'Ho Chi Minh City', country: 'Vietnam' },
     { name: 'Others', city: 'Other Locations', country: 'India' }
@@ -442,7 +525,8 @@ async function migrateViaApi({
     { name: 'HR', description: 'Human Resources' },
     { name: 'Delivery', description: 'Delivery' },
     { name: 'Finance', description: 'Finance' },
-    { name: 'Sales', description: 'Sales' }
+    { name: 'Sales', description: 'Sales' },
+    { name: 'Other', description: 'Other' }
   ];
 
   console.log('[load] inserting departments');
@@ -480,7 +564,7 @@ async function migrateViaApi({
     const personalInfo = {
       firstName: personalRow?.first_name?.trim() || '',
       lastName: personalRow?.last_name?.trim() || undefined,
-      gender: personalRow?.gender?.trim() || undefined,
+      gender: normalizeGender(personalRow?.gender),
       mobileNumber: truncate(personalRow?.mobile_number, 20) || undefined,
       emergencyContactName: personalRow?.emergency_contact_name?.trim() || undefined,
       emergencyContactNumber: truncate(personalRow?.emergency_contact_number, 20) || undefined,
@@ -615,6 +699,7 @@ async function migrateViaApi({
 
   console.log('[load] inserting assets');
   const unknownAssetTypes = new Set();
+  const unknownAssetStatuses = new Set();
   for (const row of dedupedAssets) {
     const locationName = normalizeLocation(row.location);
     const locationId = locationIdByName.get(locationName) || undefined;
@@ -639,11 +724,12 @@ async function migrateViaApi({
     const hasSpecs = Object.keys(mergedSpecs).length > 0;
 
     const normalizedType = normalizeAssetType(row.type, unknownAssetTypes);
+    const normalizedStatus = normalizeAssetStatus(row.status, unknownAssetStatuses);
     const serial = row.serial_number?.trim();
     const payload = {
       name: row.name?.trim() || 'Unknown',
       type: normalizedType,
-      status: row.status?.trim() || 'Available',
+      status: normalizedStatus,
       serialNumber: serial && serial !== '-' ? serial : undefined,
       assignedTo: row.assigned_to?.trim() || undefined,
       assignedToId: employeeId,
@@ -651,7 +737,7 @@ async function migrateViaApi({
       purchaseDate: row.purchase_date?.trim() || '',
       warrantyExpiry: row.warranty_expiry_date?.trim() || '',
       cost: row.purchase_price ? Number(row.purchase_price) : 0,
-      location: row.location?.trim() || '',
+      location: locationName,
       locationId,
       notes: notes || undefined,
       specs: hasSpecs ? mergedSpecs : undefined,
@@ -676,6 +762,9 @@ async function migrateViaApi({
   }
   if (unknownAssetTypes.size > 0) {
     console.warn(`[load] unmapped asset types: ${Array.from(unknownAssetTypes).sort().join(', ')}`);
+  }
+  if (unknownAssetStatuses.size > 0) {
+    console.warn(`[load] unmapped asset statuses: ${Array.from(unknownAssetStatuses).sort().join(', ')}`);
   }
 
   console.log('[done] migration complete');
