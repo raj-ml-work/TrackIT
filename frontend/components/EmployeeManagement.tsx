@@ -170,7 +170,7 @@ const PAGE_SIZE = 20;
 const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, useBackend = false, currentUser }) => {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState<EmployeeStatus | 'All'>('All');
+  const [filterDepartment, setFilterDepartment] = useState('All');
   const [page, setPage] = useState(1);
   const [pageEmployees, setPageEmployees] = useState<Employee[]>([]);
   const [totalEmployees, setTotalEmployees] = useState(0);
@@ -223,10 +223,10 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           page,
           pageSize: PAGE_SIZE,
           search: debouncedSearch || undefined,
-          status: filterStatus
+          department: filterDepartment === 'All' ? undefined : filterDepartment
         });
         if (!isMounted) return;
-        setPageEmployees(result.data);
+        setPageEmployees([...result.data]);
         setTotalEmployees(result.total);
       } catch (error) {
         if (!isMounted) return;
@@ -243,7 +243,18 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     return () => {
       isMounted = false;
     };
-  }, [useBackend, page, debouncedSearch, filterStatus, refreshToken, search]);
+  }, [useBackend, page, debouncedSearch, filterDepartment, refreshToken, search]);
+
+  const departmentOptions = useMemo(() => {
+    const explicit = departments.map(department => department.name).filter(Boolean);
+    if (explicit.length > 0) {
+      return Array.from(new Set(explicit)).sort((a, b) => a.localeCompare(b));
+    }
+    const inferred = employees
+      .map(employee => employee.department)
+      .filter((department): department is string => !!department);
+    return Array.from(new Set(inferred)).sort((a, b) => a.localeCompare(b));
+  }, [departments, employees]);
 
   const localFilteredEmployees = useMemo(() => {
     const normalizedSearch = debouncedSearch.toLowerCase();
@@ -253,10 +264,11 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         employee.employeeId.toLowerCase().includes(normalizedSearch) ||
         employee.email?.toLowerCase().includes(normalizedSearch) ||
         employee.department?.toLowerCase().includes(normalizedSearch);
-      const matchesStatus = filterStatus === 'All' || employee.status === filterStatus;
-      return matchesSearch && matchesStatus;
+      const matchesDepartment = filterDepartment === 'All'
+        || employee.department?.toLowerCase() === filterDepartment.toLowerCase();
+      return matchesSearch && matchesDepartment;
     });
-  }, [employees, debouncedSearch, filterStatus]);
+  }, [employees, debouncedSearch, filterDepartment]);
 
   const localPagedEmployees = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -264,8 +276,17 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   }, [localFilteredEmployees, page]);
 
   const visibleEmployees = useBackend ? pageEmployees : localPagedEmployees;
+  const filteredVisibleEmployees = useMemo(() => {
+    if (!useBackend || filterDepartment === 'All') {
+      return visibleEmployees;
+    }
+    return visibleEmployees.filter(employee => {
+      const department = employee.department?.trim().toLowerCase();
+      return department === filterDepartment.trim().toLowerCase();
+    });
+  }, [filterDepartment, useBackend, visibleEmployees]);
   const totalCount = useBackend ? totalEmployees : localFilteredEmployees.length;
-  const showLoadingState = useBackend && isPageLoading && visibleEmployees.length === 0;
+  const showLoadingState = useBackend && isPageLoading && filteredVisibleEmployees.length === 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const pageStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const pageEnd = Math.min(page * PAGE_SIZE, totalCount);
@@ -278,11 +299,11 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
   useEffect(() => {
     if (!viewingEmployee) return;
-    const updated = visibleEmployees.find(employee => employee.id === viewingEmployee.id);
+    const updated = filteredVisibleEmployees.find(employee => employee.id === viewingEmployee.id);
     if (updated) {
       setViewingEmployee(updated);
     }
-  }, [visibleEmployees, viewingEmployee?.id]);
+  }, [filteredVisibleEmployees, viewingEmployee?.id]);
 
   useEffect(() => {
     setCommentText('');
@@ -291,7 +312,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   // Compute assigned asset counts
   const assetCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    visibleEmployees.forEach(emp => {
+    filteredVisibleEmployees.forEach(emp => {
       counts[emp.id] = assets.filter(a => 
         a.assignedToId === emp.id || 
         a.employeeId === emp.id || 
@@ -299,7 +320,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       ).length;
     });
     return counts;
-  }, [visibleEmployees, assets]);
+  }, [filteredVisibleEmployees, assets]);
 
   // Get assets assigned to an employee
   const getEmployeeAssets = (employee: Employee) => {
@@ -1199,18 +1220,18 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Status</span>
+            <span className="text-xs text-gray-500 uppercase tracking-wide">Department</span>
             <select
-              value={filterStatus}
+              value={filterDepartment}
               onChange={e => {
-                setFilterStatus(e.target.value as EmployeeStatus | 'All');
+                setFilterDepartment(e.target.value.trim());
                 setPage(1);
               }}
               className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none"
             >
               <option value="All">All</option>
-              {Object.values(EmployeeStatus).map(status => (
-                <option key={status} value={status}>{status}</option>
+              {departmentOptions.map(department => (
+                <option key={department} value={department}>{department}</option>
               ))}
             </select>
           </div>
@@ -1262,24 +1283,24 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
               </motion.div>
             )}
 
-            {!showLoadingState && visibleEmployees.length === 0 && (
+            {!showLoadingState && filteredVisibleEmployees.length === 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="p-8 text-center border border-dashed border-gray-200 rounded-2xl bg-gray-50/60"
               >
                 <p className="text-gray-700 font-semibold mb-1">
-                  {search || filterStatus !== 'All' ? 'No matching employees' : 'No employees yet'}
+                  {search || filterDepartment !== 'All' ? 'No matching employees' : 'No employees yet'}
                 </p>
                 <p className="text-gray-500 text-sm">
-                  {search || filterStatus !== 'All'
+                  {search || filterDepartment !== 'All'
                     ? 'Try adjusting your search or filters.'
                     : 'Add your first employee to start managing asset assignments.'}
                 </p>
               </motion.div>
             )}
 
-            {visibleEmployees.map((employee, index) => (
+            {filteredVisibleEmployees.map((employee, index) => (
               <motion.div
                 key={employee.id}
                 initial={{ opacity: 0, y: 4 }}

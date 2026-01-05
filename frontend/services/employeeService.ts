@@ -44,7 +44,7 @@ export const getEmployees = async (): Promise<Employee[]> => {
 };
 
 /**
- * Get a paginated list of employees with optional search and status filtering
+ * Get a paginated list of employees with optional search and department filtering
  */
 export const getEmployeesPage = async (query: EmployeeQuery): Promise<PaginatedResult<Employee>> => {
   try {
@@ -53,7 +53,7 @@ export const getEmployeesPage = async (query: EmployeeQuery): Promise<PaginatedR
       params.set('page', String(query.page || 1));
       params.set('pageSize', String(query.pageSize || 20));
       if (query.search) params.set('search', query.search);
-      if (query.status) params.set('status', query.status);
+      if (query.department) params.set('department', query.department);
       return await apiFetchJson<PaginatedResult<Employee>>(`/employees/page?${params.toString()}`);
     }
 
@@ -63,66 +63,76 @@ export const getEmployeesPage = async (query: EmployeeQuery): Promise<PaginatedR
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
     const search = query.search?.trim();
+    const departmentFilter = query.department?.trim();
+    const normalizedDepartmentFilter = departmentFilter && departmentFilter !== 'All'
+      ? departmentFilter
+      : undefined;
+    const departmentPattern = normalizedDepartmentFilter
+      ? normalizedDepartmentFilter.replace(/%/g, '\\%').replace(/_/g, '\\_')
+      : undefined;
 
     if (search) {
       const pattern = `%${search.toLowerCase()}%`;
-      try {
-        let searchRequest = supabase
-          .from('employee_search_view')
-          .select('employee_id', { count: 'exact' })
-          .ilike('search_text', pattern)
-          .order('created_at', { ascending: false })
-          .range(from, to);
+      let shouldUseFallback = !!normalizedDepartmentFilter;
+      if (!shouldUseFallback) {
+        try {
+          let searchRequest = supabase
+            .from('employee_search_view')
+            .select('employee_id', { count: 'exact' })
+            .ilike('search_text', pattern)
+            .order('created_at', { ascending: false })
+            .range(from, to);
 
-        if (query.status && query.status !== 'All') {
-          searchRequest = searchRequest.eq('status', query.status);
-        }
+          const { data: matches, error: searchError, count } = await searchRequest;
+          if (searchError) throw searchError;
 
-        const { data: matches, error: searchError, count } = await searchRequest;
-        if (searchError) throw searchError;
+          const ids = (matches || []).map((row: { employee_id: string }) => row.employee_id);
+          if (ids.length === 0) {
+            return {
+              data: [],
+              total: count || 0,
+              page,
+              pageSize
+            };
+          }
 
-        const ids = (matches || []).map((row: { employee_id: string }) => row.employee_id);
-        if (ids.length === 0) {
-          return {
-            data: [],
-            total: count || 0,
-            page,
-            pageSize
-          };
-        }
-
-        const { data, error } = await supabase
-          .from(TABLE_NAME)
-          .select(
-            `
+          const { data, error } = await supabase
+            .from(TABLE_NAME)
+            .select(
+              `
         *,
         personal_info:employee_personal_info(*),
         official_info:employee_official_info(*),
         location:locations(name, city, country),
         client:clients(name, code)
       `
-          )
-          .in('id', ids)
-          .order('created_at', { ascending: false });
+            )
+            .in('id', ids)
+            .order('created_at', { ascending: false });
 
-        if (error) throw error;
+          if (error) throw error;
 
-        const order = new Map(ids.map((id, index) => [id, index]));
-        const sorted = (data || []).sort((a, b) => {
-          return (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0);
-        });
+          const order = new Map(ids.map((id, index) => [id, index]));
+          const sorted = (data || []).sort((a, b) => {
+            return (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0);
+          });
 
-        return {
-          data: sorted.map(transformEmployeeFromDB),
-          total: count || 0,
-          page,
-          pageSize
-        };
-      } catch (error: any) {
-        if (error?.code !== 'PGRST205') {
-          throw error;
+          return {
+            data: sorted.map(transformEmployeeFromDB),
+            total: count || 0,
+            page,
+            pageSize
+          };
+        } catch (error: any) {
+          if (error?.code !== 'PGRST205') {
+            throw error;
+          }
+          console.warn('employee_search_view missing; falling back to table search.');
+          shouldUseFallback = true;
         }
-        console.warn('employee_search_view missing; falling back to table search.');
+      }
+
+      if (shouldUseFallback) {
         let fallbackRequest = supabase
           .from(TABLE_NAME)
           .select(
@@ -138,8 +148,8 @@ export const getEmployeesPage = async (query: EmployeeQuery): Promise<PaginatedR
           .order('created_at', { ascending: false })
           .range(from, to);
 
-        if (query.status && query.status !== 'All') {
-          fallbackRequest = fallbackRequest.eq('status', query.status);
+        if (departmentPattern) {
+          fallbackRequest = fallbackRequest.ilike('official_info.division', departmentPattern);
         }
 
         fallbackRequest = fallbackRequest.or([`employee_id.ilike.${pattern}`, `name.ilike.${pattern}`].join(','));
@@ -183,8 +193,8 @@ export const getEmployeesPage = async (query: EmployeeQuery): Promise<PaginatedR
       .order('created_at', { ascending: false })
       .range(from, to);
 
-    if (query.status && query.status !== 'All') {
-      request = request.eq('status', query.status);
+    if (departmentPattern) {
+      request = request.ilike('official_info.division', departmentPattern);
     }
 
     const { data, error, count } = await request;

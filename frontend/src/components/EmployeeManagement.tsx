@@ -36,7 +36,6 @@ export const EmployeeManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<EmployeeStatus | 'all'>('all');
   const [filterDepartment, setFilterDepartment] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -50,9 +49,10 @@ export const EmployeeManagement: React.FC = () => {
     setError(null);
 
     try {
+      const department = filterDepartment === 'all' ? undefined : filterDepartment;
       const result = await trackApiCall(
-        () => dataLoader.loadAllEmployees(page),
-        `employees?page=${page}&status=${filterStatus}&department=${filterDepartment}&search=${searchQuery}`
+        () => dataLoader.loadAllEmployees(page, { department }),
+        `employees?page=${page}&department=${filterDepartment}&search=${searchQuery}`
       );
 
       setEmployees(result.data);
@@ -65,14 +65,15 @@ export const EmployeeManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, filterDepartment, searchQuery, trackApiCall]);
+  }, [filterDepartment, searchQuery, trackApiCall]);
 
   // Load next page for preloading
   const preloadNextPage = useCallback(async () => {
     if (currentPage < totalPages) {
-      await dataLoader.preloadNextEmployeesPage(currentPage);
+      const department = filterDepartment === 'all' ? undefined : filterDepartment;
+      await dataLoader.preloadNextEmployeesPage(currentPage, { department });
     }
-  }, [currentPage, totalPages]);
+  }, [currentPage, filterDepartment, totalPages]);
 
   // Initialize and reload data
   useEffect(() => {
@@ -93,12 +94,11 @@ export const EmployeeManagement: React.FC = () => {
     trackUserAction('employee_search', { query });
   }, [trackUserAction]);
 
-  // Handle filters
-  const handleFilter = useCallback((status: EmployeeStatus | 'all', department: string) => {
-    setFilterStatus(status);
+  // Handle department filter
+  const handleDepartmentFilter = useCallback((department: string) => {
     setFilterDepartment(department);
     setCurrentPage(1);
-    trackUserAction('employee_filter', { status, department });
+    trackUserAction('employee_filter', { department });
   }, [trackUserAction]);
 
   // Handle sorting
@@ -188,7 +188,7 @@ export const EmployeeManagement: React.FC = () => {
 
           {/* Filters and Search */}
           <GlassCard className="mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <input
@@ -199,21 +199,10 @@ export const EmployeeManagement: React.FC = () => {
                   className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
-              
-              <select
-                value={filterStatus}
-                onChange={(e) => handleFilter(e.target.value as EmployeeStatus | 'all', filterDepartment)}
-                className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              >
-                <option value="all">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-                <option value="Terminated">Terminated</option>
-              </select>
 
               <select
                 value={filterDepartment}
-                onChange={(e) => handleFilter(filterStatus, e.target.value)}
+                onChange={(e) => handleDepartmentFilter(e.target.value.trim())}
                 className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option value="all">All Departments</option>

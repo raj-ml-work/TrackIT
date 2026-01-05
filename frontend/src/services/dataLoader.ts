@@ -166,15 +166,19 @@ export class DataLoader {
   /**
    * Load all employees with pagination (MEDIUM priority)
    */
-  async loadAllEmployees(page: number = 1): Promise<{ data: Employee[]; total: number; page: number; totalPages: number }> {
-    const cacheKey = `all_employees_page_${page}`;
+  async loadAllEmployees(
+    page: number = 1,
+    filters?: { department?: string }
+  ): Promise<{ data: Employee[]; total: number; page: number; totalPages: number }> {
+    const filterKey = filters?.department ? filters.department : 'all';
+    const cacheKey = `all_employees_page_${page}_${filterKey}`;
     
     if (this.isCached(cacheKey)) {
       return this.getCachedData(cacheKey);
     }
 
     const promise = this.withRetry(async () => {
-      const result = await dataService.getEmployees(page, this.config.batchSize);
+      const result = await dataService.getEmployees(page, this.config.batchSize, filters);
       this.setCachedData(cacheKey, result);
       return result;
     });
@@ -274,16 +278,20 @@ export class DataLoader {
   /**
    * Preload next page of employees
    */
-  async preloadNextEmployeesPage(currentPage: number): Promise<void> {
+  async preloadNextEmployeesPage(
+    currentPage: number,
+    filters?: { department?: string }
+  ): Promise<void> {
     const nextPage = currentPage + 1;
-    const cacheKey = `all_employees_page_${nextPage}`;
+    const filterKey = filters?.department ? filters.department : 'all';
+    const cacheKey = `all_employees_page_${nextPage}_${filterKey}`;
     
     if (this.isCached(cacheKey)) {
       return;
     }
 
     try {
-      await this.loadAllEmployees(nextPage);
+      await this.loadAllEmployees(nextPage, filters);
     } catch (error) {
       console.warn(`Failed to preload employees page ${nextPage}:`, error);
     }

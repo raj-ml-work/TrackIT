@@ -186,7 +186,7 @@ export interface EmployeeQuery {
   page: number;
   pageSize: number;
   search?: string;
-  status?: EmployeeStatus | 'All';
+  department?: string;
 }
 
 export interface PaginatedResult<T> {
