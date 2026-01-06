@@ -68,6 +68,20 @@ const formatAssetTypeLabel = (type: AssetType) => {
   }
 };
 
+const isComputeAssetType = (type: AssetType) =>
+  type === AssetType.LAPTOP || type === AssetType.DESKTOP;
+
+const getSpecValue = (specs: AssetSpecs | undefined, keys: (keyof AssetSpecs)[], fallback = 'N/A') => {
+  if (!specs) return fallback;
+  for (const key of keys) {
+    const value = specs[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+  }
+  return fallback;
+};
+
 const PAGE_SIZE = 20;
 
 const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], locations, onAdd, onUpdate, onDelete, onAddComment, canCreate = true, canUpdate = true, canDelete = true, useBackend = false }) => {
@@ -1075,6 +1089,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
+                  <Monitor size={16} className="text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase">Device Type</p>
+                    <p className="text-sm text-gray-800">{formatAssetTypeLabel(viewingAsset.type)}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
                   <User size={16} className="text-gray-400 mt-1" />
                   <div>
                     <p className="text-xs text-gray-500 uppercase">Assigned To</p>
@@ -1108,44 +1129,48 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
 
                   <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-xl">
                     {viewingAsset.specs.brand && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-gray-500 uppercase">Brand</span>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Brand</p>
                         <p className="text-sm text-gray-800">{viewingAsset.specs.brand}</p>
                       </div>
                     )}
                     {viewingAsset.specs.model && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-gray-500 uppercase">Model</span>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Model</p>
                         <p className="text-sm text-gray-800">{viewingAsset.specs.model}</p>
                       </div>
                     )}
                     {viewingAsset.specs.cpu && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-gray-500 uppercase">Processor</span>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Processor</p>
                         <p className="text-sm text-gray-800">{viewingAsset.specs.cpu}</p>
                       </div>
                     )}
-                    {viewingAsset.specs.ram && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-gray-500 uppercase">Memory</span>
-                        <p className="text-sm text-gray-800">{viewingAsset.specs.ram}</p>
+                    {isComputeAssetType(viewingAsset.type) && (
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Memory</p>
+                        <p className="text-sm text-gray-800">
+                          {getSpecValue(viewingAsset.specs, ['ramCapacity', 'ram'])}
+                        </p>
                       </div>
                     )}
-                    {viewingAsset.specs.storage && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-gray-500 uppercase">Storage</span>
-                        <p className="text-sm text-gray-800">{viewingAsset.specs.storage}</p>
+                    {isComputeAssetType(viewingAsset.type) && (
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Storage</p>
+                        <p className="text-sm text-gray-800">
+                          {getSpecValue(viewingAsset.specs, ['storageCapacity', 'storage'])}
+                        </p>
                       </div>
                     )}
                     {viewingAsset.specs.screenSize && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-gray-500 uppercase">Display</span>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Display</p>
                         <p className="text-sm text-gray-800">{viewingAsset.specs.screenSize}</p>
                       </div>
                     )}
                     {viewingAsset.specs.printerType && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-gray-500 uppercase">Type</span>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Type</p>
                         <p className="text-sm text-gray-800">{viewingAsset.specs.printerType}</p>
                       </div>
                     )}
@@ -1208,7 +1233,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3 mb-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
                               <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold ${
                                 comment.type === AssetCommentType.SYSTEM
                                   ? 'bg-emerald-200 text-emerald-700'
@@ -1216,12 +1241,12 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                               }`}>
                                 {comment.type === AssetCommentType.SYSTEM ? 'S' : comment.authorName.substring(0, 1)}
                               </div>
-                              <div>
-                                <p className="text-sm font-semibold text-gray-900">{comment.authorName}</p>
-                                <p className="text-xs text-gray-500">{getRelativeTime(comment.createdAt)}</p>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 truncate">{comment.authorName}</p>
+                                <p className="text-xs text-gray-500 truncate">{getRelativeTime(comment.createdAt)}</p>
                               </div>
                             </div>
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
                               comment.type === AssetCommentType.SYSTEM
                                 ? 'bg-emerald-100 text-emerald-700'
                                 : 'bg-gray-100 text-gray-700'
@@ -1229,7 +1254,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                               {comment.type}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-700 leading-relaxed">{comment.message}</p>
+                          <p className="text-sm text-gray-700 leading-relaxed break-words whitespace-pre-wrap">{comment.message}</p>
                         </motion.div>
                       ))}
                   </div>
@@ -1317,6 +1342,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                         </div>
                      </div>
                      <div className="flex items-start gap-3">
+                        <Monitor className="text-gray-400 mt-0.5" size={18} />
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">Device Type</p>
+                          <p className="text-gray-800">{formatAssetTypeLabel(selectedAsset.type)}</p>
+                        </div>
+                     </div>
+                     <div className="flex items-start gap-3">
                         <MapPin className="text-gray-400 mt-0.5" size={18} />
                         <div>
                           <p className="text-xs text-gray-500 uppercase">Location</p>
@@ -1387,16 +1419,20 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                             <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.cpu}</span>
                           </div>
                         )}
-                        {selectedAsset.specs.ram && (
+                        {isComputeAssetType(selectedAsset.type) && (
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">Memory</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.ram}</span>
+                            <span className="text-sm font-medium text-gray-900">
+                              {getSpecValue(selectedAsset.specs, ['ramCapacity', 'ram'])}
+                            </span>
                           </div>
                         )}
-                        {selectedAsset.specs.storage && (
+                        {isComputeAssetType(selectedAsset.type) && (
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">Storage</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.storage}</span>
+                            <span className="text-sm font-medium text-gray-900">
+                              {getSpecValue(selectedAsset.specs, ['storageCapacity', 'storage'])}
+                            </span>
                           </div>
                         )}
                         {selectedAsset.specs.screenSize && (
@@ -1457,6 +1493,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
+                    <Monitor size={16} className="text-gray-400 mt-1" />
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Device Type</p>
+                      <p className="text-sm text-gray-800">{formatAssetTypeLabel(selectedAsset.type)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
                     <MapPin size={16} className="text-gray-400 mt-1" />
                     <div>
                       <p className="text-xs text-gray-500 uppercase">Location</p>
@@ -1505,45 +1548,49 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   </div>
                   <div className="bg-gray-50 rounded-xl p-4 space-y-3">
                     {selectedAsset.specs.brand && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Brand</span>
-                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.brand}</span>
+                      <div>
+                        <p className="text-sm text-gray-500">Brand</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedAsset.specs.brand}</p>
                       </div>
                     )}
                     {selectedAsset.specs.model && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Model</span>
-                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.model}</span>
+                      <div>
+                        <p className="text-sm text-gray-500">Model</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedAsset.specs.model}</p>
                       </div>
                     )}
                     {selectedAsset.specs.cpu && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Processor</span>
-                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.cpu}</span>
+                      <div>
+                        <p className="text-sm text-gray-500">Processor</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedAsset.specs.cpu}</p>
                       </div>
                     )}
-                    {selectedAsset.specs.ram && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Memory</span>
-                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.ram}</span>
-                      </div>
-                    )}
-                    {selectedAsset.specs.storage && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Storage</span>
-                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.storage}</span>
-                      </div>
-                    )}
+                        {isComputeAssetType(selectedAsset.type) && (
+                          <div>
+                            <p className="text-sm text-gray-500">Memory</p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {getSpecValue(selectedAsset.specs, ['ramCapacity', 'ram'])}
+                            </p>
+                          </div>
+                        )}
+                        {isComputeAssetType(selectedAsset.type) && (
+                          <div>
+                            <p className="text-sm text-gray-500">Storage</p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {getSpecValue(selectedAsset.specs, ['storageCapacity', 'storage'])}
+                            </p>
+                          </div>
+                        )}
                     {selectedAsset.specs.screenSize && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Display</span>
-                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.screenSize}</span>
+                      <div>
+                        <p className="text-sm text-gray-500">Display</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedAsset.specs.screenSize}</p>
                       </div>
                     )}
                     {selectedAsset.specs.printerType && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Type</span>
-                        <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.printerType}</span>
+                      <div>
+                        <p className="text-sm text-gray-500">Type</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedAsset.specs.printerType}</p>
                       </div>
                     )}
                   </div>
@@ -1576,7 +1623,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3 mb-2">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold ${
                                   comment.type === AssetCommentType.SYSTEM
                                     ? 'bg-emerald-200 text-emerald-700'
@@ -1584,12 +1631,12 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                                 }`}>
                                   {comment.type === AssetCommentType.SYSTEM ? 'S' : comment.authorName.substring(0, 1)}
                                 </div>
-                                <div>
-                                  <p className="text-sm font-semibold text-gray-900">{comment.authorName}</p>
-                                  <p className="text-xs text-gray-500">{getRelativeTime(comment.createdAt)}</p>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-gray-900 truncate">{comment.authorName}</p>
+                                  <p className="text-xs text-gray-500 truncate">{getRelativeTime(comment.createdAt)}</p>
                                 </div>
                               </div>
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
                                 comment.type === AssetCommentType.SYSTEM
                                 ? 'bg-emerald-100 text-emerald-700'
                                   : 'bg-gray-100 text-gray-700'
@@ -1597,7 +1644,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                                 {comment.type}
                               </span>
                             </div>
-                            <p className="text-sm text-gray-700 leading-relaxed">{comment.message}</p>
+                            <p className="text-sm text-gray-700 leading-relaxed break-words whitespace-pre-wrap">{comment.message}</p>
                           </motion.div>
                         ))
                     ) : (

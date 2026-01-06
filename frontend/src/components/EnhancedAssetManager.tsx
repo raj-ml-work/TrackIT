@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Search, Filter, Download, Share2, Edit, Trash2, Eye, 
-  Tag, Calendar, DollarSign, MapPin, User, Settings, AlertCircle,
+  Tag, Monitor, Calendar, DollarSign, MapPin, User, Settings, AlertCircle,
   RefreshCw, FilterX, SlidersHorizontal, Clock, Wifi, WifiOff
 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
@@ -193,6 +193,10 @@ export const EnhancedAssetManager: React.FC<AssetManagerProps> = ({ insights: in
             <div className="flex items-center gap-2">
               <Tag className="w-4 h-4" />
               <span>{asset.serialNumber}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Monitor className="w-4 h-4" />
+              <span>Device Type: {asset.type}</span>
             </div>
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
@@ -532,6 +536,10 @@ export const EnhancedAssetManager: React.FC<AssetManagerProps> = ({ insights: in
                           </div>
                           
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-slate-600">
+                            <div className="flex items-center gap-2">
+                              <Monitor className="w-4 h-4" />
+                              <span>Device Type: {asset.type}</span>
+                            </div>
                             <div className="flex items-center gap-2">
                               <DollarSign className="w-4 h-4" />
                               <span>${asset.cost.toLocaleString()}</span>

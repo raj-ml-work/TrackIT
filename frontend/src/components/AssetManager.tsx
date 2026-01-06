@@ -10,6 +10,7 @@ import {
   Trash2, 
   Eye, 
   Tag,
+  Monitor,
   Calendar,
   DollarSign,
   MapPin,
@@ -280,6 +281,10 @@ export const AssetManager: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <Tag className="w-4 h-4" />
                           <span>{asset.serialNumber}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Monitor className="w-4 h-4" />
+                          <span>Device Type: {asset.type}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <DollarSign className="w-4 h-4" />
