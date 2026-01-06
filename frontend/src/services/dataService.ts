@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 import { isSupabaseConfigured } from './database';
+import { mapAssetRecord } from './assetMapper';
 
 /**
  * Get dashboard metrics with optimized queries
@@ -181,7 +182,7 @@ export const getAssets = async (
   const totalPages = Math.ceil(total / limit);
 
   return {
-    data: data || [],
+    data: (data || []).map(mapAssetRecord),
     total,
     page,
     totalPages
@@ -570,7 +571,7 @@ export const getAssetById = async (id: string): Promise<Asset | null> => {
     throw new Error('Failed to fetch asset');
   }
 
-  return data || null;
+  return data ? mapAssetRecord(data) : null;
 };
 
 /**

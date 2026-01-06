@@ -1,6 +1,8 @@
 import { Asset, AssetComment, AssetType } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 import { isSupabaseConfigured } from './database';
+import { isApiConfigured, request } from './apiClient';
+import { mapAssetRecord, normalizeDateInput, normalizeDateOutput } from './assetMapper';
 
 /**
  * Get all assets with pagination and filtering
@@ -15,6 +17,22 @@ export const getAssets = async (
     assignedTo?: string;
   }
 ): Promise<{ data: Asset[]; total: number; page: number; totalPages: number }> => {
+  if (isApiConfigured()) {
+    const query = new URLSearchParams({
+      page: String(page),
+      pageSize: String(limit),
+      ...(filters?.type ? { type: String(filters.type) } : {}),
+      ...(filters?.status ? { status: String(filters.status) } : {})
+    });
+    const result = await request<{ data: any[]; total: number; page: number; totalPages: number }>(
+      `/assets/page?${query.toString()}`
+    );
+    return {
+      ...result,
+      data: (result.data || []).map(mapAssetRecord)
+    };
+  }
+
   if (!isSupabaseConfigured()) {
     // Mock data for development
     const mockAssets: Asset[] = Array.from({ length: 50 }, (_, i) => ({
@@ -87,7 +105,7 @@ export const getAssets = async (
   const totalPages = Math.ceil(total / limit);
 
   return {
-    data: data || [],
+    data: (data || []).map(mapAssetRecord),
     total,
     page,
     totalPages
@@ -98,6 +116,11 @@ export const getAssets = async (
  * Get asset by ID
  */
 export const getAssetById = async (id: string): Promise<Asset | null> => {
+  if (isApiConfigured()) {
+    const record = await request<any>(`/assets/${id}`);
+    return record ? mapAssetRecord(record) : null;
+  }
+
   if (!isSupabaseConfigured()) {
     return {
       id,
@@ -125,17 +148,35 @@ export const getAssetById = async (id: string): Promise<Asset | null> => {
     throw new Error('Failed to fetch asset');
   }
 
-  return data || null;
+  return data ? mapAssetRecord(data) : null;
 };
 
 /**
  * Create a new asset
  */
 export const createAsset = async (asset: Omit<Asset, 'id'>): Promise<Asset> => {
+  const purchaseDate = normalizeDateInput(asset.purchaseDate);
+  const warrantyExpiry = normalizeDateInput(asset.warrantyExpiry);
+  const payload = {
+    ...asset,
+    purchaseDate,
+    warrantyExpiry
+  };
+
+  if (isApiConfigured()) {
+    const created = await request<any>('/assets', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return mapAssetRecord(created);
+  }
+
   if (!isSupabaseConfigured()) {
     // Mock implementation for development
     return {
       ...asset,
+      purchaseDate: normalizeDateOutput(asset.purchaseDate),
+      warrantyExpiry: normalizeDateOutput(asset.warrantyExpiry),
       id: `asset-${Date.now()}`
     };
   }
@@ -144,15 +185,15 @@ export const createAsset = async (asset: Omit<Asset, 'id'>): Promise<Asset> => {
   const { data, error } = await supabase
     .from('assets')
     .insert({
-      name: asset.name,
-      type: asset.type,
-      status: asset.status,
-      serial_number: asset.serialNumber,
-      assigned_to: asset.assignedTo,
-      purchase_date: asset.purchaseDate,
-      warranty_expiry: asset.warrantyExpiry,
-      cost: asset.cost,
-      location: asset.location
+      name: payload.name,
+      type: payload.type,
+      status: payload.status,
+      serial_number: payload.serialNumber,
+      assigned_to: payload.assignedTo,
+      purchase_date: payload.purchaseDate,
+      warranty_expiry: payload.warrantyExpiry,
+      cost: payload.cost,
+      location: payload.location
     })
     .select()
     .single();
@@ -162,24 +203,31 @@ export const createAsset = async (asset: Omit<Asset, 'id'>): Promise<Asset> => {
     throw new Error('Failed to create asset');
   }
 
-  return {
-    id: data.id,
-    name: data.name,
-    type: data.type,
-    status: data.status,
-    serialNumber: data.serial_number,
-    assignedTo: data.assigned_to,
-    purchaseDate: data.purchase_date,
-    warrantyExpiry: data.warranty_expiry,
-    cost: data.cost,
-    location: data.location
-  };
+  return mapAssetRecord(data);
 };
 
 /**
  * Update an asset
  */
 export const updateAsset = async (id: string, updates: Partial<Asset>): Promise<Asset> => {
+  const purchaseDate =
+    updates.purchaseDate === undefined ? undefined : normalizeDateInput(updates.purchaseDate);
+  const warrantyExpiry =
+    updates.warrantyExpiry === undefined ? undefined : normalizeDateInput(updates.warrantyExpiry);
+  const payload = {
+    ...updates,
+    purchaseDate,
+    warrantyExpiry
+  };
+
+  if (isApiConfigured()) {
+    const updated = await request<any>(`/assets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...payload, id })
+    });
+    return mapAssetRecord(updated);
+  }
+
   if (!isSupabaseConfigured()) {
     // Mock implementation for development
     return {
@@ -189,8 +237,8 @@ export const updateAsset = async (id: string, updates: Partial<Asset>): Promise<
       status: updates.status || 'Shared Resource',
       serialNumber: updates.serialNumber || 'SN-001',
       assignedTo: updates.assignedTo,
-      purchaseDate: updates.purchaseDate || '2024-01-01',
-      warrantyExpiry: updates.warrantyExpiry || '2025-01-01',
+      purchaseDate: normalizeDateOutput(updates.purchaseDate) || '2024-01-01',
+      warrantyExpiry: normalizeDateOutput(updates.warrantyExpiry) || '2025-01-01',
       cost: updates.cost || 1500,
       location: updates.location || 'Headquarters'
     };
@@ -200,15 +248,15 @@ export const updateAsset = async (id: string, updates: Partial<Asset>): Promise<
   const { data, error } = await supabase
     .from('assets')
     .update({
-      name: updates.name,
-      type: updates.type,
-      status: updates.status,
-      serial_number: updates.serialNumber,
-      assigned_to: updates.assignedTo,
-      purchase_date: updates.purchaseDate,
-      warranty_expiry: updates.warrantyExpiry,
-      cost: updates.cost,
-      location: updates.location
+      name: payload.name,
+      type: payload.type,
+      status: payload.status,
+      serial_number: payload.serialNumber,
+      assigned_to: payload.assignedTo,
+      purchase_date: payload.purchaseDate,
+      warranty_expiry: payload.warrantyExpiry,
+      cost: payload.cost,
+      location: payload.location
     })
     .eq('id', id)
     .select()
@@ -219,24 +267,18 @@ export const updateAsset = async (id: string, updates: Partial<Asset>): Promise<
     throw new Error('Failed to update asset');
   }
 
-  return {
-    id: data.id,
-    name: data.name,
-    type: data.type,
-    status: data.status,
-    serialNumber: data.serial_number,
-    assignedTo: data.assigned_to,
-    purchaseDate: data.purchase_date,
-    warrantyExpiry: data.warranty_expiry,
-    cost: data.cost,
-    location: data.location
-  };
+  return mapAssetRecord(data);
 };
 
 /**
  * Delete an asset
  */
 export const deleteAsset = async (id: string): Promise<void> => {
+  if (isApiConfigured()) {
+    await request<{ ok: boolean }>(`/assets/${id}`, { method: 'DELETE' });
+    return;
+  }
+
   if (!isSupabaseConfigured()) {
     // Mock implementation for development
     return;

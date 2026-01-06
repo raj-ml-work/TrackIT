@@ -146,6 +146,30 @@ function normalizeLocation(value) {
   return mapping[key] || 'Others';
 }
 
+const pad2 = (value) => value.toString().padStart(2, '0');
+
+function normalizeDateInput(value) {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  const ymdMatch = trimmed.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})/);
+  if (ymdMatch) return `${ymdMatch[1]}-${pad2(ymdMatch[2])}-${pad2(ymdMatch[3])}`;
+
+  const mdyMatch = trimmed.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/);
+  if (mdyMatch) return `${mdyMatch[3]}-${pad2(mdyMatch[1])}-${pad2(mdyMatch[2])}`;
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return null;
+}
+
 function normalizeDepartment(value) {
   const raw = (value || '').trim();
   if (!raw) {
@@ -734,8 +758,8 @@ async function migrateViaApi({
       assignedTo: row.assigned_to?.trim() || undefined,
       assignedToId: employeeId,
       employeeId,
-      purchaseDate: row.purchase_date?.trim() || '',
-      warrantyExpiry: row.warranty_expiry_date?.trim() || '',
+      purchaseDate: normalizeDateInput(row.purchase_date),
+      warrantyExpiry: normalizeDateInput(row.warranty_expiry_date),
       cost: row.purchase_price ? Number(row.purchase_price) : 0,
       location: locationName,
       locationId,

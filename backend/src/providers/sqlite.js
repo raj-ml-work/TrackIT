@@ -165,6 +165,35 @@ const parseJsonSafe = (value) => {
   }
 };
 
+const pad2 = (value) => value.toString().padStart(2, '0');
+
+const normalizeDateOutput = (value) => {
+  if (value == null) return '';
+  const trimmed = String(value).trim();
+  if (!trimmed) return '';
+
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  const ymdMatch = trimmed.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})/);
+  if (ymdMatch) return `${ymdMatch[1]}-${pad2(ymdMatch[2])}-${pad2(ymdMatch[3])}`;
+
+  const mdyMatch = trimmed.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/);
+  if (mdyMatch) return `${mdyMatch[3]}-${pad2(mdyMatch[1])}-${pad2(mdyMatch[2])}`;
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return '';
+};
+
+const normalizeDateInput = (value) => {
+  const normalized = normalizeDateOutput(value);
+  return normalized || null;
+};
+
 const mapAssetRow = (row) => {
   if (!row) return null;
   const assignedName = row.assigned_first_name
@@ -179,9 +208,9 @@ const mapAssetRow = (row) => {
     assignedTo: assignedName || row.assigned_to || undefined,
     assignedToId: row.assigned_to_uuid || undefined,
     employeeId: row.employee_id || undefined,
-    purchaseDate: row.purchase_date || '',
+    purchaseDate: normalizeDateOutput(row.purchase_date),
     acquisitionDate: row.acquisition_date || undefined,
-    warrantyExpiry: row.warranty_expiry || '',
+    warrantyExpiry: normalizeDateOutput(row.warranty_expiry),
     cost: Number(row.cost || 0),
     location: row.location_name || row.location || '',
     locationId: row.location_id || undefined,
@@ -638,9 +667,9 @@ export const createSqliteProvider = (config) => {
       asset.assignedTo || null,
       assignedEmployeeId,
       assignedEmployeeId,
-      asset.purchaseDate || null,
-      asset.acquisitionDate || null,
-      asset.warrantyExpiry || null,
+      normalizeDateInput(asset.purchaseDate),
+      normalizeDateInput(asset.acquisitionDate),
+      normalizeDateInput(asset.warrantyExpiry),
       asset.cost || 0,
       asset.location || null,
       asset.locationId || null,
@@ -711,9 +740,9 @@ export const createSqliteProvider = (config) => {
       asset.assignedTo || null,
       assignedEmployeeId,
       assignedEmployeeId,
-      asset.purchaseDate || null,
-      asset.acquisitionDate || null,
-      asset.warrantyExpiry || null,
+      normalizeDateInput(asset.purchaseDate),
+      normalizeDateInput(asset.acquisitionDate),
+      normalizeDateInput(asset.warrantyExpiry),
       asset.cost || 0,
       asset.location || null,
       asset.locationId || null,
