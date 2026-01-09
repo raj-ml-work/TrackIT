@@ -277,15 +277,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   }, [localFilteredEmployees, page]);
 
   const visibleEmployees = useBackend ? pageEmployees : localPagedEmployees;
-  const filteredVisibleEmployees = useMemo(() => {
-    if (!useBackend || filterDepartment === 'All') {
-      return visibleEmployees;
-    }
-    return visibleEmployees.filter(employee => {
-      const department = employee.department?.trim().toLowerCase();
-      return department === filterDepartment.trim().toLowerCase();
-    });
-  }, [filterDepartment, useBackend, visibleEmployees]);
+  const filteredVisibleEmployees = visibleEmployees;
   const totalCount = useBackend ? totalEmployees : localFilteredEmployees.length;
   const showLoadingState = useBackend && isPageLoading && filteredVisibleEmployees.length === 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
