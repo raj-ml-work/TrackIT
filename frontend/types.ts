@@ -211,4 +211,5 @@ export interface AssetQuery {
   pageSize: number;
   search?: string;
   type?: AssetType | 'All';
+  status?: AssetStatus | 'All';
 }

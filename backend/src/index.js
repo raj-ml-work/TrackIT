@@ -258,12 +258,13 @@ const buildServer = async () => {
   });
 
   app.get('/assets/page', async (request) => {
-    const { page, pageSize, search, type } = request.query || {};
+    const { page, pageSize, search, type, status } = request.query || {};
     return provider.getAssetsPage({
       page: Number(page || 1),
       pageSize: Number(pageSize || 20),
       search,
-      type
+      type,
+      status
     });
   });
 

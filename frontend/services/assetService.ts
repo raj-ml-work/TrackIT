@@ -126,6 +126,7 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
       params.set('pageSize', String(query.pageSize || 20));
       if (query.search) params.set('search', query.search);
       if (query.type) params.set('type', query.type);
+      if (query.status) params.set('status', query.status);
       return await apiFetchJson<PaginatedResult<Asset>>(`/assets/page?${params.toString()}`);
     }
 
@@ -148,6 +149,9 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
 
         if (query.type && query.type !== 'All') {
           searchRequest = searchRequest.eq('asset_type', query.type);
+        }
+        if (query.status && query.status !== 'All') {
+          searchRequest = searchRequest.eq('status', query.status);
         }
 
         const { data: matches, error: searchError, count } = await searchRequest;
@@ -217,6 +221,9 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
         if (query.type && query.type !== 'All') {
           fallbackRequest = fallbackRequest.eq('type', query.type);
         }
+        if (query.status && query.status !== 'All') {
+          fallbackRequest = fallbackRequest.eq('status', query.status);
+        }
 
         fallbackRequest = fallbackRequest.or(
           [
@@ -268,6 +275,9 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
 
     if (query.type && query.type !== 'All') {
       request = request.eq('type', query.type);
+    }
+    if (query.status && query.status !== 'All') {
+      request = request.eq('status', query.status);
     }
 
     const { data, error, count } = await request;

@@ -88,6 +88,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterType, setFilterType] = useState<AssetType | 'All'>('All');
+  const [filterStatus, setFilterStatus] = useState<AssetStatus | 'All'>('All');
   const [page, setPage] = useState(1);
   const [pageAssets, setPageAssets] = useState<Asset[]>([]);
   const [totalAssets, setTotalAssets] = useState(0);
@@ -148,15 +149,17 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     const loadAssetsPage = async () => {
       setIsPageLoading(true);
       setPageError('');
+      setPageAssets([]);
       try {
         const result = await getAssetsPage({
           page,
           pageSize: PAGE_SIZE,
           search: debouncedSearch || undefined,
-          type: filterType
+          type: filterType,
+          status: filterStatus
         });
         if (!isMounted) return;
-        setPageAssets(result.data);
+        setPageAssets([...result.data]);
         setTotalAssets(result.total);
       } catch (error) {
         if (!isMounted) return;
@@ -173,7 +176,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     return () => {
       isMounted = false;
     };
-  }, [useBackend, page, debouncedSearch, filterType, refreshToken, searchTerm]);
+  }, [useBackend, page, debouncedSearch, filterType, filterStatus, refreshToken, searchTerm]);
 
   const localFilteredAssets = useMemo(() => {
     const normalizedSearch = debouncedSearch.toLowerCase();
@@ -184,9 +187,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         asset.specs?.brand?.toLowerCase().includes(normalizedSearch) ||
         asset.specs?.model?.toLowerCase().includes(normalizedSearch);
       const matchesFilter = filterType === 'All' || asset.type === filterType;
-      return matchesSearch && matchesFilter;
+      const matchesStatus = filterStatus === 'All' || asset.status === filterStatus;
+      return matchesSearch && matchesFilter && matchesStatus;
     });
-  }, [assets, debouncedSearch, filterType]);
+  }, [assets, debouncedSearch, filterType, filterStatus]);
 
   const localPagedAssets = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -194,8 +198,18 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   }, [localFilteredAssets, page]);
 
   const visibleAssets = useBackend ? pageAssets : localPagedAssets;
+  const displayAssets = useMemo(() => {
+    if (!useBackend) {
+      return visibleAssets;
+    }
+    return visibleAssets.filter(asset => {
+      const matchesStatus = filterStatus === 'All' || asset.status === filterStatus;
+      const matchesType = filterType === 'All' || asset.type === filterType;
+      return matchesStatus && matchesType;
+    });
+  }, [visibleAssets, filterStatus, filterType, useBackend]);
   const totalCount = useBackend ? totalAssets : localFilteredAssets.length;
-  const showLoadingState = useBackend && isPageLoading && visibleAssets.length === 0;
+  const showLoadingState = useBackend && isPageLoading && displayAssets.length === 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const pageStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const pageEnd = Math.min(page * PAGE_SIZE, totalCount);
@@ -232,7 +246,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   // Update selected asset when assets change (e.g., when a comment is added)
   useEffect(() => {
     if (selectedAsset) {
-      const updated = visibleAssets.find(a => a.id === selectedAsset.id);
+      const updated = displayAssets.find(a => a.id === selectedAsset.id);
       if (updated) {
         const merged = updated.comments && updated.comments.length > 0
           ? updated
@@ -240,11 +254,11 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         setSelectedAsset(merged);
       }
     }
-  }, [visibleAssets, selectedAsset?.id]);
+  }, [displayAssets, selectedAsset?.id]);
 
   useEffect(() => {
     if (viewingAsset) {
-      const updated = visibleAssets.find(a => a.id === viewingAsset.id);
+      const updated = displayAssets.find(a => a.id === viewingAsset.id);
       if (updated) {
         const merged = updated.comments && updated.comments.length > 0
           ? updated
@@ -252,7 +266,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         setViewingAsset(merged);
       }
     }
-  }, [visibleAssets, viewingAsset?.id]);
+  }, [displayAssets, viewingAsset?.id]);
 
   const hasExtraSpecs = (type: AssetType) => {
     return [
@@ -848,6 +862,22 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               {Object.values(AssetType).map(t => <option key={t} value={t}>{formatAssetTypeLabel(t)}</option>)}
             </select>
           </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 uppercase tracking-wide">Status</span>
+            <select
+              value={filterStatus}
+              onChange={(e) => {
+                setFilterStatus(e.target.value as AssetStatus | 'All');
+                setPage(1);
+              }}
+              className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none"
+            >
+              <option value="All">All Statuses</option>
+              {Object.values(AssetStatus).map(status => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex items-center gap-3 ml-auto">
             {useBackend && (
               <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -913,7 +943,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               </motion.div>
             )}
 
-            {!showLoadingState && visibleAssets.length === 0 && (
+            {!showLoadingState && displayAssets.length === 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -924,7 +954,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               </motion.div>
             )}
 
-            {visibleAssets.map((asset, index) => (
+            {displayAssets.map((asset, index) => (
               <motion.div
                 key={asset.id}
                 initial={{ opacity: 0, y: 4 }}

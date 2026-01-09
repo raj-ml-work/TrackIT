@@ -574,6 +574,10 @@ export const createSqliteProvider = (config) => {
       filters.push('assets.type = @type');
       params.type = query.type;
     }
+    if (query.status && query.status !== 'All') {
+      filters.push('assets.status = @status');
+      params.status = query.status;
+    }
 
     if (query.search) {
       filters.push('(lower(assets.name) LIKE @search OR lower(assets.serial_number) LIKE @search)');

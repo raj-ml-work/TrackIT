@@ -80,10 +80,12 @@ export const useInventoryData = (
     setLoading(true);
     setError(null);
     setCacheHit(false);
+    const statusFilter = filters.status && filters.status !== 'all' ? filters.status : undefined;
+    const typeFilter = filters.type && filters.type !== 'all' ? filters.type : undefined;
 
     try {
       const result = await trackApiCall(
-        () => dataLoader.loadAllAssets(page),
+        () => dataLoader.loadAllAssets(page, { status: statusFilter, type: typeFilter }),
         `inventory?page=${page}&filters=${JSON.stringify(filters)}&sort=${sortBy}:${sortOrder}`
       );
 
@@ -131,12 +133,14 @@ export const useInventoryData = (
   const preloadNextPage = useCallback(async () => {
     if (currentPage < totalPages) {
       try {
-        await dataLoader.preloadNextAssetsPage(currentPage);
+        const statusFilter = filters.status && filters.status !== 'all' ? filters.status : undefined;
+        const typeFilter = filters.type && filters.type !== 'all' ? filters.type : undefined;
+        await dataLoader.preloadNextAssetsPage(currentPage, { status: statusFilter, type: typeFilter });
       } catch (error) {
         console.warn('Failed to preload next page:', error);
       }
     }
-  }, [currentPage, totalPages]);
+  }, [currentPage, filters.status, filters.type, totalPages]);
 
   // Refresh data
   const refresh = useCallback(async () => {

@@ -146,15 +146,20 @@ export class DataLoader {
   /**
    * Load all assets with pagination (MEDIUM priority)
    */
-  async loadAllAssets(page: number = 1): Promise<{ data: Asset[]; total: number; page: number; totalPages: number }> {
-    const cacheKey = `all_assets_page_${page}`;
+  async loadAllAssets(
+    page: number = 1,
+    filters?: { status?: string; type?: string }
+  ): Promise<{ data: Asset[]; total: number; page: number; totalPages: number }> {
+    const filterStatus = filters?.status ? filters.status : 'all';
+    const filterType = filters?.type ? filters.type : 'all';
+    const cacheKey = `all_assets_page_${page}_${filterStatus}_${filterType}`;
     
     if (this.isCached(cacheKey)) {
       return this.getCachedData(cacheKey);
     }
 
     const promise = this.withRetry(async () => {
-      const result = await dataService.getAssets(page, this.config.batchSize);
+      const result = await dataService.getAssets(page, this.config.batchSize, filters);
       this.setCachedData(cacheKey, result);
       return result;
     });
@@ -260,16 +265,21 @@ export class DataLoader {
   /**
    * Preload next page of assets
    */
-  async preloadNextAssetsPage(currentPage: number): Promise<void> {
+  async preloadNextAssetsPage(
+    currentPage: number,
+    filters?: { status?: string; type?: string }
+  ): Promise<void> {
     const nextPage = currentPage + 1;
-    const cacheKey = `all_assets_page_${nextPage}`;
+    const filterStatus = filters?.status ? filters.status : 'all';
+    const filterType = filters?.type ? filters.type : 'all';
+    const cacheKey = `all_assets_page_${nextPage}_${filterStatus}_${filterType}`;
     
     if (this.isCached(cacheKey)) {
       return;
     }
 
     try {
-      await this.loadAllAssets(nextPage);
+      await this.loadAllAssets(nextPage, filters);
     } catch (error) {
       console.warn(`Failed to preload assets page ${nextPage}:`, error);
     }
