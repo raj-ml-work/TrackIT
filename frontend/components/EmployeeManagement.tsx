@@ -4,6 +4,7 @@ import { Employee, EmployeeStatus, Asset, Location, Department, EmployeePersonal
 import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package, UserCircle, User, CheckCircle, ArrowLeft, ArrowRight, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
+import { isAdmin } from '../services/permissionUtil';
 import { getEmployeesPage } from '../services/dataService';
 
 interface EmployeeManagementProps {
@@ -308,6 +309,14 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   useEffect(() => {
     setCommentText('');
   }, [viewingEmployee?.id]);
+
+  const canViewPersonalDetails = isAdmin(currentUser || null);
+
+  useEffect(() => {
+    if (!canViewPersonalDetails && activeTab === 'personal') {
+      setActiveTab('overview');
+    }
+  }, [activeTab, canViewPersonalDetails]);
 
   // Compute assigned asset counts
   const assetCounts = useMemo(() => {
@@ -1590,7 +1599,11 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
               {/* Tabs */}
               <div className="border-b border-gray-200 shrink-0">
                 <div className="flex gap-1 px-6">
-                  {(['overview', 'personal', 'official', 'assets'] as const).map((tab) => (
+                  {(
+                    canViewPersonalDetails
+                      ? (['overview', 'personal', 'official', 'assets'] as const)
+                      : (['overview', 'official', 'assets'] as const)
+                  ).map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
@@ -1721,7 +1734,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                     </motion.div>
                   )}
 
-                  {activeTab === 'personal' && (
+                  {canViewPersonalDetails && activeTab === 'personal' && (
                     <motion.div
                       key="personal"
                       initial={{ opacity: 0, y: 10 }}
