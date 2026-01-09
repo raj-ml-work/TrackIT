@@ -42,12 +42,14 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
 
   const typeData = Object.values(AssetType).map(type => {
     const typeAssets = assets.filter(a => a.type === type);
-    const inUse = typeAssets.filter(isUtilized).length;
+    const assigned = typeAssets.filter(isUtilized).length;
     const available = typeAssets.filter(a => a.status === AssetStatus.AVAILABLE).length;
+    const maintenance = typeAssets.filter(a => a.status === AssetStatus.MAINTENANCE).length;
     return {
       name: type,
-      inUse,
+      assigned,
       available,
+      maintenance,
       total: typeAssets.length
     };
   }).filter(d => d.total > 0);
@@ -207,16 +209,29 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
            <div className="flex justify-between items-center mb-4">
              <div>
                <h3 className="text-lg font-bold text-gray-800">Asset Utilization</h3>
-               <p className="text-xs text-gray-500 mt-1">In use vs available by type</p>
+               <p className="text-xs text-gray-500 mt-1">Available, assigned, and maintenance by type</p>
              </div>
              <div className="flex items-center gap-3 text-xs text-gray-600">
                <span className="flex items-center gap-1.5">
-                 <span className="w-2.5 h-2.5 rounded-full bg-orange-400" />
-                 Shared Resource
+                 <span
+                   className="w-2.5 h-2.5 rounded-full"
+                   style={{ backgroundColor: '#093163' }}
+                 />
+                 Assigned
                </span>
                <span className="flex items-center gap-1.5">
-                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                 <span
+                   className="w-2.5 h-2.5 rounded-full"
+                   style={{ backgroundColor: '#3cad43' }}
+                 />
                  Available
+               </span>
+               <span className="flex items-center gap-1.5">
+                 <span
+                   className="w-2.5 h-2.5 rounded-full"
+                   style={{ backgroundColor: '#f59e0b' }}
+                 />
+                 Maintenance
                </span>
              </div>
            </div>
@@ -224,13 +239,17 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
              <ResponsiveContainer width="100%" height="100%">
                <BarChart data={typeData} barCategoryGap={18}>
                  <defs>
-                 <linearGradient id="inUseGradient" x1="0" y1="0" x2="0" y2="1">
-                   <stop offset="0%" stopColor="#1f4f8a" stopOpacity={0.9} />
-                   <stop offset="100%" stopColor="#093266" stopOpacity={0.9} />
+                 <linearGradient id="assignedGradient" x1="0" y1="0" x2="0" y2="1">
+                   <stop offset="0%" stopColor="#556b87" stopOpacity={0.85} />
+                   <stop offset="100%" stopColor="#093163" stopOpacity={0.95} />
                  </linearGradient>
                  <linearGradient id="availableGradient" x1="0" y1="0" x2="0" y2="1">
                    <stop offset="0%" stopColor="#6ad06f" stopOpacity={0.9} />
-                   <stop offset="100%" stopColor="#3faf43" stopOpacity={0.9} />
+                   <stop offset="100%" stopColor="#3cad43" stopOpacity={0.95} />
+                 </linearGradient>
+                 <linearGradient id="maintenanceGradient" x1="0" y1="0" x2="0" y2="1">
+                   <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.9} />
+                   <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.95} />
                  </linearGradient>
                  </defs>
                  <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" vertical={false} />
@@ -240,8 +259,30 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
                     cursor={{fill: 'transparent'}}
                     contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }} 
                  />
-                 <Bar dataKey="inUse" fill="url(#inUseGradient)" radius={[10, 10, 0, 0]} barSize={26} />
-                 <Bar dataKey="available" fill="url(#availableGradient)" radius={[10, 10, 0, 0]} barSize={26} />
+                 <Bar
+                   dataKey="assigned"
+                   name="Assigned"
+                   stackId="utilization"
+                   fill="url(#assignedGradient)"
+                   radius={[6, 6, 6, 6]}
+                   barSize={26}
+                 />
+                 <Bar
+                   dataKey="available"
+                   name="Available"
+                   stackId="utilization"
+                   fill="url(#availableGradient)"
+                   radius={[6, 6, 6, 6]}
+                   barSize={26}
+                 />
+                 <Bar
+                   dataKey="maintenance"
+                   name="Maintenance"
+                   stackId="utilization"
+                   fill="url(#maintenanceGradient)"
+                   radius={[6, 6, 6, 6]}
+                   barSize={26}
+                 />
                </BarChart>
              </ResponsiveContainer>
            </div>
@@ -400,6 +441,12 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={laptopDepartmentStats} margin={{ left: 8, right: 16, bottom: 16 }}>
+                  <defs>
+                    <linearGradient id="departmentUsageGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6ad06f" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#3cad43" stopOpacity={0.95} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" vertical={false} />
                   <XAxis
                     dataKey="department"
@@ -417,7 +464,7 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
                     cursor={{ fill: 'transparent' }}
                     contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }}
                   />
-                  <Bar dataKey="used" name="Used" fill="#818cf8" radius={[10, 10, 0, 0]} barSize={26} />
+                  <Bar dataKey="used" name="Used" fill="url(#departmentUsageGradient)" radius={[6, 6, 0, 0]} barSize={26} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
