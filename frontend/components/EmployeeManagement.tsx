@@ -4,6 +4,7 @@ import { Employee, EmployeeStatus, Asset, Location, Department, EmployeePersonal
 import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package, UserCircle, User, CheckCircle, ArrowLeft, ArrowRight, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
+import ModalPortal from './ModalPortal';
 import { isAdmin } from '../services/permissionUtil';
 import { getEmployeesPage } from '../services/dataService';
 
@@ -1511,45 +1512,46 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       </GlassCard>
 
       {/* Add/Edit Wizard Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={closeModal}
-              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className="fixed inset-0 m-auto z-50 w-full max-w-2xl h-[90vh] overflow-y-auto pointer-events-none flex items-center justify-center p-4"
-            >
-              <GlassCard className="pointer-events-auto w-full max-w-2xl max-h-[90vh] overflow-y-auto !bg-white/95 shadow-2xl border-white/50 m-4 flex flex-col">
-                <div className="flex justify-between items-center mb-6 shrink-0">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-800">{editingEmployee ? 'Edit Employee' : 'New Employee'}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 1 ? 'bg-blue-100 text-blue-700' : currentStep > 1 ? 'bg-blue-50 text-blue-600' : 'text-gray-400'}`}>
-                        Step 1: Basic
-                      </span>
-                      <span className="text-gray-300">/</span>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 2 ? 'bg-purple-100 text-purple-700' : currentStep > 2 ? 'bg-purple-50 text-purple-600' : 'text-gray-400'}`}>
-                        Step 2: Personal
-                      </span>
-                      <span className="text-gray-300">/</span>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 3 ? 'bg-green-100 text-green-700' : 'text-gray-400'}`}>
-                        Step 3: Official
-                      </span>
+      <ModalPortal>
+        <AnimatePresence>
+          {isModalOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={closeModal}
+                className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                className="fixed inset-0 m-auto z-50 w-full max-w-2xl h-[90vh] overflow-y-auto pointer-events-none flex items-center justify-center p-4"
+              >
+                <GlassCard className="pointer-events-auto w-full max-w-2xl max-h-[90vh] overflow-y-auto !bg-white/95 shadow-2xl border-white/50 m-4 flex flex-col">
+                  <div className="flex justify-between items-center mb-6 shrink-0">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-800">{editingEmployee ? 'Edit Employee' : 'New Employee'}</h2>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 1 ? 'bg-blue-100 text-blue-700' : currentStep > 1 ? 'bg-blue-50 text-blue-600' : 'text-gray-400'}`}>
+                          Step 1: Basic
+                        </span>
+                        <span className="text-gray-300">/</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 2 ? 'bg-purple-100 text-purple-700' : currentStep > 2 ? 'bg-purple-50 text-purple-600' : 'text-gray-400'}`}>
+                          Step 2: Personal
+                        </span>
+                        <span className="text-gray-300">/</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 3 ? 'bg-green-100 text-green-700' : 'text-gray-400'}`}>
+                          Step 3: Official
+                        </span>
+                      </div>
                     </div>
+                    <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
+                      <X size={20} className="text-gray-500" />
+                    </button>
                   </div>
-                  <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
-                    <X size={20} className="text-gray-500" />
-                  </button>
-                </div>
 
                 <div className="flex-1 overflow-y-auto p-1">
                   {/* Show general submission error at top */}
@@ -1626,11 +1628,12 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                     </button>
                   )}
                 </div>
-              </GlassCard>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+                </GlassCard>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </ModalPortal>
 
       {/* Confirm Dialog */}
       <ConfirmDialog

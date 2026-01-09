@@ -3,6 +3,7 @@ import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType, Location, 
 import GlassCard from './GlassCard';
 import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, IndianRupee, MapPin, Hash, User, FileText, Cpu, Layers, Headphones, MessageSquare, Send, Eye, DollarSign, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ModalPortal from './ModalPortal';
 import { getAssetsPage, getAssetComments } from '../services/dataService';
 
 interface AssetManagerProps {
@@ -1831,40 +1832,41 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       </AnimatePresence>
 
       {/* Add/Edit Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={closeModal}
-              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-0 m-auto z-50 w-full max-w-xl h-[90vh] overflow-y-auto pointer-events-none flex items-center justify-center"
-            >
-               <GlassCard className="pointer-events-auto w-full max-w-xl max-h-[90vh] overflow-y-auto !bg-white/95 shadow-2xl border-white/50 m-4 flex flex-col">
-                 <div className="flex justify-between items-center mb-6 shrink-0">
-                   <div>
-                     <h2 className="text-xl font-bold text-gray-800">{editingId ? 'Edit Asset' : 'New Asset'}</h2>
-                     <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 1 ? 'bg-blue-100 text-blue-700' : 'text-gray-400'}`}>Step 1: Details</span>
-                        {hasExtraSpecs(formData.type) && (
-                          <>
-                            <span className="text-gray-300">/</span>
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 2 ? 'bg-blue-100 text-blue-700' : 'text-gray-400'}`}>Step 2: Specs</span>
-                          </>
-                        )}
+      <ModalPortal>
+        <AnimatePresence>
+          {isModalOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={closeModal}
+                className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="fixed inset-0 m-auto z-50 w-full max-w-xl h-[90vh] overflow-y-auto pointer-events-none flex items-center justify-center"
+              >
+                 <GlassCard className="pointer-events-auto w-full max-w-xl max-h-[90vh] overflow-y-auto !bg-white/95 shadow-2xl border-white/50 m-4 flex flex-col">
+                   <div className="flex justify-between items-center mb-6 shrink-0">
+                     <div>
+                       <h2 className="text-xl font-bold text-gray-800">{editingId ? 'Edit Asset' : 'New Asset'}</h2>
+                       <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 1 ? 'bg-blue-100 text-blue-700' : 'text-gray-400'}`}>Step 1: Details</span>
+                          {hasExtraSpecs(formData.type) && (
+                            <>
+                              <span className="text-gray-300">/</span>
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 2 ? 'bg-blue-100 text-blue-700' : 'text-gray-400'}`}>Step 2: Specs</span>
+                            </>
+                          )}
+                       </div>
                      </div>
+                     <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
+                       <X size={20} className="text-gray-500" />
+                     </button>
                    </div>
-                   <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
-                     <X size={20} className="text-gray-500" />
-                   </button>
-                 </div>
 
                  <form onSubmit={handleNext} className="space-y-4 flex-1 overflow-y-auto p-1">
                     {currentStep === 1 ? renderStep1() : renderStep2()}
@@ -1907,11 +1909,12 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       </button>
                     )}
                   </div>
-               </GlassCard>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+                 </GlassCard>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </ModalPortal>
     </div>
   );
 };
