@@ -173,6 +173,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('All');
   const [page, setPage] = useState(1);
+  const [pageInput, setPageInput] = useState('1');
   const [pageEmployees, setPageEmployees] = useState<Employee[]>([]);
   const [totalEmployees, setTotalEmployees] = useState(0);
   const [isPageLoading, setIsPageLoading] = useState(false);
@@ -289,6 +290,54 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       setPage(totalPages);
     }
   }, [page, totalPages]);
+
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page]);
+
+  const pageItems = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    const items: Array<number | 'ellipsis'> = [1];
+    let start = Math.max(2, page - 1);
+    let end = Math.min(totalPages - 1, page + 1);
+
+    if (page <= 3) {
+      start = 2;
+      end = 4;
+    } else if (page >= totalPages - 2) {
+      start = totalPages - 3;
+      end = totalPages - 1;
+    }
+
+    if (start > 2) {
+      items.push('ellipsis');
+    }
+
+    for (let current = start; current <= end; current += 1) {
+      items.push(current);
+    }
+
+    if (end < totalPages - 1) {
+      items.push('ellipsis');
+    }
+
+    items.push(totalPages);
+    return items;
+  }, [page, totalPages]);
+
+  const commitPageInput = () => {
+    const parsed = Number(pageInput);
+    if (!Number.isFinite(parsed)) {
+      setPageInput(String(page));
+      return;
+    }
+    const nextPage = Math.min(totalPages, Math.max(1, Math.floor(parsed)));
+    setPage(nextPage);
+    setPageInput(String(nextPage));
+  };
 
   useEffect(() => {
     if (!viewingEmployee) return;
@@ -1381,7 +1430,14 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           <span>
             Showing {pageStart}-{pageEnd} of {totalCount}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setPage(1)}
+              disabled={page <= 1}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              First
+            </button>
             <button
               onClick={() => setPage(prev => Math.max(1, prev - 1))}
               disabled={page <= 1}
@@ -1389,9 +1445,32 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
             >
               Prev
             </button>
-            <span className="text-xs text-gray-500">
-              Page {page} of {totalPages}
-            </span>
+            <div className="flex items-center gap-1">
+              {pageItems.map((item, index) => {
+                if (item === 'ellipsis') {
+                  return (
+                    <span key={`ellipsis-${index}`} className="px-2 text-gray-400">
+                      ...
+                    </span>
+                  );
+                }
+                const isActive = item === page;
+                return (
+                  <button
+                    key={item}
+                    onClick={() => setPage(item)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`px-2.5 py-1.5 rounded-lg border text-sm transition-colors ${
+                      isActive
+                        ? 'border-gray-300 bg-gray-100 text-gray-900'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                );
+              })}
+            </div>
             <button
               onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
               disabled={page >= totalPages}
@@ -1399,6 +1478,34 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
             >
               Next
             </button>
+            <button
+              onClick={() => setPage(totalPages)}
+              disabled={page >= totalPages}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Last
+            </button>
+            <div className="flex items-center gap-2 pl-1">
+              <label className="text-xs text-gray-500" htmlFor="employee-page-input">
+                Go to
+              </label>
+              <input
+                id="employee-page-input"
+                type="number"
+                min={1}
+                max={totalPages}
+                value={pageInput}
+                onChange={(event) => setPageInput(event.target.value)}
+                onBlur={commitPageInput}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    commitPageInput();
+                  }
+                }}
+                className="w-16 rounded-lg border border-gray-200 px-2 py-1 text-sm text-gray-700"
+              />
+              <span className="text-xs text-gray-400">/ {totalPages}</span>
+            </div>
           </div>
         </div>
       </GlassCard>
