@@ -90,6 +90,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterType, setFilterType] = useState<AssetType | 'All'>('All');
   const [filterStatus, setFilterStatus] = useState<AssetStatus | 'All'>('All');
+  const [filterLocationId, setFilterLocationId] = useState<string | 'All'>('All');
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState('1');
   const [pageAssets, setPageAssets] = useState<Asset[]>([]);
@@ -143,6 +144,23 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     setViewCommentText('');
   }, [viewingAsset?.id]);
 
+  const selectedLocation = useMemo(
+    () => (filterLocationId === 'All' ? null : locations.find(loc => loc.id === filterLocationId) || null),
+    [filterLocationId, locations]
+  );
+  const selectedLocationName = selectedLocation?.name || '';
+  const matchesLocationFilter = (asset: Asset) =>
+    filterLocationId === 'All' ||
+    asset.locationId === filterLocationId ||
+    (selectedLocationName !== '' && asset.location === selectedLocationName);
+
+  useEffect(() => {
+    if (filterLocationId !== 'All' && !selectedLocation) {
+      setFilterLocationId('All');
+      setPage(1);
+    }
+  }, [filterLocationId, selectedLocation]);
+
   useEffect(() => {
     if (!useBackend) return;
     if (searchTerm.trim() !== debouncedSearch) return;
@@ -158,7 +176,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
           pageSize: PAGE_SIZE,
           search: debouncedSearch || undefined,
           type: filterType,
-          status: filterStatus
+          status: filterStatus,
+          locationId: filterLocationId === 'All' ? undefined : filterLocationId
         });
         if (!isMounted) return;
         setPageAssets([...result.data]);
@@ -178,7 +197,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     return () => {
       isMounted = false;
     };
-  }, [useBackend, page, debouncedSearch, filterType, filterStatus, refreshToken, searchTerm]);
+  }, [useBackend, page, debouncedSearch, filterType, filterStatus, filterLocationId, refreshToken, searchTerm]);
 
   const localFilteredAssets = useMemo(() => {
     const normalizedSearch = debouncedSearch.toLowerCase();
@@ -190,9 +209,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         asset.specs?.model?.toLowerCase().includes(normalizedSearch);
       const matchesFilter = filterType === 'All' || asset.type === filterType;
       const matchesStatus = filterStatus === 'All' || asset.status === filterStatus;
-      return matchesSearch && matchesFilter && matchesStatus;
+      return matchesSearch && matchesFilter && matchesStatus && matchesLocationFilter(asset);
     });
-  }, [assets, debouncedSearch, filterType, filterStatus]);
+  }, [assets, debouncedSearch, filterType, filterStatus, filterLocationId, selectedLocationName]);
 
   const localPagedAssets = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -207,9 +226,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     return visibleAssets.filter(asset => {
       const matchesStatus = filterStatus === 'All' || asset.status === filterStatus;
       const matchesType = filterType === 'All' || asset.type === filterType;
-      return matchesStatus && matchesType;
+      return matchesStatus && matchesType && matchesLocationFilter(asset);
     });
-  }, [visibleAssets, filterStatus, filterType, useBackend]);
+  }, [visibleAssets, filterStatus, filterType, filterLocationId, selectedLocationName, useBackend]);
   const totalCount = useBackend ? totalAssets : localFilteredAssets.length;
   const showLoadingState = useBackend && isPageLoading && displayAssets.length === 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -925,6 +944,24 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               <option value="All">All Statuses</option>
               {Object.values(AssetStatus).map(status => (
                 <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 uppercase tracking-wide">Location</span>
+            <select
+              value={filterLocationId}
+              onChange={(e) => {
+                setFilterLocationId(e.target.value);
+                setPage(1);
+              }}
+              className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none"
+            >
+              <option value="All">All Locations</option>
+              {locations.map((loc, index) => (
+                <option key={`${loc.id || loc.name || 'location-filter'}-${index}`} value={loc.id}>
+                  {loc.name}{loc.city ? ` - ${loc.city}` : ''}
+                </option>
               ))}
             </select>
           </div>

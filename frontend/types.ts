@@ -212,4 +212,5 @@ export interface AssetQuery {
   search?: string;
   type?: AssetType | 'All';
   status?: AssetStatus | 'All';
+  locationId?: string;
 }

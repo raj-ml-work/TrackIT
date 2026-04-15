@@ -349,6 +349,10 @@ export const createPostgresProvider = async (config) => {
       values.push(query.status);
       filters.push(`assets.status = $${values.length}`);
     }
+    if (query.locationId && query.locationId !== 'All') {
+      values.push(query.locationId);
+      filters.push(`assets.location_id = $${values.length}`);
+    }
 
     if (query.search) {
       values.push(`%${query.search.trim().toLowerCase()}%`);

@@ -578,6 +578,10 @@ export const createSqliteProvider = (config) => {
       filters.push('assets.status = @status');
       params.status = query.status;
     }
+    if (query.locationId && query.locationId !== 'All') {
+      filters.push('assets.location_id = @locationId');
+      params.locationId = query.locationId;
+    }
 
     if (query.search) {
       filters.push('(lower(assets.name) LIKE @search OR lower(assets.serial_number) LIKE @search)');

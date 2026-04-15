@@ -22,6 +22,23 @@ const normalizeAssetStatus = (status: string | null | undefined): AssetStatus =>
   return status as AssetStatus;
 };
 
+const buildAssetSearchText = (asset: Asset): string =>
+  [
+    asset.name,
+    asset.serialNumber,
+    asset.type,
+    asset.status,
+    asset.location,
+    asset.assignedTo,
+    asset.specs?.brand,
+    asset.specs?.model,
+    asset.assetSpecs?.brand,
+    asset.assetSpecs?.model
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
 const attachAssetSpecs = async (supabase: any, assets: Asset[]): Promise<Asset[]> => {
   if (assets.length === 0) return assets;
   const assetIds = assets.map(a => a.id);
@@ -116,7 +133,7 @@ export const getAssets = async (): Promise<Asset[]> => {
 };
 
 /**
- * Get a paginated list of assets with optional search and type filtering
+ * Get a paginated list of assets with optional search and filtering
  */
 export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<Asset>> => {
   try {
@@ -127,6 +144,7 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
       if (query.search) params.set('search', query.search);
       if (query.type) params.set('type', query.type);
       if (query.status) params.set('status', query.status);
+      if (query.locationId) params.set('locationId', query.locationId);
       return await apiFetchJson<PaginatedResult<Asset>>(`/assets/page?${params.toString()}`);
     }
 
@@ -136,6 +154,43 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
     const search = query.search?.trim();
+    const hasLocationFilter = Boolean(query.locationId && query.locationId !== 'All');
+
+    if (search && hasLocationFilter) {
+      let filteredRequest = supabase
+        .from(TABLE_NAME)
+        .select(
+          `
+        *,
+        assigned_employee:employees!employee_id(id, employee_id, personal_info:employee_personal_info(first_name, last_name)),
+        location:locations(id, name, city, country)
+      `
+        )
+        .eq('location_id', query.locationId)
+        .order('created_at', { ascending: false });
+
+      if (query.type && query.type !== 'All') {
+        filteredRequest = filteredRequest.eq('type', query.type);
+      }
+      if (query.status && query.status !== 'All') {
+        filteredRequest = filteredRequest.eq('status', query.status);
+      }
+
+      const { data, error } = await filteredRequest;
+      if (error) throw error;
+
+      const assets = (data || []).map(transformAssetFromDB);
+      await attachAssetSpecs(supabase, assets);
+
+      const matchingAssets = assets.filter(asset => buildAssetSearchText(asset).includes(search.toLowerCase()));
+
+      return {
+        data: matchingAssets.slice(from, to + 1),
+        total: matchingAssets.length,
+        page,
+        pageSize
+      };
+    }
 
     if (search) {
       const pattern = `%${search.toLowerCase()}%`;
@@ -224,6 +279,9 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
         if (query.status && query.status !== 'All') {
           fallbackRequest = fallbackRequest.eq('status', query.status);
         }
+        if (hasLocationFilter) {
+          fallbackRequest = fallbackRequest.eq('location_id', query.locationId);
+        }
 
         fallbackRequest = fallbackRequest.or(
           [
@@ -278,6 +336,9 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
     }
     if (query.status && query.status !== 'All') {
       request = request.eq('status', query.status);
+    }
+    if (hasLocationFilter) {
+      request = request.eq('location_id', query.locationId);
     }
 
     const { data, error, count } = await request;
