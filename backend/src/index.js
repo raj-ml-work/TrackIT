@@ -57,7 +57,7 @@ const buildServer = async () => {
     }
 
     const user = await provider.getUserByEmail(email);
-    if (!user || !verifyPassword(password, user.passwordHash)) {
+    if (!user || !(await verifyPassword(password, user.passwordHash))) {
       return reply.code(401).send({ error: 'Invalid email or password.' });
     }
 
@@ -85,10 +85,8 @@ const buildServer = async () => {
       return reply.code(401).send({ error: 'Refresh token missing.' });
     }
 
-    let payload;
-    try {
-      payload = verifyRefreshToken(refreshToken);
-    } catch {
+    const payload = verifyRefreshToken(refreshToken);
+    if (!payload) {
       clearRefreshCookie(reply);
       return reply.code(401).send({ error: 'Refresh token invalid.' });
     }
@@ -118,10 +116,8 @@ const buildServer = async () => {
       return reply.code(401).send({ error: 'Authorization token missing.' });
     }
 
-    let payload;
-    try {
-      payload = verifyAccessToken(token);
-    } catch {
+    const payload = verifyAccessToken(token);
+    if (!payload) {
       return reply.code(401).send({ error: 'Authorization token invalid.' });
     }
 
@@ -138,13 +134,10 @@ const buildServer = async () => {
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     if (!token) return null;
 
-    try {
-      const payload = verifyAccessToken(token);
-      const user = await provider.getUserById(payload.sub);
-      return user || null;
-    } catch {
-      return null;
-    }
+    const payload = await verifyAccessToken(token);
+    if (!payload) return null;
+    const user = await provider.getUserById(payload.sub);
+    return user || null;
   };
 
   app.get('/locations', async () => {

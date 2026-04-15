@@ -23,11 +23,19 @@ export const signRefreshToken = (user) => {
 };
 
 export const verifyAccessToken = (token) => {
-  return jwt.verify(token, config.jwt.accessSecret);
+  try {
+    return jwt.verify(token, config.jwt.accessSecret);
+  } catch (error) {
+    return false;
+  }
 };
 
 export const verifyRefreshToken = (token) => {
-  return jwt.verify(token, config.jwt.refreshSecret);
+  try {
+    return jwt.verify(token, config.jwt.refreshSecret);
+  } catch (error) {
+    return false;
+  }
 };
 
 export const getAccessExpiry = () => {

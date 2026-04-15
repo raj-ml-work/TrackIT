@@ -26,6 +26,8 @@ dist-ssr
 *.db
 *.db-shm
 *.db-wal
+*.db.server-shm
+*.db.server-wal
 *.old
 duplicates*.csv
 missing*.csv
