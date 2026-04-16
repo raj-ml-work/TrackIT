@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Asset, AssetStatus, AssetType, AssetSpecs, AssetCommentType, Location, Employee, EmployeeStatus } from '../types';
 import GlassCard from './GlassCard';
 import { Search, Filter, Plus, Edit2, Trash2, X, Check, Laptop, Monitor, Smartphone, HardDrive, Printer, Box, Tv, Projector as ProjectorIcon, ArrowRight, ArrowLeft, Calendar, IndianRupee, MapPin, Hash, User, FileText, Cpu, Layers, Headphones, MessageSquare, Send, Eye, DollarSign, Loader } from 'lucide-react';
@@ -85,6 +85,37 @@ const getSpecValue = (specs: AssetSpecs | undefined, keys: (keyof AssetSpecs)[],
 
 const PAGE_SIZE = 20;
 
+const normalizeSearchText = (value?: string) => (value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+const formatEmployeeOptionLabel = (employee: Employee) => {
+  const primaryName = employee.name?.trim() || employee.employeeId;
+  const suffix = [
+    employee.employeeId,
+    employee.department ? `(${employee.department})` : '',
+    employee.status !== EmployeeStatus.ACTIVE ? '[Inactive]' : ''
+  ].filter(Boolean).join(' ');
+
+  return suffix ? `${primaryName} - ${suffix}` : primaryName;
+};
+
+const findEmployeeByAssignmentValue = (employees: Employee[], value?: string) => {
+  const normalizedValue = normalizeSearchText(value);
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return employees.find(employee => {
+    const candidateValues = [
+      employee.id,
+      employee.name,
+      employee.email,
+      employee.employeeId
+    ];
+
+    return candidateValues.some(candidate => normalizeSearchText(candidate) === normalizedValue);
+  }) || null;
+};
+
 const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], locations, onAdd, onUpdate, onDelete, onAddComment, canCreate = true, canUpdate = true, canDelete = true, useBackend = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -126,6 +157,15 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   const [commentText, setCommentText] = useState('');
   const [viewCommentText, setViewCommentText] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
+  const [isEmployeePickerOpen, setIsEmployeePickerOpen] = useState(false);
+  const [highlightedEmployeeIndex, setHighlightedEmployeeIndex] = useState(0);
+  const employeePickerRef = useRef<HTMLDivElement | null>(null);
+  const assignedToInputId = useId();
+  const assignedToLabelId = `${assignedToInputId}-label`;
+  const assignedToListboxId = `${assignedToInputId}-listbox`;
+  const assignedToHelpId = `${assignedToInputId}-help`;
+  const assignedToErrorId = `${assignedToInputId}-error`;
 
   useEffect(() => {
     if (!toast) return;
@@ -277,6 +317,95 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     items.push(totalPages);
     return items;
   }, [page, totalPages]);
+
+  const selectedAssignedEmployeeId = useMemo(() => {
+    const directEmployeeId = formData.assignedToId || formData.employeeId;
+    if (directEmployeeId && employees.some(emp => emp.id === directEmployeeId)) {
+      return directEmployeeId;
+    }
+
+    return findEmployeeByAssignmentValue(employees, formData.assignedTo)?.id;
+  }, [employees, formData.assignedTo, formData.assignedToId, formData.employeeId]);
+
+  const selectedAssignedEmployee = useMemo(
+    () => employees.find(emp => emp.id === selectedAssignedEmployeeId) || null,
+    [employees, selectedAssignedEmployeeId]
+  );
+
+  const assignableEmployees = useMemo(() => {
+    const activeEmployees = employees.filter(emp => emp.status === EmployeeStatus.ACTIVE);
+
+    if (
+      selectedAssignedEmployee &&
+      selectedAssignedEmployee.status !== EmployeeStatus.ACTIVE &&
+      !activeEmployees.some(emp => emp.id === selectedAssignedEmployee.id)
+    ) {
+      return [selectedAssignedEmployee, ...activeEmployees];
+    }
+
+    return activeEmployees;
+  }, [employees, selectedAssignedEmployee]);
+
+  const filteredAssignableEmployees = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(employeeSearchQuery);
+    if (!normalizedQuery) {
+      return assignableEmployees;
+    }
+
+    return assignableEmployees.filter(employee => {
+      const searchableText = normalizeSearchText(
+        [
+          employee.name,
+          employee.employeeId,
+          employee.department,
+          employee.email,
+          formatEmployeeOptionLabel(employee)
+        ].filter(Boolean).join(' ')
+      );
+
+      return searchableText.includes(normalizedQuery);
+    });
+  }, [assignableEmployees, employeeSearchQuery]);
+
+  const employeePickerDisplayValue = isEmployeePickerOpen
+    ? employeeSearchQuery
+    : (selectedAssignedEmployee
+      ? formatEmployeeOptionLabel(selectedAssignedEmployee)
+      : (formData.assignedTo || ''));
+  const highlightedEmployee = filteredAssignableEmployees[highlightedEmployeeIndex];
+  const assignedToDescriptionIds = [
+    assignedToHelpId,
+    formErrors.assignedTo || formErrors.assignedToId ? assignedToErrorId : null
+  ]
+    .filter(Boolean)
+    .join(' ') || undefined;
+
+  useEffect(() => {
+    if (!isEmployeePickerOpen) {
+      return;
+    }
+
+    const handlePointerDownOutside = (event: MouseEvent) => {
+      if (!employeePickerRef.current?.contains(event.target as Node)) {
+        setIsEmployeePickerOpen(false);
+        setHighlightedEmployeeIndex(0);
+        setEmployeeSearchQuery(
+          selectedAssignedEmployee
+            ? formatEmployeeOptionLabel(selectedAssignedEmployee)
+            : (formData.assignedTo || '')
+        );
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDownOutside);
+    return () => document.removeEventListener('mousedown', handlePointerDownOutside);
+  }, [formData.assignedTo, isEmployeePickerOpen, selectedAssignedEmployee]);
+
+  useEffect(() => {
+    if (highlightedEmployeeIndex >= filteredAssignableEmployees.length) {
+      setHighlightedEmployeeIndex(0);
+    }
+  }, [filteredAssignableEmployees.length, highlightedEmployeeIndex]);
 
   const commitPageInput = () => {
     const parsed = Number(pageInput);
@@ -457,11 +586,11 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
 
   const openEdit = (asset: Asset) => {
     // Use assignedToId or employeeId if available, otherwise try to find employee by name
-    let assignedToId = asset.assignedToId || asset.employeeId;
-    if (!assignedToId && asset.assignedTo) {
-      const employee = employees.find(emp => emp.name === asset.assignedTo);
-      assignedToId = employee?.id;
-    }
+    const matchedAssignedEmployee =
+      (asset.assignedToId || asset.employeeId)
+        ? employees.find(emp => emp.id === (asset.assignedToId || asset.employeeId)) || null
+        : findEmployeeByAssignmentValue(employees, asset.assignedTo);
+    const assignedToId = matchedAssignedEmployee?.id;
     
     // Use locationId if available, otherwise try to find location by name
     let locationId = asset.locationId;
@@ -477,10 +606,28 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         locationId: locationId,
         specs: { ...initialSpecs, ...asset.specs, ...asset.assetSpecs }
     });
+    setEmployeeSearchQuery(
+      matchedAssignedEmployee
+        ? formatEmployeeOptionLabel(matchedAssignedEmployee)
+        : (asset.assignedTo || '')
+    );
+    setIsEmployeePickerOpen(false);
+    setHighlightedEmployeeIndex(0);
     setEditingId(asset.id);
     setCurrentStep(1);
     setIsModalOpen(true);
     setFormErrors({});
+  };
+
+  const openCreateModal = () => {
+    setEditingId(null);
+    setCurrentStep(1);
+    setFormData(initialAsset);
+    setFormErrors({});
+    setEmployeeSearchQuery('');
+    setIsEmployeePickerOpen(false);
+    setHighlightedEmployeeIndex(0);
+    setIsModalOpen(true);
   };
 
   const closeModal = () => {
@@ -489,6 +636,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
     setCurrentStep(1);
     setFormData(initialAsset);
     setFormErrors({});
+    setEmployeeSearchQuery('');
+    setIsEmployeePickerOpen(false);
+    setHighlightedEmployeeIndex(0);
   };
 
   const updateSpecs = (field: keyof AssetSpecs, value: string) => {
@@ -522,6 +672,38 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       // Error is already handled in the handler
       console.error('Error adding comment:', error);
     }
+  };
+
+  const applyEmployeeAssignment = (employee?: Employee) => {
+    if (employee) {
+      setFormData(prev => ({
+        ...prev,
+        assignedToId: employee.id,
+        employeeId: employee.id,
+        assignedTo: employee.name || employee.employeeId,
+        status: AssetStatus.ASSIGNED
+      }));
+      setEmployeeSearchQuery(formatEmployeeOptionLabel(employee));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        assignedToId: undefined,
+        employeeId: undefined,
+        assignedTo: undefined,
+        status: AssetStatus.AVAILABLE
+      }));
+      setEmployeeSearchQuery('');
+    }
+
+    setFormErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.assignedTo;
+      delete newErrors.assignedToId;
+      delete newErrors.status;
+      return newErrors;
+    });
+    setIsEmployeePickerOpen(false);
+    setHighlightedEmployeeIndex(0);
   };
 
   const handleDeleteAsset = async (asset: Asset) => {
@@ -757,64 +939,160 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
       </div>
       
       <div>
-        <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Assigned To</label>
-        <select 
-          className={`w-full p-2 bg-gray-50 border rounded-lg outline-none transition-all ${
-            formErrors.assignedTo || formErrors.assignedToId ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-emerald-500/20'
-          }`}
-          value={formData.assignedToId || formData.employeeId || ''}
-          onChange={e => {
-            const newAssignedToId = e.target.value || undefined;
-            const selectedEmployee = employees.find(emp => emp.id === newAssignedToId);
-            
-            // When assigning, force status to "Assigned"
-            if (newAssignedToId && selectedEmployee) {
-              setFormData(prev => ({ 
-                ...prev, 
-                assignedToId: newAssignedToId,
-                employeeId: newAssignedToId,
-                assignedTo: selectedEmployee.name, // Keep for display/backward compatibility
-                status: AssetStatus.ASSIGNED
-              }));
-              // Clear any errors since assignment is valid
-              setFormErrors(prev => {
-                const newErrors = { ...prev };
-                delete newErrors.assignedTo;
-                delete newErrors.assignedToId;
-                delete newErrors.status;
-                return newErrors;
-              });
-            } else {
-              // If unassigning, force status to "Available"
-              setFormData(prev => ({ 
-                ...prev, 
-                assignedToId: undefined,
-                employeeId: undefined,
-                assignedTo: undefined,
-                status: AssetStatus.AVAILABLE
-              }));
-              // Clear errors
-              setFormErrors(prev => {
-                const newErrors = { ...prev };
-                delete newErrors.assignedTo;
-                delete newErrors.assignedToId;
-                delete newErrors.status;
-                return newErrors;
-              });
-            }
-          }}
+        <label
+          id={assignedToLabelId}
+          htmlFor={assignedToInputId}
+          className="block text-xs font-medium text-gray-500 uppercase mb-1"
         >
-          <option value="">Unassigned</option>
-          {employees
-            .filter(emp => emp.status === EmployeeStatus.ACTIVE)
-            .map(emp => (
-              <option key={emp.id} value={emp.id}>
-                {emp.name || `${emp.employeeId}`} - {emp.employeeId} {emp.department ? `(${emp.department})` : ''}
-              </option>
-            ))}
-        </select>
+          Assigned To
+        </label>
+        <div ref={employeePickerRef} className="relative">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              id={assignedToInputId}
+              type="text"
+              role="combobox"
+              aria-labelledby={assignedToLabelId}
+              aria-describedby={assignedToDescriptionIds}
+              aria-controls={assignedToListboxId}
+              aria-expanded={isEmployeePickerOpen}
+              aria-haspopup="listbox"
+              aria-autocomplete="list"
+              aria-activedescendant={
+                isEmployeePickerOpen && highlightedEmployee
+                  ? `${assignedToListboxId}-option-${highlightedEmployee.id}`
+                  : undefined
+              }
+              aria-invalid={Boolean(formErrors.assignedTo || formErrors.assignedToId)}
+              className={`w-full bg-gray-50 border rounded-lg outline-none transition-all pl-9 pr-24 py-2 ${
+                formErrors.assignedTo || formErrors.assignedToId ? 'border-red-300 focus:ring-2 focus:ring-red-500/20' : 'border-gray-200 focus:ring-2 focus:ring-emerald-500/20'
+              }`}
+              value={employeePickerDisplayValue}
+              placeholder="Search by any part of name or employee ID"
+              onFocus={() => {
+                setEmployeeSearchQuery(
+                  selectedAssignedEmployee
+                    ? formatEmployeeOptionLabel(selectedAssignedEmployee)
+                    : (formData.assignedTo || '')
+                );
+                setIsEmployeePickerOpen(true);
+              }}
+              onBlur={() => {
+                window.setTimeout(() => {
+                  if (!employeePickerRef.current?.contains(document.activeElement)) {
+                    setIsEmployeePickerOpen(false);
+                    setHighlightedEmployeeIndex(0);
+                    setEmployeeSearchQuery(
+                      selectedAssignedEmployee
+                        ? formatEmployeeOptionLabel(selectedAssignedEmployee)
+                        : (formData.assignedTo || '')
+                    );
+                  }
+                }, 0);
+              }}
+              onChange={e => {
+                setEmployeeSearchQuery(e.target.value);
+                setIsEmployeePickerOpen(true);
+                setHighlightedEmployeeIndex(0);
+              }}
+              onKeyDown={e => {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setIsEmployeePickerOpen(true);
+                  setHighlightedEmployeeIndex(prev =>
+                    filteredAssignableEmployees.length === 0
+                      ? 0
+                      : (isEmployeePickerOpen ? Math.min(prev + 1, filteredAssignableEmployees.length - 1) : 0)
+                  );
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setIsEmployeePickerOpen(true);
+                  setHighlightedEmployeeIndex(prev => Math.max(prev - 1, 0));
+                } else if (e.key === 'Enter' && isEmployeePickerOpen) {
+                  e.preventDefault();
+                  const highlightedEmployee = filteredAssignableEmployees[highlightedEmployeeIndex];
+                  if (highlightedEmployee) {
+                    applyEmployeeAssignment(highlightedEmployee);
+                  }
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setIsEmployeePickerOpen(false);
+                  setHighlightedEmployeeIndex(0);
+                  setEmployeeSearchQuery(
+                    selectedAssignedEmployee
+                      ? formatEmployeeOptionLabel(selectedAssignedEmployee)
+                      : (formData.assignedTo || '')
+                  );
+                }
+              }}
+            />
+            {(selectedAssignedEmployeeId || formData.assignedTo) && (
+              <button
+                type="button"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => applyEmployeeAssignment()}
+                aria-label="Clear assigned employee"
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <p id={assignedToHelpId} className="mt-1 text-xs text-gray-500">Search matches any part of the employee name, last name, middle name, or ID.</p>
+
+          {isEmployeePickerOpen && (
+            <div
+              id={assignedToListboxId}
+              role="listbox"
+              aria-labelledby={assignedToLabelId}
+              className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg"
+            >
+              {filteredAssignableEmployees.length > 0 ? (
+                filteredAssignableEmployees.map((employee, index) => {
+                  const isSelected = selectedAssignedEmployeeId === employee.id;
+
+                  return (
+                    <div
+                      id={`${assignedToListboxId}-option-${employee.id}`}
+                      key={employee.id}
+                      role="option"
+                      aria-selected={isSelected}
+                      onMouseDown={e => {
+                        e.preventDefault();
+                        applyEmployeeAssignment(employee);
+                      }}
+                      className={`w-full flex items-start justify-between gap-3 px-3 py-2 text-left transition-colors ${
+                        index === highlightedEmployeeIndex
+                          ? 'bg-emerald-50'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-gray-800 truncate">
+                          {employee.name || employee.employeeId}
+                        </span>
+                        <span className="block text-xs text-gray-500 truncate">
+                          {employee.employeeId}
+                          {employee.department ? ` • ${employee.department}` : ''}
+                          {employee.status !== EmployeeStatus.ACTIVE ? ' • Inactive' : ''}
+                        </span>
+                      </span>
+                      {isSelected && <Check size={16} className="mt-0.5 shrink-0 text-emerald-600" />}
+                    </div>
+                  );
+                })
+              ) : (
+                <div role="status" aria-live="polite" className="px-3 py-3 text-sm text-gray-500">
+                  No employees match "{employeeSearchQuery.trim()}".
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         {(formErrors.assignedTo || formErrors.assignedToId) && (
-          <p className="mt-1 text-xs text-red-600">{formErrors.assignedTo || formErrors.assignedToId}</p>
+          <p id={assignedToErrorId} className="mt-1 text-xs text-red-600">{formErrors.assignedTo || formErrors.assignedToId}</p>
         )}
       </div>
     </div>
@@ -979,7 +1257,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
             )}
             {canCreate && (
               <button
-                onClick={() => { setCurrentStep(1); setIsModalOpen(true); }}
+                onClick={openCreateModal}
                 className="relative inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-600 text-white text-sm font-semibold shadow-lg shadow-green-600/20 hover:-translate-y-0.5 hover:bg-green-700 transition-transform overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
               >
                 <Plus size={18} />

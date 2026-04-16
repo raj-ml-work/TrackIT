@@ -455,8 +455,11 @@ const App: React.FC = () => {
             createdAt: now
           });
         }
-        
-        if (oldAsset.assignedTo !== updatedAsset.assignedTo) {
+
+        const oldAssignmentKey = oldAsset.assignedToId || oldAsset.employeeId || oldAsset.assignedTo || '';
+        const newAssignmentKey = updatedAsset.assignedToId || updatedAsset.employeeId || updatedAsset.assignedTo || '';
+
+        if (oldAssignmentKey !== newAssignmentKey) {
           auditComments.push({
             assetId: oldAsset.id,
             authorName: session?.user.name || 'System',

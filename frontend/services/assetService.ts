@@ -754,8 +754,8 @@ const transformAssetFromDB = (dbAsset: any): Asset => {
     status: normalizeAssetStatus(dbAsset.status),
     serialNumber: dbAsset.serial_number,
     assignedTo: assignedToName || undefined, // Legacy: employee name
-    assignedToId: dbAsset.employee_id || dbAsset.assigned_to_uuid || dbAsset.assigned_to || undefined, // UUID of assigned employee
-    employeeId: dbAsset.employee_id || dbAsset.assigned_to_uuid || dbAsset.assigned_to || undefined, // Alternative assignment field
+    assignedToId: dbAsset.employee_id || dbAsset.assigned_to_uuid || undefined, // UUID of assigned employee
+    employeeId: dbAsset.employee_id || dbAsset.assigned_to_uuid || undefined, // Alternative assignment field
     purchaseDate: dbAsset.purchase_date || '',
     acquisitionDate: dbAsset.acquisition_date || undefined,
     warrantyExpiry: dbAsset.warranty_expiry || '',
