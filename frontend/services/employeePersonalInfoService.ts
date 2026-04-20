@@ -121,6 +121,7 @@ const transformPersonalInfoFromDB = (dbPersonalInfo: any): EmployeePersonalInfo 
     emergencyContactNumber: dbPersonalInfo.emergency_contact_number,
     personalEmail: dbPersonalInfo.personal_email,
     linkedinUrl: dbPersonalInfo.linkedin_url,
+    photoUrl: dbPersonalInfo.photo_url,
     additionalComments: dbPersonalInfo.additional_comments
   };
 };
@@ -139,7 +140,7 @@ const transformPersonalInfoToDB = (personalInfo: EmployeePersonalInfo | Omit<Emp
     emergency_contact_number: personalInfo.emergencyContactNumber || null,
     personal_email: personalInfo.personalEmail || null,
     linkedin_url: personalInfo.linkedinUrl || null,
+    photo_url: personalInfo.photoUrl || null,
     additional_comments: personalInfo.additionalComments || null
   };
 };
-

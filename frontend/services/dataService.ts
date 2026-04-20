@@ -76,6 +76,9 @@ export {
   getEmployeesPage,
   getEmployeeById,
   getEmployeeByEmployeeId,
+  getEmployeeFeedback,
+  addEmployeeFeedback,
+  uploadEmployeePhoto,
   createEmployee,
   updateEmployee,
   deleteEmployee

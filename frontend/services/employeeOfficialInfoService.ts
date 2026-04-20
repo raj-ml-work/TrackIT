@@ -119,7 +119,15 @@ const transformOfficialInfoFromDB = (dbOfficialInfo: any): EmployeeOfficialInfo 
     agreementSigned: dbOfficialInfo.agreement_signed || false,
     startDate: dbOfficialInfo.start_date,
     officialDob: dbOfficialInfo.official_dob,
-    officialEmail: dbOfficialInfo.official_email
+    officialEmail: dbOfficialInfo.official_email,
+    assignmentType: dbOfficialInfo.assignment_type,
+    clientName: dbOfficialInfo.client_name,
+    clientLocation: dbOfficialInfo.client_location,
+    managerName: dbOfficialInfo.manager_name,
+    directorName: dbOfficialInfo.director_name,
+    projectDescription: dbOfficialInfo.project_description,
+    clientWorkNotes: dbOfficialInfo.client_work_notes,
+    assignmentDate: dbOfficialInfo.assignment_date
   };
 };
 
@@ -135,7 +143,14 @@ const transformOfficialInfoToDB = (officialInfo: EmployeeOfficialInfo | Omit<Emp
     agreement_signed: officialInfo.agreementSigned || false,
     start_date: officialInfo.startDate || null,
     official_dob: officialInfo.officialDob || null,
-    official_email: officialInfo.officialEmail || null
+    official_email: officialInfo.officialEmail || null,
+    assignment_type: officialInfo.assignmentType || null,
+    client_name: officialInfo.clientName || null,
+    client_location: officialInfo.clientLocation || null,
+    manager_name: officialInfo.managerName || null,
+    director_name: officialInfo.directorName || null,
+    project_description: officialInfo.projectDescription || null,
+    client_work_notes: officialInfo.clientWorkNotes || null,
+    assignment_date: officialInfo.assignmentDate || null
   };
 };
-

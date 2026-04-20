@@ -1,12 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import GlassCard from './GlassCard';
-import { Employee, EmployeeStatus, Asset, Location, Department, EmployeePersonalInfo, EmployeeOfficialInfo, EmployeeAssignmentType } from '../types';
-import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package, UserCircle, User, CheckCircle, ArrowLeft, ArrowRight, MessageSquare, Send } from 'lucide-react';
+import {
+  Employee,
+  EmployeeStatus,
+  Asset,
+  Location,
+  Department,
+  EmployeePersonalInfo,
+  EmployeeOfficialInfo,
+  EmployeeAssignmentType,
+  EmployeeFeedbackCategory,
+  EmployeeFeedbackSentiment
+} from '../types';
+import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package, UserCircle, User, CheckCircle, ArrowLeft, ArrowRight, MessageSquare, Send, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
 import ModalPortal from './ModalPortal';
 import { isAdmin } from '../services/permissionUtil';
-import { getEmployeeById, getEmployeesPage, uploadEmployeePhoto } from '../services/dataService';
+import { addEmployeeFeedback, getEmployeeById, getEmployeesPage, uploadEmployeePhoto } from '../services/dataService';
 import { getRuntimeConfig } from '../services/runtimeConfig';
 
 interface EmployeeManagementProps {
@@ -74,7 +85,13 @@ interface EngagementTransitionFormData {
   projectDescription: string;
   clientWorkNotes: string;
   transitionNote: string;
-  performanceSummary: string;
+}
+
+interface FeedbackFormData {
+  feedbackCategory: EmployeeFeedbackCategory;
+  sentiment?: EmployeeFeedbackSentiment;
+  feedbackDate: string;
+  feedbackText: string;
 }
 
 const initialFormData: EmployeeFormData = {
@@ -127,91 +144,16 @@ const createInitialEngagementTransitionForm = (
     directorName: keepsClientFields ? officialInfo?.directorName || '' : '',
     projectDescription: keepsClientFields ? officialInfo?.projectDescription || '' : '',
     clientWorkNotes: keepsClientFields ? officialInfo?.clientWorkNotes || '' : '',
-    transitionNote: '',
-    performanceSummary: ''
+    transitionNote: ''
   };
 };
 
-const AUDIT_COMMENT_SEPARATOR = '\n---\n';
-
-const splitEmployeeComments = (comments?: string): string[] => {
-  if (!comments || comments.trim().length === 0) {
-    return [];
-  }
-
-  const normalized = comments
-    .replace(/\r\n/g, '\n')
-    .replace(/\\n/g, '\n');
-  const blocks = normalized.includes(AUDIT_COMMENT_SEPARATOR)
-    ? normalized.split(AUDIT_COMMENT_SEPARATOR)
-    : [normalized];
-
-  const entries: string[] = [];
-  blocks.forEach((block) => {
-    const lines = block
-      .split('\n')
-      .map(entry => entry.trim())
-      .filter(Boolean);
-
-    let buffer: string[] = [];
-    lines.forEach((line) => {
-      if (line.startsWith('[') && line.includes(']')) {
-        if (buffer.length > 0) {
-          entries.push(buffer.join('\n'));
-          buffer = [];
-        }
-        entries.push(line);
-        return;
-      }
-      buffer.push(line);
-    });
-
-    if (buffer.length > 0) {
-      entries.push(buffer.join('\n'));
-    }
-  });
-
-  return entries.filter(Boolean);
-};
-
-const orderEmployeeComments = (comments?: string): string[] => {
-  const entries = splitEmployeeComments(comments);
-  const withMeta = entries.map((entry, index) => {
-    const match = entry.match(/^\[([^\]]+)\]/);
-    const timestamp = match ? Date.parse(match[1]) : Number.NaN;
-    return { entry, index, timestamp };
-  });
-  withMeta.sort((a, b) => {
-    const aValid = Number.isFinite(a.timestamp);
-    const bValid = Number.isFinite(b.timestamp);
-    if (aValid && bValid) {
-      return b.timestamp - a.timestamp;
-    }
-    if (aValid) return -1;
-    if (bValid) return 1;
-    return a.index - b.index;
-  });
-  return withMeta.map(item => item.entry);
-};
-
-const parseEmployeeCommentEntry = (entry: string) => {
-  const match = entry.match(/^\[([^\]]+)\]\s*([^:]+):\s*(.*)$/s);
-  if (!match) {
-    return { timestamp: undefined, author: 'Note', message: entry.trim() };
-  }
-  return {
-    timestamp: match[1]?.trim(),
-    author: match[2]?.trim() || 'Note',
-    message: match[3]?.trim() || ''
-  };
-};
-
-const formatCommentTime = (timestamp?: string) => {
-  if (!timestamp) return '';
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString();
-};
+const createInitialFeedbackForm = (): FeedbackFormData => ({
+  feedbackCategory: EmployeeFeedbackCategory.GENERAL,
+  sentiment: EmployeeFeedbackSentiment.NEUTRAL,
+  feedbackDate: new Date().toISOString().slice(0, 10),
+  feedbackText: ''
+});
 
 const statusBadge = (status: EmployeeStatus) => {
   const base = 'text-xs px-3 py-1 rounded-full font-semibold';
@@ -393,7 +335,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [isEmployeeDetailLoading, setIsEmployeeDetailLoading] = useState(false);
   const [employeeDetailError, setEmployeeDetailError] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'engagement' | 'personal' | 'official' | 'assets'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'engagement' | 'feedback' | 'personal' | 'official' | 'assets'>('overview');
   const [isTransitionModalOpen, setIsTransitionModalOpen] = useState(false);
   const [transitionMode, setTransitionMode] = useState<'bench' | 'change'>('change');
   const [transitionForm, setTransitionForm] = useState<EngagementTransitionFormData>(() =>
@@ -401,8 +343,12 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   );
   const [transitionErrors, setTransitionErrors] = useState<Record<string, string>>({});
   const [isTransitionSubmitting, setIsTransitionSubmitting] = useState(false);
-  const [commentText, setCommentText] = useState('');
+  const [feedbackForm, setFeedbackForm] = useState<FeedbackFormData>(() => createInitialFeedbackForm());
+  const [feedbackError, setFeedbackError] = useState('');
+  const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState(false);
   const viewingEmployeeIdRef = useRef<string | null>(null);
+  const [showAllEngagement, setShowAllEngagement] = useState(false);
+  const [showAllFeedback, setShowAllFeedback] = useState(false);
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     type: DialogType;
@@ -562,14 +508,17 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
         return {
           ...updated,
-          engagementHistory: current.engagementHistory || updated.engagementHistory
+          engagementHistory: current.engagementHistory || updated.engagementHistory,
+          feedbackHistory: current.feedbackHistory || updated.feedbackHistory
         };
       });
     }
   }, [filteredVisibleEmployees, viewingEmployee?.id]);
 
   useEffect(() => {
-    setCommentText('');
+    setFeedbackForm(createInitialFeedbackForm());
+    setFeedbackError('');
+    setIsFeedbackSubmitting(false);
   }, [viewingEmployee?.id]);
 
   useEffect(() => {
@@ -606,33 +555,55 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     );
   };
 
-  const buildEmployeeCommentEntry = (text: string) => {
-    const author = currentUser?.name || 'System';
-    return `[${new Date().toISOString()}] ${author}: ${text.trim()}`;
-  };
-
-  const handleSubmitComment = async (e: React.FormEvent) => {
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!viewingEmployee || !commentText.trim()) return;
+    if (!viewingEmployee) return;
 
-    const entries = splitEmployeeComments(viewingEmployee.personalInfo?.additionalComments);
-    entries.push(buildEmployeeCommentEntry(commentText));
-    const updatedComments = entries.join(AUDIT_COMMENT_SEPARATOR);
+    const feedbackText = feedbackForm.feedbackText.trim();
+    if (!feedbackText) {
+      setFeedbackError('Please add some notes for this feedback entry.');
+      return;
+    }
 
-    const updatedEmployee: Employee = {
-      ...viewingEmployee,
-      personalInfo: {
-        ...(viewingEmployee.personalInfo || {}),
-        additionalComments: updatedComments
-      }
-    };
+    setFeedbackError('');
+    setIsFeedbackSubmitting(true);
 
     try {
-      await onUpdate(updatedEmployee);
-      setViewingEmployee(updatedEmployee);
-      setCommentText('');
+      const createdFeedback = await addEmployeeFeedback(
+        viewingEmployee.id,
+        {
+          feedbackCategory: feedbackForm.feedbackCategory,
+          sentiment: feedbackForm.sentiment,
+          feedbackDate: feedbackForm.feedbackDate || undefined,
+          feedbackText
+        },
+        currentUser || null
+      );
+
+      if (viewingEmployeeIdRef.current === viewingEmployee.id) {
+        setViewingEmployee((current) => {
+          if (!current || current.id !== viewingEmployee.id) {
+            return current;
+          }
+          return {
+            ...current,
+            feedbackHistory: [createdFeedback, ...(current.feedbackHistory || [])]
+          };
+        });
+      }
+
+      setFeedbackForm((prev) => ({ ...prev, feedbackText: '' }));
+      if (useBackend) {
+        setRefreshToken(prev => prev + 1);
+      }
     } catch (error) {
-      console.error('Error adding employee comment:', error);
+      console.error('Error adding employee feedback:', error);
+      const errorMessage = error instanceof Error && error.message
+        ? error.message
+        : 'Failed to add feedback. Please try again.';
+      setFeedbackError(errorMessage);
+    } finally {
+      setIsFeedbackSubmitting(false);
     }
   };
 
@@ -641,6 +612,9 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     setIsEmployeeDetailLoading(false);
     setEmployeeDetailError('');
     setActiveTab('overview');
+    setFeedbackForm(createInitialFeedbackForm());
+    setFeedbackError('');
+    setIsFeedbackSubmitting(false);
     setIsTransitionModalOpen(false);
     setTransitionErrors({});
     setIsTransitionSubmitting(false);
@@ -670,13 +644,14 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const validateEngagementTransition = (): boolean => {
     const errors: Record<string, string> = {};
     const requiresClientDetails = transitionForm.targetAssignmentType === EmployeeAssignmentType.CLIENT_BILLABLE;
+    const requiresBenchReason = transitionForm.targetAssignmentType === EmployeeAssignmentType.BENCH;
 
     if (!transitionForm.assignmentDate) {
       errors.assignmentDate = 'Effective date is required';
     }
 
-    if (!transitionForm.transitionNote || transitionForm.transitionNote.trim() === '') {
-      errors.transitionNote = 'Transition note is required';
+    if (requiresBenchReason && (!transitionForm.transitionNote || transitionForm.transitionNote.trim() === '')) {
+      errors.transitionNote = 'Bench return reason is required';
     }
 
     if (requiresClientDetails) {
@@ -706,6 +681,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     setIsTransitionSubmitting(true);
     setEmployeeDetailError('');
     const requiresClientDetails = transitionForm.targetAssignmentType === EmployeeAssignmentType.CLIENT_BILLABLE;
+    const requiresBenchReason = transitionForm.targetAssignmentType === EmployeeAssignmentType.BENCH;
     const currentOfficialInfo = viewingEmployee.officialInfo || ({ id: viewingEmployee.officialInfoId || '' } as EmployeeOfficialInfo);
 
     const updatedOfficialInfo: EmployeeOfficialInfo = {
@@ -723,10 +699,9 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     const updatedEmployee: Employee = {
       ...viewingEmployee,
       officialInfo: updatedOfficialInfo,
-      engagementTransition: {
-        transitionNote: transitionForm.transitionNote.trim(),
-        performanceSummary: transitionForm.performanceSummary.trim() || undefined
-      }
+      engagementTransition: requiresBenchReason
+        ? { transitionNote: transitionForm.transitionNote.trim() }
+        : undefined
     };
 
     try {
@@ -2351,25 +2326,37 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                 transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 className="fixed inset-0 m-auto z-50 w-full max-w-2xl h-[90vh] overflow-y-auto pointer-events-none flex items-center justify-center p-4"
               >
-                <GlassCard className="pointer-events-auto w-full max-w-2xl max-h-[90vh] overflow-y-auto !bg-white/95 shadow-2xl border-white/50 m-4 flex flex-col">
+                <GlassCard className="pointer-events-auto w-full max-w-2xl max-h-[90vh] overflow-hidden !bg-white/95 shadow-2xl border-white/50 m-4 flex flex-col">
                   <div className="flex justify-between items-center mb-6 shrink-0">
                     <div>
                       <h2 className="text-xl font-bold text-gray-800">{editingEmployee ? 'Edit Employee' : 'New Employee'}</h2>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 1 ? 'bg-blue-100 text-blue-700' : currentStep > 1 ? 'bg-blue-50 text-blue-600' : 'text-gray-400'}`}>
+                        <span className={`relative text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 1 ? 'bg-blue-100 text-blue-700' : currentStep > 1 ? 'bg-blue-50 text-blue-600' : 'text-gray-400'}`}>
                           Step 1: Basic
+                          {['employeeId', 'locationId', 'status', 'clientId'].some(k => formErrors[k]) && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 border border-white" title="Errors in this step"></span>
+                          )}
                         </span>
                         <span className="text-gray-300">/</span>
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 2 ? 'bg-purple-100 text-purple-700' : currentStep > 2 ? 'bg-purple-50 text-purple-600' : 'text-gray-400'}`}>
+                        <span className={`relative text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 2 ? 'bg-purple-100 text-purple-700' : currentStep > 2 ? 'bg-purple-50 text-purple-600' : 'text-gray-400'}`}>
                           Step 2: Personal
+                          {Object.keys(formErrors).some(k => k.startsWith('personalInfo.')) && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 border border-white" title="Errors in this step"></span>
+                          )}
                         </span>
                         <span className="text-gray-300">/</span>
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 3 ? 'bg-green-100 text-green-700' : currentStep > 3 ? 'bg-green-50 text-green-600' : 'text-gray-400'}`}>
+                        <span className={`relative text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 3 ? 'bg-green-100 text-green-700' : currentStep > 3 ? 'bg-green-50 text-green-600' : 'text-gray-400'}`}>
                           Step 3: Official
+                          {Object.keys(formErrors).some(k => k.startsWith('officialInfo.') && !['officialInfo.assignmentType', 'officialInfo.clientName', 'officialInfo.clientLocation', 'officialInfo.managerName', 'officialInfo.directorName', 'officialInfo.projectDescription', 'officialInfo.clientWorkNotes', 'officialInfo.assignmentDate'].includes(k)) && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 border border-white" title="Errors in this step"></span>
+                          )}
                         </span>
                         <span className="text-gray-300">/</span>
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 4 ? 'bg-amber-100 text-amber-700' : 'text-gray-400'}`}>
+                        <span className={`relative text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 4 ? 'bg-amber-100 text-amber-700' : 'text-gray-400'}`}>
                           Step 4: Assignment
+                          {['officialInfo.assignmentType', 'officialInfo.clientName', 'officialInfo.clientLocation', 'officialInfo.managerName', 'officialInfo.directorName', 'officialInfo.projectDescription', 'officialInfo.clientWorkNotes', 'officialInfo.assignmentDate'].some(k => formErrors[k]) && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 border border-white" title="Errors in this step"></span>
+                          )}
                         </span>
                       </div>
                     </div>
@@ -2406,7 +2393,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   {currentStep === 4 && renderAssignmentStep()}
                 </div>
 
-                <div className="pt-6 flex justify-between items-center shrink-0 border-t border-gray-100 mt-4">
+                <div className="pt-6 pb-2 flex justify-between items-center shrink-0 border-t border-gray-100 mt-4 bg-white/95 sticky bottom-0">
                   {currentStep > 1 ? (
                     <button
                       type="button"
@@ -2534,8 +2521,8 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                 <div className="flex gap-1 px-6">
                   {(
                     canViewPersonalDetails
-                      ? (['overview', 'engagement', 'personal', 'official', 'assets'] as const)
-                      : (['overview', 'engagement', 'official', 'assets'] as const)
+                      ? (['overview', 'engagement', 'feedback', 'personal', 'official', 'assets'] as const)
+                      : (['overview', 'engagement', 'feedback', 'official', 'assets'] as const)
                   ).map((tab) => (
                     <button
                       key={tab}
@@ -2647,61 +2634,33 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                         </div>
                       )}
                       <div className="p-4 bg-gray-50 rounded-xl">
-                        <div className="flex items-center gap-2 mb-3">
-                          <MessageSquare size={16} className="text-gray-400" />
-                          <p className="text-xs text-gray-500 uppercase">Comments / Notes</p>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-gray-500 uppercase mb-1">General Feedback</p>
+                            <p className="text-sm text-gray-700">
+                              Capture periodic progress updates separately from client engagement transitions.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('feedback')}
+                            className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-100 transition-colors"
+                          >
+                            Open Feedback Tab
+                          </button>
                         </div>
-                        <form onSubmit={handleSubmitComment} className="mb-3">
-                          <div className="space-y-2">
-                            <textarea
-                              value={commentText}
-                              onChange={(e) => setCommentText(e.target.value)}
-                              placeholder="Add a note about this employee..."
-                              rows={3}
-                              className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all text-sm resize-none"
-                            />
-                            <div className="flex justify-end">
-                              <button
-                                type="submit"
-                                disabled={!commentText.trim()}
-                                className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg font-medium hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-md shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
-                              >
-                                <Send size={16} />
-                                Add Comment
-                              </button>
-                            </div>
-                          </div>
-                        </form>
-                        {orderEmployeeComments(viewingEmployee.personalInfo?.additionalComments).length > 0 ? (
-                          <div className="space-y-3">
-                            {orderEmployeeComments(viewingEmployee.personalInfo?.additionalComments).map((entry, index) => {
-                              const parsed = parseEmployeeCommentEntry(entry);
-                              const timeLabel = formatCommentTime(parsed.timestamp);
-                              const avatar = parsed.author?.charAt(0)?.toUpperCase() || 'N';
-                              return (
-                                <div key={`employee-comment-${viewingEmployee.id}-${index}`} className="rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-900">
-                                  <div className="flex items-start justify-between gap-3 mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold bg-gradient-to-br from-emerald-500 to-green-600 text-white">
-                                        {avatar}
-                                      </div>
-                                      <div>
-                                        <p className="text-sm font-semibold text-gray-900">{parsed.author}</p>
-                                        {timeLabel && (
-                                          <p className="text-xs text-gray-500">{timeLabel}</p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{parsed.message}</p>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-center py-6 text-gray-400 border border-dashed border-gray-200 rounded-xl bg-white">
-                            <MessageSquare size={28} className="mx-auto mb-2 opacity-50" />
-                            <p className="text-sm">No comments yet</p>
+                        {viewingEmployee.feedbackHistory && viewingEmployee.feedbackHistory.length > 0 && (
+                          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+                            <p className="text-xs text-gray-500 uppercase mb-1">Latest Feedback</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                              {viewingEmployee.feedbackHistory[0].feedbackText}
+                            </p>
+                            <p className="mt-2 text-xs text-gray-500">
+                              {new Date(viewingEmployee.feedbackHistory[0].createdAt).toLocaleString()}
+                              {viewingEmployee.feedbackHistory[0].createdByName
+                                ? ` · ${viewingEmployee.feedbackHistory[0].createdByName}`
+                                : ''}
+                            </p>
                           </div>
                         )}
                       </div>
@@ -2719,7 +2678,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                       {viewingOfficialInfo?.assignmentType ? (
                         <>
                           <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5">
-                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-4">
                               <div>
                                 <p className="text-xs text-amber-700 uppercase mb-1">Current Engagement</p>
                                 <p className="text-xl font-semibold text-gray-900">{viewingOfficialInfo.assignmentType}</p>
@@ -2758,6 +2717,25 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                                 )}
                               </div>
                             </div>
+                            
+                            {viewingOfficialInfo.assignmentDate && (
+                              <div className="mt-4 pt-4 border-t border-amber-100/50">
+                                <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                                  <span className="uppercase font-medium">Duration</span>
+                                  <span>
+                                    {Math.max(0, Math.floor((Date.now() - new Date(viewingOfficialInfo.assignmentDate).getTime()) / (1000 * 60 * 60 * 24)))} Days
+                                  </span>
+                                </div>
+                                <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                  <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: '100%' }}
+                                    transition={{ duration: 1, ease: 'easeOut' }}
+                                    className={`h-full ${viewingOfficialInfo.assignmentType === EmployeeAssignmentType.BENCH ? 'bg-amber-400' : 'bg-emerald-500'}`} 
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {shouldShowEngagementDetails(viewingOfficialInfo.assignmentType) ? (
@@ -2825,7 +2803,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
                             {viewingEmployee.engagementHistory && viewingEmployee.engagementHistory.length > 0 ? (
                               <div className="space-y-3">
-                                {viewingEmployee.engagementHistory.map((historyEntry) => (
+                                {(showAllEngagement ? viewingEmployee.engagementHistory : viewingEmployee.engagementHistory.slice(0, 3)).map((historyEntry) => (
                                   <div key={historyEntry.id} className="rounded-xl border border-gray-200 bg-white p-4">
                                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                                       <div>
@@ -2905,6 +2883,18 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                                     )}
                                   </div>
                                 ))}
+                                {viewingEmployee.engagementHistory.length > 3 && (
+                                  <button
+                                    onClick={() => setShowAllEngagement(!showAllEngagement)}
+                                    className="w-full py-2 text-sm font-medium text-amber-700 bg-amber-50 rounded-xl hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    {showAllEngagement ? (
+                                      <><ChevronUp size={16} /> Show Less</>
+                                    ) : (
+                                      <><ChevronDown size={16} /> Show All {viewingEmployee.engagementHistory.length} Records</>
+                                    )}
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-5">
@@ -2920,6 +2910,237 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                           <p className="text-sm">No engagement details available</p>
                         </div>
                       )}
+                    </motion.div>
+                  )}
+
+                  {activeTab === 'feedback' && (
+                    <motion.div
+                      key="feedback"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-4"
+                    >
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <MessageSquare size={16} className="text-emerald-700" />
+                          <p className="text-xs text-emerald-700 uppercase">Periodic Feedback</p>
+                        </div>
+                        <p className="text-sm text-gray-700 mb-4">
+                          Capture progress updates from client work or bench performance separately from engagement transitions.
+                        </p>
+                        <form onSubmit={handleSubmitFeedback} className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-xs text-gray-500 uppercase block mb-1">Category</label>
+                              <select
+                                disabled={!canUpdate || isFeedbackSubmitting}
+                                value={feedbackForm.feedbackCategory}
+                                onChange={(e) => setFeedbackForm(prev => ({
+                                  ...prev,
+                                  feedbackCategory: e.target.value as EmployeeFeedbackCategory
+                                }))}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                              >
+                                {Object.values(EmployeeFeedbackCategory).map((category) => (
+                                  <option key={category} value={category}>{category}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 uppercase block mb-1">Sentiment</label>
+                              <select
+                                disabled={!canUpdate || isFeedbackSubmitting}
+                                value={feedbackForm.sentiment || ''}
+                                onChange={(e) => setFeedbackForm(prev => ({
+                                  ...prev,
+                                  sentiment: e.target.value as EmployeeFeedbackSentiment
+                                }))}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                              >
+                                {Object.values(EmployeeFeedbackSentiment).map((sentiment) => (
+                                  <option key={sentiment} value={sentiment}>{sentiment}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 uppercase block mb-1">Feedback Date</label>
+                              <input
+                                type="date"
+                                disabled={!canUpdate || isFeedbackSubmitting}
+                                value={feedbackForm.feedbackDate}
+                                onChange={(e) => setFeedbackForm(prev => ({ ...prev, feedbackDate: e.target.value }))}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500 uppercase block mb-1">Feedback</label>
+                            <textarea
+                              rows={4}
+                              disabled={!canUpdate || isFeedbackSubmitting}
+                              value={feedbackForm.feedbackText}
+                              onChange={(e) => {
+                                setFeedbackForm(prev => ({ ...prev, feedbackText: e.target.value }));
+                                if (feedbackError) setFeedbackError('');
+                              }}
+                              placeholder="Capture progress, delivery quality, learning, ownership, blockers, and next goals."
+                              className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity resize-none"
+                            />
+                            {feedbackError && (
+                              <p className="text-xs text-red-600 mt-1">{feedbackError}</p>
+                            )}
+                          </div>
+                          {canUpdate ? (
+                            <div className="flex justify-end">
+                              <button
+                                type="submit"
+                                disabled={isFeedbackSubmitting || !feedbackForm.feedbackText.trim()}
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isFeedbackSubmitting ? (
+                                  <>
+                                    <Loader size={15} className="animate-spin" />
+                                    Saving
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send size={15} />
+                                    Add Feedback
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-500">Only admins can add feedback entries.</p>
+                          )}
+                        </form>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-gray-500 uppercase mb-1">Feedback Timeline</p>
+                            <p className="text-sm text-gray-700">Chronological progress entries across client and bench contexts.</p>
+                          </div>
+                          {viewingEmployee.feedbackHistory && viewingEmployee.feedbackHistory.length > 0 && (
+                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                              {viewingEmployee.feedbackHistory.length} record{viewingEmployee.feedbackHistory.length === 1 ? '' : 's'}
+                            </span>
+                          )}
+                        </div>
+
+                        {viewingEmployee.feedbackHistory && viewingEmployee.feedbackHistory.length > 0 ? (
+                          <div className="space-y-3">
+                            {(showAllFeedback ? viewingEmployee.feedbackHistory : viewingEmployee.feedbackHistory.slice(0, 3)).map((feedbackEntry) => (
+                              <div key={feedbackEntry.id} className="rounded-xl border border-gray-200 bg-white p-4">
+                                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                  <div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span
+                                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                          feedbackEntry.feedbackCategory === EmployeeFeedbackCategory.CLIENT_ENGAGEMENT
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : feedbackEntry.feedbackCategory === EmployeeFeedbackCategory.BENCH_PERFORMANCE
+                                              ? 'bg-blue-100 text-blue-800'
+                                              : 'bg-emerald-100 text-emerald-800'
+                                        }`}
+                                      >
+                                        {feedbackEntry.feedbackCategory}
+                                      </span>
+                                      {feedbackEntry.entryType && (
+                                        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                                          {feedbackEntry.entryType}
+                                        </span>
+                                      )}
+                                      {feedbackEntry.sentiment && (
+                                        <span
+                                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                            feedbackEntry.sentiment === EmployeeFeedbackSentiment.POSITIVE
+                                              ? 'bg-green-100 text-green-800'
+                                              : feedbackEntry.sentiment === EmployeeFeedbackSentiment.NEEDS_ATTENTION
+                                                ? 'bg-red-100 text-red-800'
+                                                : 'bg-gray-100 text-gray-800'
+                                          }`}
+                                        >
+                                          {feedbackEntry.sentiment}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="mt-2 text-sm whitespace-pre-wrap text-gray-800">{feedbackEntry.feedbackText}</p>
+                                  </div>
+                                  <div className="rounded-lg bg-gray-50 px-3 py-2 min-w-[170px]">
+                                    {feedbackEntry.feedbackDate && (
+                                      <>
+                                        <p className="text-xs text-gray-500 uppercase mb-1">Feedback Date</p>
+                                        <p className="text-sm font-medium text-gray-900">{new Date(feedbackEntry.feedbackDate).toLocaleDateString()}</p>
+                                      </>
+                                    )}
+                                    <p className={`text-xs text-gray-500 ${feedbackEntry.feedbackDate ? 'mt-2' : ''}`}>
+                                      Logged {new Date(feedbackEntry.createdAt).toLocaleString()}
+                                    </p>
+                                    {feedbackEntry.createdByName && (
+                                      <p className="text-xs text-gray-500 mt-1">By {feedbackEntry.createdByName}</p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {(feedbackEntry.sourceAssignmentType || feedbackEntry.sourceClientName || feedbackEntry.sourceProjectDescription) && (
+                                  <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                                    {feedbackEntry.sourceAssignmentType && (
+                                      <div className="rounded-lg bg-gray-50 px-3 py-3">
+                                        <p className="text-xs text-gray-500 uppercase mb-1">Source Assignment</p>
+                                        <p className="text-sm text-gray-900">{feedbackEntry.sourceAssignmentType}</p>
+                                      </div>
+                                    )}
+                                    {feedbackEntry.sourceClientName && (
+                                      <div className="rounded-lg bg-gray-50 px-3 py-3">
+                                        <p className="text-xs text-gray-500 uppercase mb-1">Source Client</p>
+                                        <p className="text-sm text-gray-900">{feedbackEntry.sourceClientName}</p>
+                                      </div>
+                                    )}
+                                    {feedbackEntry.sourceProjectDescription && (
+                                      <div className="rounded-lg bg-gray-50 px-3 py-3 md:col-span-3">
+                                        <p className="text-xs text-gray-500 uppercase mb-1">Source Project Details</p>
+                                        <p className="text-sm whitespace-pre-wrap text-gray-700">{feedbackEntry.sourceProjectDescription}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {viewingEmployee.feedbackHistory.length > 3 && (
+                              <button
+                                onClick={() => setShowAllFeedback(!showAllFeedback)}
+                                className="w-full py-2 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
+                              >
+                                {showAllFeedback ? (
+                                  <><ChevronUp size={16} /> Show Less</>
+                                ) : (
+                                  <><ChevronDown size={16} /> Show All {viewingEmployee.feedbackHistory.length} Records</>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center flex flex-col items-center justify-center">
+                            <MessageSquare size={32} className="text-gray-300 mb-3" />
+                            <p className="text-sm font-medium text-gray-800">No feedback entries yet</p>
+                            <p className="mt-1 text-sm text-gray-600 max-w-sm mb-4">Add periodic updates here for client performance or bench progress tracking.</p>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                const input = document.querySelector('textarea[placeholder="Capture progress, delivery quality, learning, ownership, blockers, and next goals."]') as HTMLTextAreaElement;
+                                input?.focus();
+                              }}
+                              className="px-4 py-2 bg-emerald-100 text-emerald-700 font-medium rounded-lg hover:bg-emerald-200 transition-colors text-sm"
+                            >
+                              + Add First Feedback
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
                     </motion.div>
                   )}
 
@@ -3158,7 +3379,11 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                       {transitionMode === 'bench' ? 'Move To Bench' : 'Change Engagement'}
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">
-                      Capture a transition note and optional performance summary so history remains audit-ready.
+                      {transitionForm.targetAssignmentType === EmployeeAssignmentType.CLIENT_BILLABLE
+                        ? 'Capture the client engagement details for this transition.'
+                        : transitionForm.targetAssignmentType === EmployeeAssignmentType.BENCH
+                          ? 'Capture why this employee is returning to bench.'
+                          : 'Update the engagement transition details.'}
                     </p>
                   </div>
                   <button
@@ -3324,38 +3549,28 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                     </>
                   )}
 
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase block mb-1">Transition Note *</label>
-                    <textarea
-                      rows={3}
-                      required
-                      disabled={isTransitionSubmitting}
-                      value={transitionForm.transitionNote}
-                      onChange={(e) => {
-                        setTransitionForm(prev => ({ ...prev, transitionNote: e.target.value }));
-                        if (transitionErrors.transitionNote) setTransitionErrors(prev => ({ ...prev, transitionNote: undefined }));
-                      }}
-                      placeholder="Reason for this transition, key closure notes, and any handover context."
-                      className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed resize-none ${
-                        transitionErrors.transitionNote ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
-                      }`}
-                    />
-                    {transitionErrors.transitionNote && (
-                      <p className="text-xs text-red-600 mt-1">{transitionErrors.transitionNote}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase block mb-1">Performance Summary</label>
-                    <textarea
-                      rows={3}
-                      disabled={isTransitionSubmitting}
-                      value={transitionForm.performanceSummary}
-                      onChange={(e) => setTransitionForm(prev => ({ ...prev, performanceSummary: e.target.value }))}
-                      placeholder="Optional appraisal-focused summary for future review cycles."
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed resize-none"
-                    />
-                  </div>
+                  {transitionForm.targetAssignmentType === EmployeeAssignmentType.BENCH && (
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase block mb-1">Reason For Bench Return *</label>
+                      <textarea
+                        rows={3}
+                        required
+                        disabled={isTransitionSubmitting}
+                        value={transitionForm.transitionNote}
+                        onChange={(e) => {
+                          setTransitionForm(prev => ({ ...prev, transitionNote: e.target.value }));
+                          if (transitionErrors.transitionNote) setTransitionErrors(prev => ({ ...prev, transitionNote: undefined }));
+                        }}
+                        placeholder="Explain what happened and why the employee is moving back to bench."
+                        className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed resize-none ${
+                          transitionErrors.transitionNote ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                        }`}
+                      />
+                      {transitionErrors.transitionNote && (
+                        <p className="text-xs text-red-600 mt-1">{transitionErrors.transitionNote}</p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
                     <button

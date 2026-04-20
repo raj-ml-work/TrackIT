@@ -139,6 +139,12 @@ export enum EmployeeStatus {
   INACTIVE = 'Inactive'
 }
 
+export enum EmployeeAssignmentType {
+  CLIENT_BILLABLE = 'Client Billable',
+  BENCH = 'Bench',
+  SUPPORT = 'Support'
+}
+
 export interface EmployeePersonalInfo {
   id: string;
   firstName: string;
@@ -149,6 +155,7 @@ export interface EmployeePersonalInfo {
   emergencyContactNumber?: string;
   personalEmail?: string;
   linkedinUrl?: string;
+  photoUrl?: string;
   additionalComments?: string;
 }
 
@@ -161,6 +168,67 @@ export interface EmployeeOfficialInfo {
   startDate?: string;
   officialDob?: string;
   officialEmail?: string;
+  assignmentType?: EmployeeAssignmentType;
+  clientName?: string;
+  clientLocation?: string;
+  managerName?: string;
+  directorName?: string;
+  projectDescription?: string;
+  clientWorkNotes?: string;
+  assignmentDate?: string;
+}
+
+export interface EmployeeEngagementHistory {
+  id: string;
+  employeeId: string;
+  assignmentType: EmployeeAssignmentType;
+  clientName?: string;
+  clientLocation?: string;
+  managerName?: string;
+  directorName?: string;
+  projectDescription?: string;
+  clientWorkNotes?: string;
+  assignmentDate?: string;
+  transitionType: string;
+  transitionSummary: string;
+  transitionNote?: string;
+  performanceSummary?: string;
+  changedBy?: string;
+  changedByName?: string;
+  changedAt: string;
+}
+
+export interface EmployeeEngagementTransition {
+  transitionNote?: string;
+  performanceSummary?: string;
+}
+
+export enum EmployeeFeedbackCategory {
+  GENERAL = 'General',
+  CLIENT_ENGAGEMENT = 'Client Engagement',
+  BENCH_PERFORMANCE = 'Bench Performance'
+}
+
+export enum EmployeeFeedbackSentiment {
+  POSITIVE = 'Positive',
+  NEUTRAL = 'Neutral',
+  NEEDS_ATTENTION = 'Needs Attention'
+}
+
+export interface EmployeeFeedbackEntry {
+  id: string;
+  employeeId: string;
+  feedbackCategory: EmployeeFeedbackCategory;
+  sentiment?: EmployeeFeedbackSentiment;
+  feedbackDate?: string;
+  feedbackText: string;
+  sourceAssignmentType?: EmployeeAssignmentType;
+  sourceClientName?: string;
+  sourceProjectDescription?: string;
+  entryType?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt: string;
 }
 
 export interface Employee {
@@ -180,6 +248,9 @@ export interface Employee {
   // Full related objects (optional, populated when needed)
   personalInfo?: EmployeePersonalInfo;
   officialInfo?: EmployeeOfficialInfo;
+  engagementHistory?: EmployeeEngagementHistory[];
+  feedbackHistory?: EmployeeFeedbackEntry[];
+  engagementTransition?: EmployeeEngagementTransition;
 }
 
 export interface EmployeeQuery {

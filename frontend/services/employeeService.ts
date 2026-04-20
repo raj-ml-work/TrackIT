@@ -4,14 +4,32 @@
  * Handles all database operations for Employees
  */
 
-import { Employee, EmployeeQuery, EmployeeStatus, PaginatedResult, UserAccount } from '../types';
+import {
+  Employee,
+  EmployeeAssignmentType,
+  EmployeeFeedbackCategory,
+  EmployeeFeedbackEntry,
+  EmployeeFeedbackSentiment,
+  EmployeeQuery,
+  EmployeeStatus,
+  PaginatedResult,
+  UserAccount
+} from '../types';
 import { getSupabaseClient } from './supabaseClient';
-import { apiFetchJson, isApiConfigured } from './apiClient';
+import { apiFetch, apiFetchJson, isApiConfigured } from './apiClient';
 import { isAdmin, getPermissionError } from './permissionUtil';
 import { createEmployeePersonalInfo, updateEmployeePersonalInfo } from './employeePersonalInfoService';
 import { createEmployeeOfficialInfo, updateEmployeeOfficialInfo } from './employeeOfficialInfoService';
 
 const TABLE_NAME = 'employees';
+const FEEDBACK_TABLE_NAME = 'employee_feedback_history';
+
+export interface AddEmployeeFeedbackInput {
+  feedbackCategory?: EmployeeFeedbackCategory;
+  sentiment?: EmployeeFeedbackSentiment;
+  feedbackDate?: string;
+  feedbackText: string;
+}
 
 /**
  * Get all employees with related data
@@ -278,6 +296,126 @@ export const getEmployeeByEmployeeId = async (employeeId: string): Promise<Emplo
 };
 
 /**
+ * Get periodic feedback for a single employee
+ */
+export const getEmployeeFeedback = async (employeeId: string): Promise<EmployeeFeedbackEntry[]> => {
+  try {
+    if (isApiConfigured()) {
+      return await apiFetchJson<EmployeeFeedbackEntry[]>(`/employees/${employeeId}/feedback`);
+    }
+
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from(FEEDBACK_TABLE_NAME)
+      .select('*')
+      .eq('employee_id', employeeId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(mapEmployeeFeedbackFromDB);
+  } catch (error) {
+    console.error('Error fetching employee feedback:', error);
+    throw error;
+  }
+};
+
+/**
+ * Add a periodic feedback entry for a single employee
+ */
+export const addEmployeeFeedback = async (
+  employeeId: string,
+  input: AddEmployeeFeedbackInput,
+  currentUser: UserAccount | null = null
+): Promise<EmployeeFeedbackEntry> => {
+  try {
+    if (!input?.feedbackText || input.feedbackText.trim().length === 0) {
+      throw new Error('Feedback text is required.');
+    }
+
+    if (isApiConfigured()) {
+      return await apiFetchJson<EmployeeFeedbackEntry>(`/employees/${employeeId}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      });
+    }
+
+    if (!isAdmin(currentUser)) {
+      throw new Error(getPermissionError('update', currentUser?.role || null));
+    }
+
+    const supabase = await getSupabaseClient();
+    const payload = {
+      employee_id: employeeId,
+      feedback_category: input.feedbackCategory || EmployeeFeedbackCategory.GENERAL,
+      feedback_date: input.feedbackDate || null,
+      feedback_text: input.feedbackText.trim(),
+      sentiment: input.sentiment || null,
+      entry_type: 'Periodic Feedback',
+      created_by: currentUser?.id || null,
+      created_by_name: currentUser?.name || null
+    };
+
+    const { data, error } = await supabase
+      .from(FEEDBACK_TABLE_NAME)
+      .insert(payload)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return mapEmployeeFeedbackFromDB(data);
+  } catch (error) {
+    console.error('Error creating employee feedback:', error);
+    throw error;
+  }
+};
+
+/**
+ * Upload employee photo file to backend local storage
+ */
+export const uploadEmployeePhoto = async (
+  employeeId: string,
+  file: File
+): Promise<{ photoUrl: string; employee?: Employee }> => {
+  if (!isApiConfigured()) {
+    throw new Error('Employee photo upload requires backend API configuration.');
+  }
+
+  if (!employeeId || !employeeId.trim()) {
+    throw new Error('Employee ID is required for photo upload.');
+  }
+
+  if (!file) {
+    throw new Error('Photo file is required.');
+  }
+
+  const formData = new FormData();
+  formData.set('photo', file, file.name || 'employee-photo');
+
+  const response = await apiFetch(`/employees/${encodeURIComponent(employeeId)}/photo`, {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!response.ok) {
+    let message = 'Photo upload failed.';
+    try {
+      const data = await response.json();
+      message = data?.error || message;
+    } catch {
+      // Ignore JSON parse errors.
+    }
+    throw new Error(message);
+  }
+
+  const data = await response.json();
+  return {
+    photoUrl: data?.photoUrl,
+    employee: data?.employee
+  };
+};
+
+/**
  * Create a new employee
  * @param employee Employee data to create
  * @param currentUser Current authenticated user for permission check
@@ -531,6 +669,23 @@ export const deleteEmployee = async (id: string, currentUser: UserAccount | null
   }
 };
 
+const mapEmployeeFeedbackFromDB = (row: any): EmployeeFeedbackEntry => ({
+  id: row.id,
+  employeeId: row.employee_id,
+  feedbackCategory: (row.feedback_category || EmployeeFeedbackCategory.GENERAL) as EmployeeFeedbackCategory,
+  feedbackDate: row.feedback_date || undefined,
+  feedbackText: row.feedback_text,
+  sourceAssignmentType: row.source_assignment_type
+    ? (row.source_assignment_type as EmployeeAssignmentType)
+    : undefined,
+  sourceClientName: row.source_client_name || undefined,
+  sourceProjectDescription: row.source_project_description || undefined,
+  entryType: row.entry_type || undefined,
+  createdBy: row.created_by || undefined,
+  createdByName: row.created_by_name || undefined,
+  createdAt: row.created_at
+});
+
 /**
  * Transform database format to app format
  */
@@ -579,6 +734,7 @@ const transformEmployeeFromDB = (dbEmployee: any): Employee => {
       emergencyContactNumber: personalInfo.emergency_contact_number,
       personalEmail: personalInfo.personal_email,
       linkedinUrl: personalInfo.linkedin_url,
+      photoUrl: personalInfo.photo_url,
       additionalComments: personalInfo.additional_comments
     } : undefined,
     officialInfo: officialInfo ? {
@@ -589,8 +745,19 @@ const transformEmployeeFromDB = (dbEmployee: any): Employee => {
       agreementSigned: officialInfo.agreement_signed,
       startDate: officialInfo.start_date,
       officialDob: officialInfo.official_dob,
-      officialEmail: officialInfo.official_email
-    } : undefined
+      officialEmail: officialInfo.official_email,
+      assignmentType: officialInfo.assignment_type,
+      clientName: officialInfo.client_name,
+      clientLocation: officialInfo.client_location,
+      managerName: officialInfo.manager_name,
+      directorName: officialInfo.director_name,
+      projectDescription: officialInfo.project_description,
+      clientWorkNotes: officialInfo.client_work_notes,
+      assignmentDate: officialInfo.assignment_date
+    } : undefined,
+    feedbackHistory: Array.isArray(dbEmployee.feedback_history)
+      ? dbEmployee.feedback_history.map(mapEmployeeFeedbackFromDB)
+      : undefined
   };
 };
 
@@ -644,6 +811,15 @@ const getEmployeeChanges = (oldEmployee: Employee, newEmployee: Employee): strin
   if (oldPersonal.linkedinUrl !== newPersonal.linkedinUrl) {
     changes.push(`LinkedIn URL changed from "${oldPersonal.linkedinUrl || 'N/A'}" to "${newPersonal.linkedinUrl || 'N/A'}"`);
   }
+  if (oldPersonal.photoUrl !== newPersonal.photoUrl) {
+    if (oldPersonal.photoUrl && newPersonal.photoUrl) {
+      changes.push('profile photograph updated');
+    } else if (!oldPersonal.photoUrl && newPersonal.photoUrl) {
+      changes.push('profile photograph added');
+    } else {
+      changes.push('profile photograph removed');
+    }
+  }
 
   const oldOfficial = oldEmployee.officialInfo || {};
   const newOfficial = newEmployee.officialInfo || {};
@@ -666,6 +842,30 @@ const getEmployeeChanges = (oldEmployee: Employee, newEmployee: Employee): strin
     changes.push(
       `agreement signed changed from "${oldOfficial.agreementSigned ? 'Yes' : 'No'}" to "${newOfficial.agreementSigned ? 'Yes' : 'No'}"`
     );
+  }
+  if (oldOfficial.assignmentType !== newOfficial.assignmentType) {
+    changes.push(`assignment type changed from "${oldOfficial.assignmentType || 'N/A'}" to "${newOfficial.assignmentType || 'N/A'}"`);
+  }
+  if (oldOfficial.clientName !== newOfficial.clientName) {
+    changes.push(`client name changed from "${oldOfficial.clientName || 'N/A'}" to "${newOfficial.clientName || 'N/A'}"`);
+  }
+  if (oldOfficial.clientLocation !== newOfficial.clientLocation) {
+    changes.push(`client location changed from "${oldOfficial.clientLocation || 'N/A'}" to "${newOfficial.clientLocation || 'N/A'}"`);
+  }
+  if (oldOfficial.managerName !== newOfficial.managerName) {
+    changes.push(`manager name changed from "${oldOfficial.managerName || 'N/A'}" to "${newOfficial.managerName || 'N/A'}"`);
+  }
+  if (oldOfficial.directorName !== newOfficial.directorName) {
+    changes.push(`director name changed from "${oldOfficial.directorName || 'N/A'}" to "${newOfficial.directorName || 'N/A'}"`);
+  }
+  if (oldOfficial.assignmentDate !== newOfficial.assignmentDate) {
+    changes.push(`assignment date changed from "${oldOfficial.assignmentDate || 'N/A'}" to "${newOfficial.assignmentDate || 'N/A'}"`);
+  }
+  if (oldOfficial.projectDescription !== newOfficial.projectDescription) {
+    changes.push('project description updated');
+  }
+  if (oldOfficial.clientWorkNotes !== newOfficial.clientWorkNotes) {
+    changes.push('client work notes updated');
   }
   
   return changes;
