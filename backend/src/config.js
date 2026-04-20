@@ -41,6 +41,10 @@ const parseDurationMs = (value) => {
 
 const accessTtl = readEnv('JWT_ACCESS_TTL', '15m');
 const refreshTtl = readEnv('JWT_REFRESH_TTL', '1d');
+const uploadsRoot = readEnv(
+  'UPLOADS_ROOT',
+  path.resolve(__dirname, '..', 'uploads')
+);
 
 export const config = {
   env: readEnv('NODE_ENV', 'development'),
@@ -51,6 +55,11 @@ export const config = {
   sqlitePath: readEnv(
     'SQLITE_PATH',
     path.resolve(__dirname, '..', 'data', 'inventory.db')
+  ),
+  uploadsRoot,
+  employeePhotoUploadDir: readEnv(
+    'EMPLOYEE_PHOTO_UPLOAD_DIR',
+    path.resolve(uploadsRoot, 'employee_photos')
   ),
   corsOrigin: readEnv('CORS_ORIGIN', 'http://localhost:5173'),
   corsOrigins: readEnv('CORS_ORIGIN', 'http://localhost:5173')

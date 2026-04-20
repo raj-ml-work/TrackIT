@@ -5,11 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "node src/index.js",
-    "apply-schema": "node scripts/apply_schema.js"
+    "apply-schema": "node scripts/apply_schema.js",
+    "migrate:photo-data-urls": "node scripts/migrate_employee_photo_data_urls.js",
+    "migrate:photo-data-urls:apply": "node scripts/migrate_employee_photo_data_urls.js --apply",
+    "test:employee-features": "node --test test_employee_feature_flows.test.js"
   },
   "dependencies": {
     "@fastify/cookie": "^10.0.0",
     "@fastify/cors": "^11.0.0",
+    "@fastify/multipart": "^10.0.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^11.6.0",
     "dotenv": "^16.4.5",

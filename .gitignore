@@ -31,3 +31,4 @@ dist-ssr
 *.old
 duplicates*.csv
 missing*.csv
+backend/uploads/
