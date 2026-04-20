@@ -31,4 +31,7 @@ dist-ssr
 *.old
 duplicates*.csv
 missing*.csv
+# Temporary runtime uploads (do not commit employee photos)
 backend/uploads/
+backend/uploads/employee_photos/
+.codex

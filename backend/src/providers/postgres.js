@@ -10,6 +10,95 @@ const ensureUsersTable = async (pool) => {
   }
 };
 
+const ensureEmployeePersonalInfoColumns = async (pool) => {
+  await pool.query(`
+    ALTER TABLE IF EXISTS employee_personal_info
+      ADD COLUMN IF NOT EXISTS photo_url TEXT
+  `);
+};
+
+const ensureEmployeeOfficialInfoColumns = async (pool) => {
+  await pool.query(`
+    ALTER TABLE employee_official_info
+      ADD COLUMN IF NOT EXISTS assignment_type VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS client_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS client_location VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS manager_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS director_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS project_description TEXT,
+      ADD COLUMN IF NOT EXISTS client_work_notes TEXT,
+      ADD COLUMN IF NOT EXISTS assignment_date DATE
+  `);
+};
+
+const ensureEmployeeEngagementHistoryTable = async (pool) => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS employee_engagement_history (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      assignment_type VARCHAR(50) NOT NULL,
+      client_name VARCHAR(255),
+      client_location VARCHAR(255),
+      manager_name VARCHAR(255),
+      director_name VARCHAR(255),
+      project_description TEXT,
+      client_work_notes TEXT,
+      assignment_date DATE,
+      transition_type VARCHAR(100) NOT NULL,
+      transition_summary TEXT NOT NULL,
+      transition_note TEXT,
+      performance_summary TEXT,
+      changed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      changed_by_name VARCHAR(255),
+      changed_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    ALTER TABLE employee_engagement_history
+      ADD COLUMN IF NOT EXISTS transition_note TEXT,
+      ADD COLUMN IF NOT EXISTS performance_summary TEXT
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_employee_engagement_history_employee_id ON employee_engagement_history(employee_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_employee_engagement_history_changed_at ON employee_engagement_history(changed_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_employee_engagement_history_employee_changed ON employee_engagement_history(employee_id, changed_at DESC)');
+};
+
+const ensureEmployeeFeedbackHistoryTable = async (pool) => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS employee_feedback_history (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      feedback_category VARCHAR(100) NOT NULL DEFAULT 'General',
+      feedback_date DATE,
+      feedback_text TEXT NOT NULL,
+      source_assignment_type VARCHAR(50),
+      source_client_name VARCHAR(255),
+      source_project_description TEXT,
+      entry_type VARCHAR(100) NOT NULL DEFAULT 'Periodic Feedback',
+      created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      created_by_name VARCHAR(255),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    ALTER TABLE employee_feedback_history
+      ADD COLUMN IF NOT EXISTS feedback_category VARCHAR(100) DEFAULT 'General',
+      ADD COLUMN IF NOT EXISTS sentiment VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS feedback_date DATE,
+      ADD COLUMN IF NOT EXISTS feedback_text TEXT,
+      ADD COLUMN IF NOT EXISTS source_assignment_type VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS source_client_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS source_project_description TEXT,
+      ADD COLUMN IF NOT EXISTS entry_type VARCHAR(100) DEFAULT 'Periodic Feedback',
+      ADD COLUMN IF NOT EXISTS created_by UUID,
+      ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_employee_feedback_history_employee_id ON employee_feedback_history(employee_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_employee_feedback_history_created_at ON employee_feedback_history(created_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_employee_feedback_history_employee_created ON employee_feedback_history(employee_id, created_at DESC)');
+};
+
 const ensureDefaultAdmin = async (pool, config) => {
   const adminEmail = config.defaults.adminEmail.trim().toLowerCase();
   const adminPassword = config.defaults.adminPassword.trim();
@@ -37,6 +126,12 @@ const parseJsonSafe = (value) => {
     return undefined;
   }
 };
+
+const EMPLOYEE_FEEDBACK_CATEGORIES = new Set([
+  'General',
+  'Client Engagement',
+  'Bench Performance'
+]);
 
 const mapLocationRow = (row) => {
   if (!row) return null;
@@ -83,6 +178,183 @@ const normalizeDateOutput = (value) => {
 const normalizeDateInput = (value) => {
   const normalized = normalizeDateOutput(value);
   return normalized || null;
+};
+
+const normalizeEmployeeEngagementSnapshot = (officialInfo = {}) => ({
+  assignmentType: officialInfo?.assignmentType || 'Bench',
+  clientName: officialInfo?.clientName || undefined,
+  clientLocation: officialInfo?.clientLocation || undefined,
+  managerName: officialInfo?.managerName || undefined,
+  directorName: officialInfo?.directorName || undefined,
+  projectDescription: officialInfo?.projectDescription || undefined,
+  clientWorkNotes: officialInfo?.clientWorkNotes || undefined,
+  assignmentDate: normalizeDateOutput(officialInfo?.assignmentDate) || undefined
+});
+
+const employeeEngagementSnapshotsDiffer = (previous, next) => {
+  const fields = [
+    'assignmentType',
+    'clientName',
+    'clientLocation',
+    'managerName',
+    'directorName',
+    'projectDescription',
+    'clientWorkNotes',
+    'assignmentDate'
+  ];
+
+  return fields.some((field) => (previous?.[field] || '') !== (next?.[field] || ''));
+};
+
+const shouldRecordEmployeeEngagementHistory = (previous, next) => {
+  if (!employeeEngagementSnapshotsDiffer(previous, next)) {
+    return false;
+  }
+
+  return Boolean(
+    (previous?.assignmentType && previous.assignmentType !== 'Bench')
+    || previous?.clientName
+    || previous?.clientLocation
+    || previous?.managerName
+    || previous?.directorName
+    || previous?.projectDescription
+    || previous?.clientWorkNotes
+    || previous?.assignmentDate
+  );
+};
+
+const formatEmployeeEngagementLabel = (snapshot) => {
+  const assignmentType = snapshot?.assignmentType || 'Bench';
+  if (assignmentType === 'Bench') {
+    return 'Bench';
+  }
+
+  return snapshot?.clientName
+    ? `${assignmentType} at ${snapshot.clientName}`
+    : assignmentType;
+};
+
+const buildEmployeeEngagementTransition = (previous, next) => {
+  const previousLabel = formatEmployeeEngagementLabel(previous);
+  const nextLabel = formatEmployeeEngagementLabel(next);
+
+  if (next?.assignmentType === 'Bench') {
+    return {
+      transitionType: 'Moved To Bench',
+      transitionSummary: `Moved from ${previousLabel} to Bench`
+    };
+  }
+
+  if ((previous?.assignmentType || 'Bench') === 'Bench') {
+    return {
+      transitionType: 'Assigned',
+      transitionSummary: `Assigned from Bench to ${nextLabel}`
+    };
+  }
+
+  const primaryIdentityChanged =
+    previous?.assignmentType !== next?.assignmentType
+    || previous?.clientName !== next?.clientName
+    || previous?.clientLocation !== next?.clientLocation;
+
+  if (primaryIdentityChanged) {
+    return {
+      transitionType: 'Reassigned',
+      transitionSummary: `Reassigned from ${previousLabel} to ${nextLabel}`
+    };
+  }
+
+  return {
+    transitionType: 'Engagement Updated',
+    transitionSummary: `Updated engagement details for ${previousLabel}`
+  };
+};
+
+const normalizeTransitionMeta = (transitionMeta = {}) => {
+  const note = typeof transitionMeta?.transitionNote === 'string' ? transitionMeta.transitionNote.trim() : '';
+  const performance = typeof transitionMeta?.performanceSummary === 'string' ? transitionMeta.performanceSummary.trim() : '';
+  return {
+    transitionNote: note || undefined,
+    performanceSummary: performance || undefined
+  };
+};
+
+const normalizeEmployeeAssignmentType = (assignmentType) => {
+  const normalized = typeof assignmentType === 'string'
+    ? assignmentType.trim().toLowerCase()
+    : '';
+
+  if (!normalized) return 'bench';
+  if (normalized === 'bench') return 'bench';
+  if (normalized === 'support') return 'support';
+  if (normalized === 'client billable' || normalized === 'billable' || normalized === 'client_billable') {
+    return 'client billable';
+  }
+
+  return normalized;
+};
+
+const normalizeEmployeeFeedbackCategory = (category) => {
+  const normalized = typeof category === 'string' ? category.trim() : '';
+  if (!normalized) return 'General';
+  if (EMPLOYEE_FEEDBACK_CATEGORIES.has(normalized)) {
+    return normalized;
+  }
+  throw new Error('Feedback category must be one of: General, Client Engagement, Bench Performance.');
+};
+
+const isClientToBenchTransition = (previous, next) => (
+  normalizeEmployeeAssignmentType(previous?.assignmentType) === 'client billable'
+  && normalizeEmployeeAssignmentType(next?.assignmentType) === 'bench'
+);
+
+const buildClientReturnFeedbackText = (previousSnapshot, transitionMeta = {}) => {
+  const lines = [
+    `Returned from ${formatEmployeeEngagementLabel(previousSnapshot)} to Bench.`,
+    previousSnapshot.assignmentDate ? `Onboarding Date: ${previousSnapshot.assignmentDate}` : null,
+    previousSnapshot.managerName ? `Manager Name: ${previousSnapshot.managerName}` : null,
+    previousSnapshot.directorName ? `Director Name: ${previousSnapshot.directorName}` : null,
+    previousSnapshot.clientName ? `Client Name: ${previousSnapshot.clientName}` : null,
+    previousSnapshot.clientLocation ? `Client Location: ${previousSnapshot.clientLocation}` : null,
+    previousSnapshot.projectDescription ? `Project Details: ${previousSnapshot.projectDescription}` : null,
+    previousSnapshot.clientWorkNotes ? `Client Work Notes: ${previousSnapshot.clientWorkNotes}` : null,
+    transitionMeta.transitionNote ? `Transition Note: ${transitionMeta.transitionNote}` : null,
+    transitionMeta.performanceSummary ? `Performance Summary: ${transitionMeta.performanceSummary}` : null
+  ].filter(Boolean);
+
+  return lines.join('\n');
+};
+
+const hasEmployeeEngagementContext = (snapshot) => (
+  normalizeEmployeeAssignmentType(snapshot?.assignmentType) !== 'bench'
+  || Boolean(snapshot?.clientName)
+  || Boolean(snapshot?.clientLocation)
+  || Boolean(snapshot?.managerName)
+  || Boolean(snapshot?.directorName)
+  || Boolean(snapshot?.projectDescription)
+  || Boolean(snapshot?.clientWorkNotes)
+);
+
+const validateEmployeeEngagementTransition = (previousOfficialInfo, nextOfficialInfo, transitionMeta) => {
+  const previousSnapshot = normalizeEmployeeEngagementSnapshot(previousOfficialInfo);
+  const nextSnapshot = normalizeEmployeeEngagementSnapshot(nextOfficialInfo);
+
+  if (!employeeEngagementSnapshotsDiffer(previousSnapshot, nextSnapshot)) {
+    return;
+  }
+
+  if (normalizeEmployeeAssignmentType(nextSnapshot.assignmentType) !== 'bench') {
+    return;
+  }
+
+  if (normalizeEmployeeAssignmentType(previousSnapshot.assignmentType) === 'bench') {
+    return;
+  }
+
+  const normalizedTransitionMeta = normalizeTransitionMeta(transitionMeta);
+  if (!normalizedTransitionMeta.transitionNote) {
+    throw new Error('Transition note is required when moving an employee to Bench.');
+  }
 };
 
 const mapAssetRow = (row) => {
@@ -141,6 +413,7 @@ const mapEmployeeRow = (row) => {
       emergencyContactNumber: row.personal_emergency_contact_number || undefined,
       personalEmail: row.personal_personal_email || undefined,
       linkedinUrl: row.personal_linkedin_url || undefined,
+      photoUrl: row.personal_photo_url || undefined,
       additionalComments: row.personal_additional_comments || undefined
     } : undefined,
     officialInfo: row.official_id ? {
@@ -151,8 +424,58 @@ const mapEmployeeRow = (row) => {
       agreementSigned: Boolean(row.official_agreement_signed),
       startDate: row.official_start_date || undefined,
       officialDob: row.official_official_dob || undefined,
-      officialEmail: row.official_official_email || undefined
+      officialEmail: row.official_official_email || undefined,
+      assignmentType: row.official_assignment_type || undefined,
+      clientName: row.official_client_name || undefined,
+      clientLocation: row.official_client_location || undefined,
+      managerName: row.official_manager_name || undefined,
+      directorName: row.official_director_name || undefined,
+      projectDescription: row.official_project_description || undefined,
+      clientWorkNotes: row.official_client_work_notes || undefined,
+      assignmentDate: row.official_assignment_date || undefined
     } : undefined
+  };
+};
+
+const mapEmployeeEngagementHistoryRow = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    employeeId: row.employee_id,
+    assignmentType: row.assignment_type || 'Bench',
+    clientName: row.client_name || undefined,
+    clientLocation: row.client_location || undefined,
+    managerName: row.manager_name || undefined,
+    directorName: row.director_name || undefined,
+    projectDescription: row.project_description || undefined,
+    clientWorkNotes: row.client_work_notes || undefined,
+    assignmentDate: normalizeDateOutput(row.assignment_date) || undefined,
+    transitionType: row.transition_type,
+    transitionSummary: row.transition_summary,
+    transitionNote: row.transition_note || undefined,
+    performanceSummary: row.performance_summary || undefined,
+    changedBy: row.changed_by || undefined,
+    changedByName: row.changed_by_name || undefined,
+    changedAt: row.changed_at
+  };
+};
+
+const mapEmployeeFeedbackRow = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    employeeId: row.employee_id,
+    feedbackCategory: row.feedback_category || 'General',
+    sentiment: row.sentiment || undefined,
+    feedbackDate: normalizeDateOutput(row.feedback_date) || undefined,
+    feedbackText: row.feedback_text,
+    sourceAssignmentType: row.source_assignment_type || undefined,
+    sourceClientName: row.source_client_name || undefined,
+    sourceProjectDescription: row.source_project_description || undefined,
+    entryType: row.entry_type || 'Periodic Feedback',
+    createdBy: row.created_by || undefined,
+    createdByName: row.created_by_name || undefined,
+    createdAt: row.created_at
   };
 };
 
@@ -166,6 +489,10 @@ export const createPostgresProvider = async (config) => {
   });
 
   await ensureUsersTable(pool);
+  await ensureEmployeePersonalInfoColumns(pool);
+  await ensureEmployeeOfficialInfoColumns(pool);
+  await ensureEmployeeEngagementHistoryTable(pool);
+  await ensureEmployeeFeedbackHistoryTable(pool);
   await ensureDefaultAdmin(pool, config);
 
   const assetSelect = `
@@ -193,6 +520,7 @@ export const createPostgresProvider = async (config) => {
            personal.emergency_contact_number AS personal_emergency_contact_number,
            personal.personal_email AS personal_personal_email,
            personal.linkedin_url AS personal_linkedin_url,
+           personal.photo_url AS personal_photo_url,
            personal.additional_comments AS personal_additional_comments,
            official.id AS official_id,
            official.division AS official_division,
@@ -202,6 +530,14 @@ export const createPostgresProvider = async (config) => {
            official.start_date AS official_start_date,
            official.official_dob AS official_official_dob,
            official.official_email AS official_official_email,
+           official.assignment_type AS official_assignment_type,
+           official.client_name AS official_client_name,
+           official.client_location AS official_client_location,
+           official.manager_name AS official_manager_name,
+           official.director_name AS official_director_name,
+           official.project_description AS official_project_description,
+           official.client_work_notes AS official_client_work_notes,
+           official.assignment_date AS official_assignment_date,
            locations.name AS location_name
       FROM employees
       LEFT JOIN employee_personal_info AS personal
@@ -631,9 +967,191 @@ export const createPostgresProvider = async (config) => {
       : null;
   };
 
+  const getEmployeeEngagementHistory = async (employeeId) => {
+    const result = await pool.query(
+      `
+      SELECT *
+        FROM employee_engagement_history
+       WHERE employee_id = $1
+       ORDER BY changed_at DESC
+    `,
+      [employeeId]
+    );
+
+    return result.rows.map(mapEmployeeEngagementHistoryRow);
+  };
+
+  const getEmployeeFeedbackHistory = async (employeeId) => {
+    const employeeResult = await pool.query(
+      'SELECT id FROM employees WHERE id = $1 LIMIT 1',
+      [employeeId]
+    );
+    if (employeeResult.rows.length === 0) {
+      throw new Error('Employee not found');
+    }
+
+    const result = await pool.query(
+      `
+      SELECT *
+        FROM employee_feedback_history
+       WHERE employee_id = $1
+       ORDER BY created_at DESC
+    `,
+      [employeeId]
+    );
+
+    return result.rows.map(mapEmployeeFeedbackRow);
+  };
+
+  const addEmployeeFeedback = async (employeeId, feedback, currentUser) => {
+    if (!employeeId) {
+      throw new Error('Employee id is required');
+    }
+
+    const employeeResult = await pool.query(
+      'SELECT id FROM employees WHERE id = $1 LIMIT 1',
+      [employeeId]
+    );
+    if (employeeResult.rows.length === 0) {
+      throw new Error('Employee not found');
+    }
+
+    const feedbackText = typeof feedback?.feedbackText === 'string'
+      ? feedback.feedbackText.trim()
+      : '';
+    if (!feedbackText) {
+      throw new Error('Feedback text is required.');
+    }
+
+    const feedbackCategory = normalizeEmployeeFeedbackCategory(feedback?.feedbackCategory);
+    const sentiment = typeof feedback?.sentiment === 'string' ? feedback.sentiment.trim() : null;
+    const feedbackDate = normalizeDateInput(feedback?.feedbackDate);
+    const sourceAssignmentType = typeof feedback?.sourceAssignmentType === 'string'
+      ? feedback.sourceAssignmentType.trim() || null
+      : null;
+    const sourceClientName = typeof feedback?.sourceClientName === 'string'
+      ? feedback.sourceClientName.trim() || null
+      : null;
+    const sourceProjectDescription = typeof feedback?.sourceProjectDescription === 'string'
+      ? feedback.sourceProjectDescription.trim() || null
+      : null;
+    const entryType = typeof feedback?.entryType === 'string' && feedback.entryType.trim()
+      ? feedback.entryType.trim()
+      : 'Periodic Feedback';
+
+    const result = await pool.query(
+      `
+      INSERT INTO employee_feedback_history (
+        employee_id,
+        feedback_category,
+        sentiment,
+        feedback_date,
+        feedback_text,
+        source_assignment_type,
+        source_client_name,
+        source_project_description,
+        entry_type,
+        created_by,
+        created_by_name,
+        created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `,
+      [
+        employeeId,
+        feedbackCategory,
+        sentiment,
+        feedbackDate,
+        feedbackText,
+        sourceAssignmentType,
+        sourceClientName,
+        sourceProjectDescription,
+        entryType,
+        currentUser?.id || null,
+        currentUser?.name || null,
+        new Date().toISOString()
+      ]
+    );
+
+    return mapEmployeeFeedbackRow(result.rows[0]);
+  };
+
+  const recordEmployeeEngagementHistory = async (employeeId, previousOfficialInfo, nextOfficialInfo, currentUser, transitionMeta) => {
+    const previousSnapshot = normalizeEmployeeEngagementSnapshot(previousOfficialInfo);
+    const nextSnapshot = normalizeEmployeeEngagementSnapshot(nextOfficialInfo);
+
+    if (!shouldRecordEmployeeEngagementHistory(previousSnapshot, nextSnapshot)) {
+      return;
+    }
+
+    const transition = buildEmployeeEngagementTransition(previousSnapshot, nextSnapshot);
+    const normalizedTransitionMeta = normalizeTransitionMeta(transitionMeta);
+
+    await pool.query(
+      `
+      INSERT INTO employee_engagement_history (
+        employee_id,
+        assignment_type,
+        client_name,
+        client_location,
+        manager_name,
+        director_name,
+        project_description,
+        client_work_notes,
+        assignment_date,
+        transition_type,
+        transition_summary,
+        transition_note,
+        performance_summary,
+        changed_by,
+        changed_by_name,
+        changed_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+    `,
+      [
+        employeeId,
+        previousSnapshot.assignmentType || 'Bench',
+        previousSnapshot.clientName || null,
+        previousSnapshot.clientLocation || null,
+        previousSnapshot.managerName || null,
+        previousSnapshot.directorName || null,
+        previousSnapshot.projectDescription || null,
+        previousSnapshot.clientWorkNotes || null,
+        normalizeDateInput(previousSnapshot.assignmentDate),
+        transition.transitionType,
+        transition.transitionSummary,
+        normalizedTransitionMeta.transitionNote || null,
+        normalizedTransitionMeta.performanceSummary || null,
+        currentUser?.id || null,
+        currentUser?.name || null,
+        new Date().toISOString()
+      ]
+    );
+
+    if (isClientToBenchTransition(previousSnapshot, nextSnapshot)) {
+      await addEmployeeFeedback(
+        employeeId,
+        {
+          feedbackCategory: 'Client Engagement',
+          feedbackDate: normalizeDateInput(transitionMeta?.feedbackDate) || normalizeDateInput(new Date().toISOString()),
+          feedbackText: buildClientReturnFeedbackText(previousSnapshot, normalizedTransitionMeta),
+          sourceAssignmentType: previousSnapshot.assignmentType || null,
+          sourceClientName: previousSnapshot.clientName || null,
+          sourceProjectDescription: previousSnapshot.projectDescription || null,
+          entryType: 'Client Return Snapshot'
+        },
+        currentUser
+      );
+    }
+  };
+
   const getEmployeeById = async (id) => {
     const result = await pool.query(`${employeeSelect} WHERE employees.id = $1 LIMIT 1`, [id]);
-    return mapEmployeeRow(result.rows[0]);
+    const employee = mapEmployeeRow(result.rows[0]);
+    if (!employee) return null;
+    employee.engagementHistory = await getEmployeeEngagementHistory(employee.id);
+    employee.feedbackHistory = await getEmployeeFeedbackHistory(employee.id);
+    return employee;
   };
 
   const getEmployeeByEmployeeId = async (employeeId) => {
@@ -641,7 +1159,11 @@ export const createPostgresProvider = async (config) => {
       `${employeeSelect} WHERE employees.employee_id = $1 LIMIT 1`,
       [employeeId.trim().toUpperCase()]
     );
-    return mapEmployeeRow(result.rows[0]);
+    const employee = mapEmployeeRow(result.rows[0]);
+    if (!employee) return null;
+    employee.engagementHistory = await getEmployeeEngagementHistory(employee.id);
+    employee.feedbackHistory = await getEmployeeFeedbackHistory(employee.id);
+    return employee;
   };
 
   const createPersonalInfo = async (personalInfo) => {
@@ -660,8 +1182,9 @@ export const createPostgresProvider = async (config) => {
         emergency_contact_number,
         personal_email,
         linkedin_url,
+        photo_url,
         additional_comments
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id
     `,
       [
@@ -673,6 +1196,7 @@ export const createPostgresProvider = async (config) => {
         personalInfo.emergencyContactNumber || null,
         personalInfo.personalEmail || null,
         personalInfo.linkedinUrl || null,
+        personalInfo.photoUrl || null,
         personalInfo.additionalComments || null
       ]
     );
@@ -693,8 +1217,9 @@ export const createPostgresProvider = async (config) => {
              emergency_contact_number = $6,
              personal_email = $7,
              linkedin_url = $8,
-             additional_comments = $9
-       WHERE id = $10
+             photo_url = $9,
+             additional_comments = $10
+       WHERE id = $11
     `,
       [
         personalInfo?.firstName || null,
@@ -705,6 +1230,7 @@ export const createPostgresProvider = async (config) => {
         personalInfo?.emergencyContactNumber || null,
         personalInfo?.personalEmail || null,
         personalInfo?.linkedinUrl || null,
+        personalInfo?.photoUrl || null,
         personalInfo?.additionalComments || null,
         id
       ]
@@ -722,8 +1248,16 @@ export const createPostgresProvider = async (config) => {
         agreement_signed,
         start_date,
         official_dob,
-        official_email
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        official_email,
+        assignment_type,
+        client_name,
+        client_location,
+        manager_name,
+        director_name,
+        project_description,
+        client_work_notes,
+        assignment_date
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING id
     `,
       [
@@ -733,7 +1267,15 @@ export const createPostgresProvider = async (config) => {
         officialInfo?.agreementSigned ? true : false,
         officialInfo?.startDate || null,
         officialInfo?.officialDob || null,
-        officialInfo?.officialEmail || null
+        officialInfo?.officialEmail || null,
+        officialInfo?.assignmentType || null,
+        officialInfo?.clientName || null,
+        officialInfo?.clientLocation || null,
+        officialInfo?.managerName || null,
+        officialInfo?.directorName || null,
+        officialInfo?.projectDescription || null,
+        officialInfo?.clientWorkNotes || null,
+        officialInfo?.assignmentDate || null
       ]
     );
     return result.rows?.[0]?.id || null;
@@ -750,8 +1292,16 @@ export const createPostgresProvider = async (config) => {
              agreement_signed = $4,
              start_date = $5,
              official_dob = $6,
-             official_email = $7
-       WHERE id = $8
+             official_email = $7,
+             assignment_type = $8,
+             client_name = $9,
+             client_location = $10,
+             manager_name = $11,
+             director_name = $12,
+             project_description = $13,
+             client_work_notes = $14,
+             assignment_date = $15
+       WHERE id = $16
     `,
       [
         officialInfo?.division || null,
@@ -761,6 +1311,14 @@ export const createPostgresProvider = async (config) => {
         officialInfo?.startDate || null,
         officialInfo?.officialDob || null,
         officialInfo?.officialEmail || null,
+        officialInfo?.assignmentType || null,
+        officialInfo?.clientName || null,
+        officialInfo?.clientLocation || null,
+        officialInfo?.managerName || null,
+        officialInfo?.directorName || null,
+        officialInfo?.projectDescription || null,
+        officialInfo?.clientWorkNotes || null,
+        officialInfo?.assignmentDate || null,
         id
       ]
     );
@@ -838,7 +1396,7 @@ export const createPostgresProvider = async (config) => {
     };
   };
 
-  const createEmployee = async (employee) => {
+  const createEmployee = async (employee, currentUser) => {
     const employeeId = employee.employeeId?.trim().toUpperCase();
     if (!employeeId) {
       throw new Error('Employee ID is required');
@@ -881,7 +1439,7 @@ export const createPostgresProvider = async (config) => {
     return await getEmployeeByEmployeeId(employeeId);
   };
 
-  const updateEmployee = async (employee) => {
+  const updateEmployee = async (employee, currentUser) => {
     if (!employee?.id) {
       throw new Error('Employee id is required');
     }
@@ -903,6 +1461,16 @@ export const createPostgresProvider = async (config) => {
     if (duplicate.rows.length > 0) {
       throw new Error(`Employee ID "${employeeId}" already exists`);
     }
+
+    const nextOfficialInfo = employee.officialInfo
+      ? { ...(existing.officialInfo || {}), ...employee.officialInfo }
+      : existing.officialInfo;
+
+    validateEmployeeEngagementTransition(
+      existing.officialInfo,
+      nextOfficialInfo,
+      employee.engagementTransition
+    );
 
     let personalInfoId = existing.personalInfoId;
     if (employee.personalInfo) {
@@ -948,6 +1516,14 @@ export const createPostgresProvider = async (config) => {
         officialInfoId || null,
         employee.id
       ]
+    );
+
+    await recordEmployeeEngagementHistory(
+      employee.id,
+      existing.officialInfo,
+      nextOfficialInfo,
+      currentUser,
+      employee.engagementTransition
     );
 
     return await getEmployeeById(employee.id);
@@ -1145,6 +1721,8 @@ export const createPostgresProvider = async (config) => {
     getEmployeesPage,
     getEmployeeById,
     getEmployeeByEmployeeId,
+    getEmployeeFeedbackHistory,
+    addEmployeeFeedback,
     createEmployee,
     updateEmployee,
     deleteEmployee,

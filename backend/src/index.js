@@ -21,6 +21,7 @@ import { sanitizeUser } from './utils/user.js';
 import { verifyPassword } from './utils/password.js';
 
 const EMPLOYEE_ASSIGNMENT_TYPES = new Set(['Client Billable', 'Bench', 'Support']);
+const EMPLOYEE_FEEDBACK_CATEGORIES = new Set(['General', 'Client Engagement', 'Bench Performance']);
 const MAX_EMPLOYEE_PHOTO_BYTES = 2 * 1024 * 1024;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const EMPLOYEE_PHOTO_LOCAL_PATH_PATTERN = /^\/uploads\/employee_photos\/[A-Za-z0-9/_\-.]+$/;
@@ -255,7 +256,7 @@ const validateEmployeePhoto = (photoUrl) => {
   }
 
   if (typeof photoUrl !== 'string') {
-    return 'Employee photograph must be a valid URL or uploaded image data.';
+    return 'Please upload a valid image file.';
   }
 
   const trimmedPhotoUrl = photoUrl.trim();
@@ -273,16 +274,16 @@ const validateEmployeePhoto = (photoUrl) => {
 
   const dataUrlMatch = getEmployeePhotoDataUrlMatch(trimmedPhotoUrl);
   if (!dataUrlMatch) {
-    return 'Employee photograph must be an http/https URL, a local /uploads path, or an image data URL.';
+    return 'The provided photograph URL or image data is not supported.';
   }
 
   const byteLength = decodeBase64ByteLength(dataUrlMatch[2]);
   if (byteLength <= 0) {
-    return 'Employee photograph data is invalid.';
+    return 'The photograph you uploaded appears to be corrupted or invalid.';
   }
 
   if (byteLength > MAX_EMPLOYEE_PHOTO_BYTES) {
-    return 'Employee photograph must be 2MB or smaller.';
+    return 'Please upload a photograph smaller than 2MB.';
   }
 
   return null;
@@ -298,31 +299,31 @@ const validateEmployeeOfficialInfo = (officialInfo) => {
     : '';
 
   if (assignmentType && !EMPLOYEE_ASSIGNMENT_TYPES.has(assignmentType)) {
-    return 'Assignment type must be one of: Client Billable, Bench, Support.';
+    return 'Please select a valid assignment type.';
   }
 
   const requiresClientDetails = assignmentType === 'Client Billable';
 
   if (requiresClientDetails) {
     if (isBlank(officialInfo.clientName)) {
-      return 'Client name is required for Client Billable assignment.';
+      return "Please specify the client's name.";
     }
     if (isBlank(officialInfo.clientLocation)) {
-      return 'Client location is required for Client Billable assignment.';
+      return "Please specify the client's location.";
     }
     if (isBlank(officialInfo.managerName)) {
-      return 'Manager name is required for Client Billable assignment.';
+      return "Please provide the name of the manager.";
     }
     if (isBlank(officialInfo.projectDescription)) {
-      return 'Project description is required for Client Billable assignment.';
+      return "Please include a project description.";
     }
     if (isBlank(officialInfo.assignmentDate)) {
-      return 'Assignment date is required for Client Billable assignment.';
+      return "Please provide the assignment start date.";
     }
   }
 
   if (!isBlank(officialInfo.assignmentDate) && !ISO_DATE_PATTERN.test(String(officialInfo.assignmentDate).trim())) {
-    return 'Assignment date must be in YYYY-MM-DD format.';
+    return 'Please ensure the assignment date is valid.';
   }
 
   return null;
@@ -338,6 +339,37 @@ const validateEmployeePayload = (payload) => {
   }
 
   return validateEmployeeOfficialInfo(officialInfo);
+};
+
+const validateEmployeeFeedbackPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return 'Please provide the feedback details.';
+  }
+
+  const feedbackText = typeof payload.feedbackText === 'string'
+    ? payload.feedbackText.trim()
+    : '';
+  if (!feedbackText) {
+    return 'Please add some notes for this feedback entry.';
+  }
+
+  const feedbackCategory = typeof payload.feedbackCategory === 'string'
+    ? payload.feedbackCategory.trim()
+    : '';
+  if (feedbackCategory && !EMPLOYEE_FEEDBACK_CATEGORIES.has(feedbackCategory)) {
+    return 'Please select a valid feedback category.';
+  }
+
+  const sentiment = typeof payload.sentiment === 'string' ? payload.sentiment.trim() : '';
+  if (sentiment && !['Positive', 'Neutral', 'Needs Attention'].includes(sentiment)) {
+    return 'Please select a valid sentiment (Positive, Neutral, or Needs Attention).';
+  }
+
+  if (!isBlank(payload.feedbackDate) && !ISO_DATE_PATTERN.test(String(payload.feedbackDate).trim())) {
+    return 'Please provide a valid date for the feedback.';
+  }
+
+  return null;
 };
 
 const buildServer = async () => {
@@ -806,6 +838,41 @@ const buildServer = async () => {
 
       request.log.error(error, 'Employee photo upload failed');
       return reply.code(400).send({ error: error.message || 'Failed to upload employee photo.' });
+    }
+  });
+
+  app.get('/employees/:id/feedback', async (request, reply) => {
+    const currentUser = await getRequestUser(request);
+    if (!currentUser) {
+      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
+    }
+
+    try {
+      const history = await provider.getEmployeeFeedbackHistory(request.params.id);
+      return history;
+    } catch (error) {
+      const status = error.message === 'Employee not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
+  app.post('/employees/:id/feedback', async (request, reply) => {
+    const currentUser = await getRequestUser(request);
+    if (!currentUser) {
+      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
+    }
+
+    const validationError = validateEmployeeFeedbackPayload(request.body);
+    if (validationError) {
+      return reply.code(400).send({ error: validationError });
+    }
+
+    try {
+      const created = await provider.addEmployeeFeedback(request.params.id, request.body, currentUser);
+      return reply.code(201).send(created);
+    } catch (error) {
+      const status = error.message === 'Employee not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
     }
   });
 

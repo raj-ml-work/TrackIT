@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS employee_personal_info (
   emergency_contact_number TEXT,
   personal_email TEXT,
   linkedin_url TEXT,
+  photo_url TEXT,
   additional_comments TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -93,6 +94,14 @@ CREATE TABLE IF NOT EXISTS employee_official_info (
   start_date DATE,
   official_dob DATE,
   official_email TEXT,
+  assignment_type TEXT,
+  client_name TEXT,
+  client_location TEXT,
+  manager_name TEXT,
+  director_name TEXT,
+  project_description TEXT,
+  client_work_notes TEXT,
+  assignment_date DATE,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -100,6 +109,7 @@ CREATE TABLE IF NOT EXISTS employee_official_info (
 CREATE INDEX IF NOT EXISTS idx_employee_official_info_email ON employee_official_info(official_email);
 CREATE INDEX IF NOT EXISTS idx_employee_official_info_biometric ON employee_official_info(biometric_id);
 CREATE INDEX IF NOT EXISTS idx_employee_official_info_division ON employee_official_info(division);
+CREATE INDEX IF NOT EXISTS idx_employee_official_info_assignment_type ON employee_official_info(assignment_type);
 
 -- ============================================
 -- EMPLOYEES TABLE (Restructured with Foreign Keys)
@@ -124,6 +134,56 @@ CREATE INDEX IF NOT EXISTS idx_employees_client_id ON employees(client_id);
 CREATE INDEX IF NOT EXISTS idx_employees_location_id ON employees(location_id);
 CREATE INDEX IF NOT EXISTS idx_employees_personal_info_id ON employees(personal_info_id);
 CREATE INDEX IF NOT EXISTS idx_employees_official_info_id ON employees(official_info_id);
+
+-- ============================================
+-- EMPLOYEE ENGAGEMENT HISTORY TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS employee_engagement_history (
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+  employee_id TEXT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  assignment_type TEXT NOT NULL,
+  client_name TEXT,
+  client_location TEXT,
+  manager_name TEXT,
+  director_name TEXT,
+  project_description TEXT,
+  client_work_notes TEXT,
+  assignment_date DATE,
+  transition_type TEXT NOT NULL,
+  transition_summary TEXT NOT NULL,
+  transition_note TEXT,
+  performance_summary TEXT,
+  changed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  changed_by_name TEXT,
+  changed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_employee_engagement_history_employee_id ON employee_engagement_history(employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_engagement_history_changed_at ON employee_engagement_history(changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_employee_engagement_history_employee_changed ON employee_engagement_history(employee_id, changed_at DESC);
+
+-- ============================================
+-- EMPLOYEE FEEDBACK HISTORY TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS employee_feedback_history (
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+  employee_id TEXT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  feedback_category TEXT NOT NULL DEFAULT 'General',
+  sentiment TEXT,
+  feedback_date DATE,
+  feedback_text TEXT NOT NULL,
+  source_assignment_type TEXT,
+  source_client_name TEXT,
+  source_project_description TEXT,
+  entry_type TEXT NOT NULL DEFAULT 'Periodic Feedback',
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_by_name TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_employee_feedback_history_employee_id ON employee_feedback_history(employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_feedback_history_created_at ON employee_feedback_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_employee_feedback_history_employee_created ON employee_feedback_history(employee_id, created_at DESC);
 
 -- ============================================
 -- ASSETS TABLE (Enhanced with Foreign Keys)

@@ -206,7 +206,7 @@ test('employee validation rejects invalid assignment type and unsafe upload path
   assert.equal(invalidAssignmentResponse.statusCode, 400);
   assert.match(
     invalidAssignmentResponse.body,
-    /Assignment type must be one of: Client Billable, Bench, Support/
+    /Please select a valid assignment type/
   );
 
   const unsafePathResponse = await app.inject({
@@ -217,7 +217,10 @@ test('employee validation rejects invalid assignment type and unsafe upload path
     }
   });
   assert.equal(unsafePathResponse.statusCode, 400);
-  assert.match(unsafePathResponse.body, /Employee photograph must be/i);
+  assert.match(
+    unsafePathResponse.body,
+    /The provided photograph URL or image data is not supported/
+  );
 });
 
 test('support assignment allows missing client fields while client billable requires them', async () => {
@@ -252,6 +255,103 @@ test('support assignment allows missing client fields while client billable requ
   assert.equal(clientBillableMissingClientResponse.statusCode, 400);
   assert.match(
     clientBillableMissingClientResponse.body,
-    /Client name is required for Client Billable assignment/
+    /Please specify the client's name/
   );
+});
+
+test('employee feedback endpoint captures periodic notes and auto-archives client return snapshots', async () => {
+  const createResponse = await app.inject({
+    method: 'POST',
+    url: '/employees',
+    payload: {
+      ...buildEmployeePayload('EMP-FEEDBACK-001', ''),
+      officialInfo: {
+        division: 'Engineering',
+        officialEmail: 'emp-feedback-001@company.com',
+        assignmentType: 'Client Billable',
+        clientName: 'Northwind Labs',
+        clientLocation: 'Bengaluru',
+        managerName: 'Client Manager',
+        directorName: 'Client Director',
+        projectDescription: 'Platform rollout',
+        assignmentDate: '2026-01-15'
+      }
+    }
+  });
+  assert.equal(createResponse.statusCode, 201, createResponse.body);
+  const created = createResponse.json();
+
+  const moveToBenchResponse = await app.inject({
+    method: 'PUT',
+    url: `/employees/${created.id}`,
+    payload: {
+      ...created,
+      officialInfo: {
+        ...created.officialInfo,
+        assignmentType: 'Bench',
+        assignmentDate: '2026-03-01',
+        clientName: '',
+        clientLocation: '',
+        managerName: '',
+        directorName: '',
+        projectDescription: '',
+        clientWorkNotes: ''
+      },
+      engagementTransition: {
+        transitionNote: 'Client project completed successfully.',
+        performanceSummary: 'Strong ownership and timely delivery.'
+      }
+    }
+  });
+  assert.equal(moveToBenchResponse.statusCode, 200, moveToBenchResponse.body);
+
+  const loginResponse = await app.inject({
+    method: 'POST',
+    url: '/auth/login',
+    payload: {
+      email: 'admin@trackit.com',
+      password: 'admin123'
+    }
+  });
+  const { accessToken } = loginResponse.json();
+  const authHeader = { authorization: `Bearer ${accessToken}` };
+
+  const autoFeedbackResponse = await app.inject({
+    method: 'GET',
+    url: `/employees/${created.id}/feedback`,
+    headers: authHeader
+  });
+  assert.equal(autoFeedbackResponse.statusCode, 200, autoFeedbackResponse.body);
+  const autoFeedbackList = autoFeedbackResponse.json();
+  assert.ok(Array.isArray(autoFeedbackList));
+  assert.ok(autoFeedbackList.length >= 1);
+  assert.equal(autoFeedbackList[0].entryType, 'Client Return Snapshot');
+  assert.equal(autoFeedbackList[0].feedbackCategory, 'Client Engagement');
+  assert.match(autoFeedbackList[0].feedbackText, /Onboarding Date: 2026-01-15/);
+  assert.match(autoFeedbackList[0].feedbackText, /Manager Name: Client Manager/);
+
+  const manualFeedbackResponse = await app.inject({
+    method: 'POST',
+    url: `/employees/${created.id}/feedback`,
+    headers: authHeader,
+    payload: {
+      feedbackCategory: 'Bench Performance',
+      feedbackDate: '2026-03-20',
+      feedbackText: 'Upskilling on automation and helping internal tooling backlog.'
+    }
+  });
+  assert.equal(manualFeedbackResponse.statusCode, 201, manualFeedbackResponse.body);
+  const manualFeedback = manualFeedbackResponse.json();
+  assert.equal(manualFeedback.feedbackCategory, 'Bench Performance');
+  assert.equal(manualFeedback.feedbackDate, '2026-03-20');
+
+  const updatedFeedbackResponse = await app.inject({
+    method: 'GET',
+    url: `/employees/${created.id}/feedback`,
+    headers: authHeader
+  });
+  assert.equal(updatedFeedbackResponse.statusCode, 200, updatedFeedbackResponse.body);
+  const updatedFeedbackList = updatedFeedbackResponse.json();
+  assert.ok(updatedFeedbackList.length >= 2);
+  assert.equal(updatedFeedbackList[0].feedbackText, 'Upskilling on automation and helping internal tooling backlog.');
 });

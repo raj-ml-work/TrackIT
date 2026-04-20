@@ -100,12 +100,23 @@ CREATE TABLE IF NOT EXISTS employee_personal_info (
   emergency_contact_number VARCHAR(20),
   personal_email VARCHAR(255),
   linkedin_url TEXT,
+  photo_url TEXT,
   additional_comments TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_employee_personal_info_email ON employee_personal_info(personal_email);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'employee_personal_info' AND column_name = 'photo_url'
+  ) THEN
+    ALTER TABLE employee_personal_info ADD COLUMN photo_url TEXT;
+  END IF;
+END $$;
 
 -- ============================================
 -- EMPLOYEE OFFICIAL INFO TABLE (New - Normalized)
@@ -119,13 +130,81 @@ CREATE TABLE IF NOT EXISTS employee_official_info (
   start_date DATE,
   official_dob DATE,
   official_email VARCHAR(255),
+  assignment_type VARCHAR(50),
+  client_name VARCHAR(255),
+  client_location VARCHAR(255),
+  manager_name VARCHAR(255),
+  director_name VARCHAR(255),
+  project_description TEXT,
+  client_work_notes TEXT,
+  assignment_date DATE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'employee_official_info' AND column_name = 'assignment_type'
+  ) THEN
+    ALTER TABLE employee_official_info ADD COLUMN assignment_type VARCHAR(50);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'employee_official_info' AND column_name = 'client_name'
+  ) THEN
+    ALTER TABLE employee_official_info ADD COLUMN client_name VARCHAR(255);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'employee_official_info' AND column_name = 'client_location'
+  ) THEN
+    ALTER TABLE employee_official_info ADD COLUMN client_location VARCHAR(255);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'employee_official_info' AND column_name = 'manager_name'
+  ) THEN
+    ALTER TABLE employee_official_info ADD COLUMN manager_name VARCHAR(255);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'employee_official_info' AND column_name = 'director_name'
+  ) THEN
+    ALTER TABLE employee_official_info ADD COLUMN director_name VARCHAR(255);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'employee_official_info' AND column_name = 'project_description'
+  ) THEN
+    ALTER TABLE employee_official_info ADD COLUMN project_description TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'employee_official_info' AND column_name = 'client_work_notes'
+  ) THEN
+    ALTER TABLE employee_official_info ADD COLUMN client_work_notes TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'employee_official_info' AND column_name = 'assignment_date'
+  ) THEN
+    ALTER TABLE employee_official_info ADD COLUMN assignment_date DATE;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_employee_official_info_email ON employee_official_info(official_email);
 CREATE INDEX IF NOT EXISTS idx_employee_official_info_biometric ON employee_official_info(biometric_id);
 CREATE INDEX IF NOT EXISTS idx_employee_official_info_division ON employee_official_info(division);
+CREATE INDEX IF NOT EXISTS idx_employee_official_info_assignment_type ON employee_official_info(assignment_type);
 
 -- ============================================
 -- EMPLOYEES TABLE (Restructured with Foreign Keys)
@@ -245,6 +324,66 @@ BEGIN
     CREATE INDEX IF NOT EXISTS idx_employees_official_info_id ON employees(official_info_id);
   END IF;
 END $$;
+
+-- ============================================
+-- EMPLOYEE ENGAGEMENT HISTORY TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS employee_engagement_history (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  assignment_type VARCHAR(50) NOT NULL,
+  client_name VARCHAR(255),
+  client_location VARCHAR(255),
+  manager_name VARCHAR(255),
+  director_name VARCHAR(255),
+  project_description TEXT,
+  client_work_notes TEXT,
+  assignment_date DATE,
+  transition_type VARCHAR(100) NOT NULL,
+  transition_summary TEXT NOT NULL,
+  transition_note TEXT,
+  performance_summary TEXT,
+  changed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  changed_by_name VARCHAR(255),
+  changed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_employee_engagement_history_employee_id ON employee_engagement_history(employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_engagement_history_changed_at ON employee_engagement_history(changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_employee_engagement_history_employee_changed ON employee_engagement_history(employee_id, changed_at DESC);
+
+-- ============================================
+-- EMPLOYEE FEEDBACK HISTORY TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS employee_feedback_history (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  feedback_category VARCHAR(100) NOT NULL DEFAULT 'General',
+  sentiment VARCHAR(50),
+  feedback_date DATE,
+  feedback_text TEXT NOT NULL,
+  source_assignment_type VARCHAR(50),
+  source_client_name VARCHAR(255),
+  source_project_description TEXT,
+  entry_type VARCHAR(100) NOT NULL DEFAULT 'Periodic Feedback',
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_by_name VARCHAR(255),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'employee_feedback_history' AND column_name = 'sentiment'
+  ) THEN
+    ALTER TABLE employee_feedback_history ADD COLUMN sentiment VARCHAR(50);
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_employee_feedback_history_employee_id ON employee_feedback_history(employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_feedback_history_created_at ON employee_feedback_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_employee_feedback_history_employee_created ON employee_feedback_history(employee_id, created_at DESC);
 
 -- ============================================
 -- ASSETS TABLE (Enhanced with Foreign Keys)
@@ -620,6 +759,8 @@ ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employee_personal_info ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employee_official_info ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employee_engagement_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employee_feedback_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE asset_specs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE asset_history ENABLE ROW LEVEL SECURITY;
@@ -694,6 +835,18 @@ DROP POLICY IF EXISTS "Authenticated users can update employees" ON employees;
 CREATE POLICY "Authenticated users can update employees" ON employees FOR UPDATE USING (true);
 DROP POLICY IF EXISTS "Only admins can delete employees" ON employees;
 CREATE POLICY "Only admins can delete employees" ON employees FOR DELETE USING (true);
+
+-- Employee Engagement History: authenticated users can read and insert
+DROP POLICY IF EXISTS "Authenticated users can read employee engagement history" ON employee_engagement_history;
+CREATE POLICY "Authenticated users can read employee engagement history" ON employee_engagement_history FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can insert employee engagement history" ON employee_engagement_history;
+CREATE POLICY "Authenticated users can insert employee engagement history" ON employee_engagement_history FOR INSERT WITH CHECK (true);
+
+-- Employee Feedback History: authenticated users can read and insert
+DROP POLICY IF EXISTS "Authenticated users can read employee feedback history" ON employee_feedback_history;
+CREATE POLICY "Authenticated users can read employee feedback history" ON employee_feedback_history FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can insert employee feedback history" ON employee_feedback_history;
+CREATE POLICY "Authenticated users can insert employee feedback history" ON employee_feedback_history FOR INSERT WITH CHECK (true);
 
 -- Assets: All authenticated users can read/write
 DROP POLICY IF EXISTS "Authenticated users can read assets" ON assets;
