@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import GlassCard from './GlassCard';
-import { Employee, EmployeeStatus, Asset, Location, Department, EmployeePersonalInfo, EmployeeOfficialInfo } from '../types';
+import { Employee, EmployeeStatus, Asset, Location, Department, EmployeePersonalInfo, EmployeeOfficialInfo, EmployeeAssignmentType } from '../types';
 import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2, Loader, AlertTriangle, Eye, Package, UserCircle, User, CheckCircle, ArrowLeft, ArrowRight, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
 import ModalPortal from './ModalPortal';
 import { isAdmin } from '../services/permissionUtil';
-import { getEmployeesPage } from '../services/dataService';
+import { getEmployeeById, getEmployeesPage, uploadEmployeePhoto } from '../services/dataService';
+import { getRuntimeConfig } from '../services/runtimeConfig';
 
 interface EmployeeManagementProps {
   employees: Employee[];
@@ -39,6 +40,7 @@ interface EmployeeFormData {
     emergencyContactNumber?: string;
     personalEmail?: string;
     linkedinUrl?: string;
+    photoUrl?: string;
     additionalComments?: string;
   };
   
@@ -51,7 +53,28 @@ interface EmployeeFormData {
     startDate?: string;
     officialDob?: string;
     officialEmail?: string;
+    assignmentType?: EmployeeAssignmentType;
+    clientName?: string;
+    clientLocation?: string;
+    managerName?: string;
+    directorName?: string;
+    projectDescription?: string;
+    clientWorkNotes?: string;
+    assignmentDate?: string;
   };
+}
+
+interface EngagementTransitionFormData {
+  targetAssignmentType: EmployeeAssignmentType;
+  assignmentDate: string;
+  clientName: string;
+  clientLocation: string;
+  managerName: string;
+  directorName: string;
+  projectDescription: string;
+  clientWorkNotes: string;
+  transitionNote: string;
+  performanceSummary: string;
 }
 
 const initialFormData: EmployeeFormData = {
@@ -66,6 +89,7 @@ const initialFormData: EmployeeFormData = {
     emergencyContactNumber: '',
     personalEmail: '',
     linkedinUrl: '',
+    photoUrl: '',
     additionalComments: ''
   },
   officialInfo: {
@@ -75,8 +99,37 @@ const initialFormData: EmployeeFormData = {
     agreementSigned: false,
     startDate: '',
     officialDob: '',
-    officialEmail: ''
+    officialEmail: '',
+    assignmentType: EmployeeAssignmentType.BENCH,
+    clientName: '',
+    clientLocation: '',
+    managerName: '',
+    directorName: '',
+    projectDescription: '',
+    clientWorkNotes: '',
+    assignmentDate: ''
   }
+};
+
+const createInitialEngagementTransitionForm = (
+  officialInfo?: EmployeeOfficialInfo,
+  targetAssignmentType?: EmployeeAssignmentType
+): EngagementTransitionFormData => {
+  const resolvedAssignmentType = targetAssignmentType || officialInfo?.assignmentType || EmployeeAssignmentType.BENCH;
+  const keepsClientFields = resolvedAssignmentType === EmployeeAssignmentType.CLIENT_BILLABLE;
+
+  return {
+    targetAssignmentType: resolvedAssignmentType,
+    assignmentDate: officialInfo?.assignmentDate || new Date().toISOString().slice(0, 10),
+    clientName: keepsClientFields ? officialInfo?.clientName || '' : '',
+    clientLocation: keepsClientFields ? officialInfo?.clientLocation || '' : '',
+    managerName: keepsClientFields ? officialInfo?.managerName || '' : '',
+    directorName: keepsClientFields ? officialInfo?.directorName || '' : '',
+    projectDescription: keepsClientFields ? officialInfo?.projectDescription || '' : '',
+    clientWorkNotes: keepsClientFields ? officialInfo?.clientWorkNotes || '' : '',
+    transitionNote: '',
+    performanceSummary: ''
+  };
 };
 
 const AUDIT_COMMENT_SEPARATOR = '\n---\n';
@@ -167,6 +220,153 @@ const statusBadge = (status: EmployeeStatus) => {
     : `${base} bg-amber-100 text-amber-700`;
 };
 
+const shouldShowEngagementDetails = (assignmentType?: EmployeeAssignmentType) =>
+  Boolean(assignmentType && assignmentType !== EmployeeAssignmentType.BENCH);
+
+const getAssignmentNotesLabel = (assignmentType?: EmployeeAssignmentType) =>
+  assignmentType === EmployeeAssignmentType.SUPPORT ? 'Support Notes' : 'Client Work Notes';
+
+const normalizeDepartmentName = (department?: string) => (
+  typeof department === 'string' ? department.trim().toLowerCase() : ''
+);
+
+interface DepartmentAssignmentPolicy {
+  defaultAssignmentType: EmployeeAssignmentType;
+  allowedAssignmentTypes: EmployeeAssignmentType[];
+}
+
+const getDepartmentAssignmentPolicy = (department?: string): DepartmentAssignmentPolicy => {
+  const normalizedDepartment = normalizeDepartmentName(department);
+  if (normalizedDepartment === 'semicon' || normalizedDepartment === 'embedded') {
+    return {
+      defaultAssignmentType: EmployeeAssignmentType.BENCH,
+      allowedAssignmentTypes: [EmployeeAssignmentType.BENCH, EmployeeAssignmentType.CLIENT_BILLABLE]
+    };
+  }
+
+  return {
+    defaultAssignmentType: EmployeeAssignmentType.SUPPORT,
+    allowedAssignmentTypes: [EmployeeAssignmentType.SUPPORT, EmployeeAssignmentType.BENCH, EmployeeAssignmentType.CLIENT_BILLABLE]
+  };
+};
+
+const clearClientAssignmentFields = (officialInfo: EmployeeFormData['officialInfo']): EmployeeFormData['officialInfo'] => ({
+  ...officialInfo,
+  clientName: '',
+  clientLocation: '',
+  managerName: '',
+  directorName: '',
+  projectDescription: '',
+  clientWorkNotes: '',
+  assignmentDate: ''
+});
+
+const applyAssignmentType = (
+  officialInfo: EmployeeFormData['officialInfo'],
+  assignmentType: EmployeeAssignmentType
+): EmployeeFormData['officialInfo'] => {
+  const next = {
+    ...officialInfo,
+    assignmentType
+  };
+
+  if (assignmentType !== EmployeeAssignmentType.CLIENT_BILLABLE) {
+    return clearClientAssignmentFields(next);
+  }
+
+  return next;
+};
+
+const EMPLOYEE_PHOTO_API_BASE_URL = (
+  getRuntimeConfig().VITE_API_URL || import.meta.env.VITE_API_URL || ''
+).replace(/\/$/, '');
+
+const resolveEmployeePhotoSrc = (photoUrl?: string) => {
+  const trimmed = typeof photoUrl === 'string' ? photoUrl.trim() : '';
+  if (!trimmed) return '';
+  if (trimmed.startsWith('/uploads/')) {
+    return EMPLOYEE_PHOTO_API_BASE_URL ? `${EMPLOYEE_PHOTO_API_BASE_URL}${trimmed}` : trimmed;
+  }
+  return trimmed;
+};
+
+const getEmployeeDisplayName = (employee?: Employee | null) => {
+  if (!employee) return '';
+  const fullName = employee.name
+    || `${employee.personalInfo?.firstName || ''} ${employee.personalInfo?.lastName || ''}`.trim();
+  return fullName || employee.employeeId;
+};
+
+const getEmployeePhotoUrl = (employee?: Employee | null) => {
+  const raw = employee?.personalInfo?.photoUrl;
+  if (typeof raw !== 'string') return '';
+  return raw.trim();
+};
+
+const getEmployeeAvatarInitial = (employee?: Employee | null) => {
+  const displayName = getEmployeeDisplayName(employee);
+  if (displayName) {
+    return displayName.charAt(0).toUpperCase();
+  }
+  return employee?.employeeId?.charAt(0)?.toUpperCase() || 'E';
+};
+
+const isAcceptedPhotoUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  return (
+    /^https?:\/\/.+/i.test(trimmed)
+    || /^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(trimmed)
+    || /^\/uploads\/employee_photos\/[A-Za-z0-9/_\-.]+$/i.test(trimmed)
+  );
+};
+
+const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+  reader.onerror = () => reject(new Error('Failed to read image file'));
+  reader.readAsDataURL(file);
+});
+
+interface EmployeeAvatarProps {
+  employee?: Employee | null;
+  sizeClass: string;
+  roundedClass?: string;
+  textClass?: string;
+}
+
+const EmployeeAvatar: React.FC<EmployeeAvatarProps> = ({
+  employee,
+  sizeClass,
+  roundedClass = 'rounded-xl',
+  textClass = 'text-gray-700 font-semibold'
+}) => {
+  const photoUrl = getEmployeePhotoUrl(employee);
+  const photoSrc = resolveEmployeePhotoSrc(photoUrl);
+  const [hasImageError, setHasImageError] = useState(false);
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [employee?.id, photoUrl]);
+
+  if (photoSrc && !hasImageError) {
+    return (
+      <img
+        src={photoSrc}
+        alt={`${getEmployeeDisplayName(employee)} profile`}
+        className={`${sizeClass} ${roundedClass} object-cover border border-gray-200`}
+        onError={() => setHasImageError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={`${sizeClass} ${roundedClass} bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center ${textClass}`}>
+      {getEmployeeAvatarInitial(employee)}
+    </div>
+  );
+};
+
 const PAGE_SIZE = 20;
 
 const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, useBackend = false, currentUser }) => {
@@ -186,12 +386,23 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
   const [fullNameInput, setFullNameInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPhotoUploading, setIsPhotoUploading] = useState(false);
   const [employeeIdError, setEmployeeIdError] = useState('');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string>(''); // General submission error
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'personal' | 'official' | 'assets'>('overview');
+  const [isEmployeeDetailLoading, setIsEmployeeDetailLoading] = useState(false);
+  const [employeeDetailError, setEmployeeDetailError] = useState('');
+  const [activeTab, setActiveTab] = useState<'overview' | 'engagement' | 'personal' | 'official' | 'assets'>('overview');
+  const [isTransitionModalOpen, setIsTransitionModalOpen] = useState(false);
+  const [transitionMode, setTransitionMode] = useState<'bench' | 'change'>('change');
+  const [transitionForm, setTransitionForm] = useState<EngagementTransitionFormData>(() =>
+    createInitialEngagementTransitionForm()
+  );
+  const [transitionErrors, setTransitionErrors] = useState<Record<string, string>>({});
+  const [isTransitionSubmitting, setIsTransitionSubmitting] = useState(false);
   const [commentText, setCommentText] = useState('');
+  const viewingEmployeeIdRef = useRef<string | null>(null);
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     type: DialogType;
@@ -344,12 +555,25 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     if (!viewingEmployee) return;
     const updated = filteredVisibleEmployees.find(employee => employee.id === viewingEmployee.id);
     if (updated) {
-      setViewingEmployee(updated);
+      setViewingEmployee(current => {
+        if (!current || current.id !== updated.id) {
+          return current;
+        }
+
+        return {
+          ...updated,
+          engagementHistory: current.engagementHistory || updated.engagementHistory
+        };
+      });
     }
   }, [filteredVisibleEmployees, viewingEmployee?.id]);
 
   useEffect(() => {
     setCommentText('');
+  }, [viewingEmployee?.id]);
+
+  useEffect(() => {
+    viewingEmployeeIdRef.current = viewingEmployee?.id || null;
   }, [viewingEmployee?.id]);
 
   const canViewPersonalDetails = isAdmin(currentUser || null);
@@ -412,11 +636,161 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     }
   };
 
+  const closeEmployeeDetail = () => {
+    setViewingEmployee(null);
+    setIsEmployeeDetailLoading(false);
+    setEmployeeDetailError('');
+    setActiveTab('overview');
+    setIsTransitionModalOpen(false);
+    setTransitionErrors({});
+    setIsTransitionSubmitting(false);
+  };
+
+  const openEngagementTransitionModal = (mode: 'bench' | 'change') => {
+    if (!viewingEmployee) return;
+    const currentOfficialInfo = viewingEmployee.officialInfo;
+    const defaultAssignmentType = mode === 'bench'
+      ? EmployeeAssignmentType.BENCH
+      : (currentOfficialInfo?.assignmentType && currentOfficialInfo.assignmentType !== EmployeeAssignmentType.BENCH
+        ? currentOfficialInfo.assignmentType
+        : EmployeeAssignmentType.CLIENT_BILLABLE);
+
+    setTransitionMode(mode);
+    setTransitionForm(createInitialEngagementTransitionForm(currentOfficialInfo, defaultAssignmentType));
+    setTransitionErrors({});
+    setIsTransitionModalOpen(true);
+  };
+
+  const closeEngagementTransitionModal = () => {
+    if (isTransitionSubmitting) return;
+    setIsTransitionModalOpen(false);
+    setTransitionErrors({});
+  };
+
+  const validateEngagementTransition = (): boolean => {
+    const errors: Record<string, string> = {};
+    const requiresClientDetails = transitionForm.targetAssignmentType === EmployeeAssignmentType.CLIENT_BILLABLE;
+
+    if (!transitionForm.assignmentDate) {
+      errors.assignmentDate = 'Effective date is required';
+    }
+
+    if (!transitionForm.transitionNote || transitionForm.transitionNote.trim() === '') {
+      errors.transitionNote = 'Transition note is required';
+    }
+
+    if (requiresClientDetails) {
+      if (!transitionForm.clientName || transitionForm.clientName.trim() === '') {
+        errors.clientName = 'Client name is required for Client Billable assignment';
+      }
+      if (!transitionForm.clientLocation || transitionForm.clientLocation.trim() === '') {
+        errors.clientLocation = 'Client location is required for Client Billable assignment';
+      }
+      if (!transitionForm.managerName || transitionForm.managerName.trim() === '') {
+        errors.managerName = 'Manager name is required for Client Billable assignment';
+      }
+      if (!transitionForm.projectDescription || transitionForm.projectDescription.trim() === '') {
+        errors.projectDescription = 'Project description is required for Client Billable assignment';
+      }
+    }
+
+    setTransitionErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmitEngagementTransition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!viewingEmployee) return;
+    if (!validateEngagementTransition()) return;
+
+    setIsTransitionSubmitting(true);
+    setEmployeeDetailError('');
+    const requiresClientDetails = transitionForm.targetAssignmentType === EmployeeAssignmentType.CLIENT_BILLABLE;
+    const currentOfficialInfo = viewingEmployee.officialInfo || ({ id: viewingEmployee.officialInfoId || '' } as EmployeeOfficialInfo);
+
+    const updatedOfficialInfo: EmployeeOfficialInfo = {
+      ...currentOfficialInfo,
+      assignmentType: transitionForm.targetAssignmentType,
+      assignmentDate: transitionForm.assignmentDate || undefined,
+      clientName: requiresClientDetails ? transitionForm.clientName.trim() || undefined : undefined,
+      clientLocation: requiresClientDetails ? transitionForm.clientLocation.trim() || undefined : undefined,
+      managerName: requiresClientDetails ? transitionForm.managerName.trim() || undefined : undefined,
+      directorName: requiresClientDetails ? transitionForm.directorName.trim() || undefined : undefined,
+      projectDescription: requiresClientDetails ? transitionForm.projectDescription.trim() || undefined : undefined,
+      clientWorkNotes: requiresClientDetails ? transitionForm.clientWorkNotes.trim() || undefined : undefined
+    };
+
+    const updatedEmployee: Employee = {
+      ...viewingEmployee,
+      officialInfo: updatedOfficialInfo,
+      engagementTransition: {
+        transitionNote: transitionForm.transitionNote.trim(),
+        performanceSummary: transitionForm.performanceSummary.trim() || undefined
+      }
+    };
+
+    try {
+      await onUpdate(updatedEmployee);
+      setIsTransitionModalOpen(false);
+      setTransitionErrors({});
+
+      if (useBackend) {
+        const detailedEmployee = await getEmployeeById(viewingEmployee.id);
+        if (detailedEmployee && viewingEmployeeIdRef.current === viewingEmployee.id) {
+          setViewingEmployee(detailedEmployee);
+        }
+        setRefreshToken(prev => prev + 1);
+      } else {
+        setViewingEmployee({
+          ...updatedEmployee,
+          engagementTransition: undefined
+        });
+      }
+    } catch (error) {
+      console.error('Error applying engagement transition:', error);
+      const errorMessage = error instanceof Error && error.message
+        ? error.message
+        : 'Failed to apply engagement transition. Please try again.';
+      setEmployeeDetailError(errorMessage);
+    } finally {
+      setIsTransitionSubmitting(false);
+    }
+  };
+
+  const openEmployeeDetail = async (employee: Employee) => {
+    setViewingEmployee(employee);
+    setActiveTab('overview');
+    setEmployeeDetailError('');
+
+    if (!useBackend) {
+      setIsEmployeeDetailLoading(false);
+      return;
+    }
+
+    setIsEmployeeDetailLoading(true);
+    try {
+      const detailedEmployee = await getEmployeeById(employee.id);
+      if (detailedEmployee && viewingEmployeeIdRef.current === employee.id) {
+        setViewingEmployee(detailedEmployee);
+      }
+    } catch (error) {
+      console.error('Error loading employee details:', error);
+      if (viewingEmployeeIdRef.current === employee.id) {
+        setEmployeeDetailError('Failed to load the latest employee details. Showing currently cached data.');
+      }
+    } finally {
+      if (viewingEmployeeIdRef.current === employee.id) {
+        setIsEmployeeDetailLoading(false);
+      }
+    }
+  };
+
   const openNew = () => {
     setEditingEmployee(null);
     setFormData(initialFormData);
     setFullNameInput('');
     setCurrentStep(1);
+    setIsPhotoUploading(false);
     setIsModalOpen(true);
     setFormErrors({});
     setEmployeeIdError('');
@@ -431,6 +805,14 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     const personalInfo = employee.personalInfo;
     
     const officialInfo = employee.officialInfo;
+    const resolvedDepartment = officialInfo?.division || employee.department || '';
+    const assignmentPolicy = getDepartmentAssignmentPolicy(resolvedDepartment);
+    const resolvedAssignmentType = (
+      officialInfo?.assignmentType
+      && assignmentPolicy.allowedAssignmentTypes.includes(officialInfo.assignmentType)
+    )
+      ? officialInfo.assignmentType
+      : assignmentPolicy.defaultAssignmentType;
     const displayName = `${personalInfo?.firstName || nameParts[0] || ''} ${personalInfo?.lastName || nameParts.slice(1).join(' ') || ''}`.trim();
 
     setFormData({
@@ -446,21 +828,31 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         emergencyContactNumber: personalInfo?.emergencyContactNumber || '',
         personalEmail: personalInfo?.personalEmail || '',
         linkedinUrl: personalInfo?.linkedinUrl || '',
+        photoUrl: personalInfo?.photoUrl || '',
         additionalComments: personalInfo?.additionalComments || ''
       },
       officialInfo: {
-        department: officialInfo?.division || employee.department || '',
+        department: resolvedDepartment,
         biometricId: officialInfo?.biometricId || '',
         rfidSerial: officialInfo?.rfidSerial || '',
         agreementSigned: officialInfo?.agreementSigned || false,
         startDate: officialInfo?.startDate || '',
         officialDob: officialInfo?.officialDob || '',
-        officialEmail: officialInfo?.officialEmail || employee.email || ''
+        officialEmail: officialInfo?.officialEmail || employee.email || '',
+        assignmentType: resolvedAssignmentType,
+        clientName: officialInfo?.clientName || '',
+        clientLocation: officialInfo?.clientLocation || '',
+        managerName: officialInfo?.managerName || '',
+        directorName: officialInfo?.directorName || '',
+        projectDescription: officialInfo?.projectDescription || '',
+        clientWorkNotes: officialInfo?.clientWorkNotes || '',
+        assignmentDate: officialInfo?.assignmentDate || ''
       }
     });
     setFullNameInput(displayName);
     
     setCurrentStep(1);
+    setIsPhotoUploading(false);
     setIsModalOpen(true);
     setFormErrors({});
     setEmployeeIdError('');
@@ -472,6 +864,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     setFormData(initialFormData);
     setFullNameInput('');
     setCurrentStep(1);
+    setIsPhotoUploading(false);
     setFormErrors({});
     setEmployeeIdError('');
     setSubmitError('');
@@ -489,19 +882,32 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPhotoUploading) {
+      setSubmitError('Please wait for photo upload to complete.');
+      return;
+    }
     setEmployeeIdError('');
     setSubmitError('');
     setFormErrors({});
+    setIsSubmitting(true);
     if (!validateStep1()) {
+      setIsSubmitting(false);
       setCurrentStep(1);
       return;
     }
     if (!validateStep2()) {
+      setIsSubmitting(false);
       setCurrentStep(2);
       return;
     }
-    if (!validateStep3()) {
+    if (!validateOfficialStep()) {
+      setIsSubmitting(false);
       setCurrentStep(3);
+      return;
+    }
+    if (!validateAssignmentStep()) {
+      setIsSubmitting(false);
+      setCurrentStep(4);
       return;
     }
     
@@ -516,8 +922,11 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         emergencyContactNumber: formData.personalInfo.emergencyContactNumber || undefined,
         personalEmail: formData.personalInfo.personalEmail || undefined,
         linkedinUrl: formData.personalInfo.linkedinUrl || undefined,
+        photoUrl: formData.personalInfo.photoUrl?.trim() || undefined,
         additionalComments: formData.personalInfo.additionalComments || undefined
       };
+
+      const hasClientDetails = formData.officialInfo.assignmentType === EmployeeAssignmentType.CLIENT_BILLABLE;
 
       const officialInfoData: Omit<EmployeeOfficialInfo, 'id'> = {
         division: formData.officialInfo.department || undefined, // Map department to division
@@ -526,7 +935,15 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         agreementSigned: formData.officialInfo.agreementSigned,
         startDate: formData.officialInfo.startDate || undefined,
         officialDob: formData.officialInfo.officialDob || undefined,
-        officialEmail: formData.officialInfo.officialEmail || undefined
+        officialEmail: formData.officialInfo.officialEmail || undefined,
+        assignmentType: formData.officialInfo.assignmentType || undefined,
+        clientName: hasClientDetails ? formData.officialInfo.clientName || undefined : undefined,
+        clientLocation: hasClientDetails ? formData.officialInfo.clientLocation || undefined : undefined,
+        managerName: hasClientDetails ? formData.officialInfo.managerName || undefined : undefined,
+        directorName: hasClientDetails ? formData.officialInfo.directorName || undefined : undefined,
+        projectDescription: hasClientDetails ? formData.officialInfo.projectDescription || undefined : undefined,
+        clientWorkNotes: hasClientDetails ? formData.officialInfo.clientWorkNotes || undefined : undefined,
+        assignmentDate: hasClientDetails ? formData.officialInfo.assignmentDate || undefined : undefined
       };
 
       const employeeData: Omit<Employee, 'id'> | Employee = editingEmployee ? {
@@ -680,14 +1097,56 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         !/^https?:\/\/.+/.test(formData.personalInfo.linkedinUrl)) {
       errors.linkedinUrl = 'Invalid URL format (must start with http:// or https://)';
     }
+
+    if (formData.personalInfo.photoUrl && !isAcceptedPhotoUrl(formData.personalInfo.photoUrl)) {
+      errors.photoUrl = 'Use a valid image URL (http/https) or upload an image file.';
+    }
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const validateStep3 = (): boolean => {
+  const validateAssignmentStep = (): boolean => {
     const errors: Record<string, string> = {};
-    
+    const assignmentPolicy = getDepartmentAssignmentPolicy(formData.officialInfo.department);
+
+    if (!formData.officialInfo.assignmentType) {
+      errors.assignmentType = 'Assignment type is required';
+    } else if (!assignmentPolicy.allowedAssignmentTypes.includes(formData.officialInfo.assignmentType)) {
+      errors.assignmentType = `Assignment type must be one of: ${assignmentPolicy.allowedAssignmentTypes.join(', ')}`;
+    }
+
+    const requiresClientDetails = formData.officialInfo.assignmentType === EmployeeAssignmentType.CLIENT_BILLABLE;
+
+    if (requiresClientDetails) {
+      if (!formData.officialInfo.clientName || formData.officialInfo.clientName.trim() === '') {
+        errors.clientName = 'Client name is required for Client Billable assignment';
+      }
+
+      if (!formData.officialInfo.clientLocation || formData.officialInfo.clientLocation.trim() === '') {
+        errors.clientLocation = 'Client location is required for Client Billable assignment';
+      }
+
+      if (!formData.officialInfo.managerName || formData.officialInfo.managerName.trim() === '') {
+        errors.managerName = 'Manager name is required for Client Billable assignment';
+      }
+
+      if (!formData.officialInfo.projectDescription || formData.officialInfo.projectDescription.trim() === '') {
+        errors.projectDescription = 'Project description is required for Client Billable assignment';
+      }
+
+      if (!formData.officialInfo.assignmentDate) {
+        errors.assignmentDate = 'Assignment date is required';
+      }
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateOfficialStep = (): boolean => {
+    const errors: Record<string, string> = {};
+
     if (!formData.officialInfo.department || formData.officialInfo.department.trim() === '') {
       errors.department = 'Department is required';
     }
@@ -695,8 +1154,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     if (!formData.officialInfo.officialEmail || formData.officialInfo.officialEmail.trim() === '') {
       errors.officialEmail = 'Official email is required';
     }
-    
-    // Email validation
+
     if (formData.officialInfo.officialEmail && 
         !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.officialInfo.officialEmail)) {
       errors.officialEmail = 'Invalid email format';
@@ -709,7 +1167,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     if (!formData.officialInfo.officialDob) {
       errors.officialDob = 'Official date of birth is required';
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -724,12 +1182,82 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       if (validateStep2()) {
         setCurrentStep(3);
       }
+    } else if (currentStep === 3) {
+      if (validateOfficialStep()) {
+        setCurrentStep(4);
+      }
     }
   };
 
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const updatePhotoUrl = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        photoUrl: value
+      }
+    }));
+    if (formErrors.photoUrl) {
+      setFormErrors(prev => ({ ...prev, photoUrl: undefined }));
+    }
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setFormErrors(prev => ({ ...prev, photoUrl: 'Please upload an image file.' }));
+      return;
+    }
+
+    const maxBytes = 2 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setFormErrors(prev => ({ ...prev, photoUrl: 'Image size must be 2MB or smaller.' }));
+      return;
+    }
+
+    if (useBackend && editingEmployee?.id) {
+      setIsPhotoUploading(true);
+      try {
+        const uploaded = await uploadEmployeePhoto(editingEmployee.id, file);
+        if (!uploaded?.photoUrl) {
+          throw new Error('Photo upload did not return a valid path.');
+        }
+        updatePhotoUrl(uploaded.photoUrl);
+        setRefreshToken(prev => prev + 1);
+        if (uploaded.employee && viewingEmployee?.id === editingEmployee.id) {
+          setViewingEmployee(uploaded.employee);
+        }
+      } catch (error) {
+        console.error('Error uploading employee photo:', error);
+        const errorMessage = error instanceof Error && error.message
+          ? error.message
+          : 'Unable to upload employee photo.';
+        setFormErrors(prev => ({ ...prev, photoUrl: errorMessage }));
+      } finally {
+        setIsPhotoUploading(false);
+      }
+      return;
+    }
+
+    try {
+      const photoDataUrl = await readFileAsDataUrl(file);
+      if (!photoDataUrl) {
+        setFormErrors(prev => ({ ...prev, photoUrl: 'Unable to process the uploaded image.' }));
+        return;
+      }
+      updatePhotoUrl(photoDataUrl);
+    } catch (error) {
+      console.error('Error processing employee photo upload:', error);
+      setFormErrors(prev => ({ ...prev, photoUrl: 'Unable to process the uploaded image.' }));
     }
   };
 
@@ -853,8 +1381,14 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   );
 
   // Render Step 2: Personal Information
-  const renderStep2 = () => (
-    <div className="space-y-4">
+  const renderStep2 = () => {
+    const formPhotoUrl = formData.personalInfo.photoUrl?.trim() || '';
+    const formPhotoSrc = resolveEmployeePhotoSrc(formPhotoUrl);
+    const fullNameValue = `${formData.personalInfo.firstName || ''} ${formData.personalInfo.lastName || ''}`.trim();
+    const photoFallbackInitial = (fullNameValue || formData.employeeId || 'E').charAt(0).toUpperCase();
+
+    return (
+      <div className="space-y-4">
       <div className="bg-purple-50/50 p-4 rounded-xl border border-purple-100 flex items-start gap-3 mb-4">
         <div className="p-2 bg-white rounded-lg shadow-sm text-purple-600">
           <User size={20} />
@@ -862,6 +1396,69 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
         <div>
           <h3 className="text-sm font-bold text-gray-800">Personal Information</h3>
           <p className="text-xs text-gray-500 mt-1">This information is kept confidential and used for HR records and emergency contacts.</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+        <p className="text-xs text-gray-500 uppercase mb-3">Photograph</p>
+        <div className="grid grid-cols-1 md:grid-cols-[auto,1fr] gap-4 items-start">
+          <div className="w-20 h-20 rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-sm">
+            {formPhotoSrc ? (
+              <img
+                src={formPhotoSrc}
+                alt="Employee profile preview"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center text-gray-700 text-xl font-semibold">
+                {photoFallbackInitial}
+              </div>
+            )}
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-500 uppercase block mb-1">Photo URL (Optional)</label>
+              <input
+                type="url"
+                disabled={isSubmitting || isPhotoUploading}
+                className={`w-full p-3 bg-white border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                  formErrors.photoUrl
+                    ? 'border-red-300 focus:ring-red-100'
+                    : 'border-gray-200 focus:ring-blue-100'
+                }`}
+                value={formData.personalInfo.photoUrl || ''}
+                onChange={e => updatePhotoUrl(e.target.value)}
+                placeholder="https://example.com/photo.jpg"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 uppercase block mb-1">Upload Image (Optional)</label>
+              <input
+                type="file"
+                accept="image/*"
+                disabled={isSubmitting || isPhotoUploading}
+                onChange={handlePhotoUpload}
+                className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <p className="text-xs text-gray-500 mt-1">JPG, PNG, or WEBP up to 2MB. The server stores photos in local uploads and saves only the path in employee profile.</p>
+              {isPhotoUploading && (
+                <p className="text-xs text-blue-600 mt-1">Uploading photo...</p>
+              )}
+            </div>
+            {formData.personalInfo.photoUrl && (
+              <button
+                type="button"
+                disabled={isSubmitting || isPhotoUploading}
+                onClick={() => updatePhotoUrl('')}
+                className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Remove Photo
+              </button>
+            )}
+            {formErrors.photoUrl && (
+              <p className="text-xs text-red-600">{formErrors.photoUrl}</p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1070,11 +1667,229 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           placeholder="Any additional personal information..."
         />
       </div>
-    </div>
-  );
+      </div>
+    );
+  };
 
-  // Render Step 3: Official Information
-  const renderStep3 = () => (
+  // Render Assignment Information step
+  const renderAssignmentStep = () => {
+    const requiresClientDetails = formData.officialInfo.assignmentType === EmployeeAssignmentType.CLIENT_BILLABLE;
+    const workNotesLabel = 'Client Work Notes';
+    const assignmentPolicy = getDepartmentAssignmentPolicy(formData.officialInfo.department);
+
+    return (
+      <div className="space-y-4">
+        <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-100 flex items-start gap-3 mb-4">
+          <div className="p-2 bg-white rounded-lg shadow-sm text-amber-600">
+            <Building size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-800">Assignment Information</h3>
+            <p className="text-xs text-gray-500 mt-1">Capture the employee's current engagement without mixing it into general HR comments.</p>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs text-gray-500 uppercase block mb-2">Assignment Type *</label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {assignmentPolicy.allowedAssignmentTypes.map((assignmentType) => {
+              const isActive = formData.officialInfo.assignmentType === assignmentType;
+              return (
+                <button
+                  key={assignmentType}
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    setFormData(prev => ({
+                      ...prev,
+                      officialInfo: applyAssignmentType(prev.officialInfo, assignmentType)
+                    }));
+                    if (formErrors.assignmentType) setFormErrors(prev => ({ ...prev, assignmentType: undefined }));
+                  }}
+                  className={`rounded-xl border px-4 py-3 text-left transition-all ${
+                    isActive
+                      ? 'border-amber-300 bg-amber-50 text-amber-800 shadow-sm'
+                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-amber-200 hover:bg-amber-50/40'
+                  }`}
+                >
+                  <p className="text-sm font-semibold">{assignmentType}</p>
+                  <p className="text-xs mt-1 text-gray-500">
+                    {assignmentType === EmployeeAssignmentType.BENCH
+                      ? 'No active client engagement.'
+                      : assignmentType === EmployeeAssignmentType.SUPPORT
+                        ? 'Support-oriented engagement or account work.'
+                        : 'Billable client engagement.'}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+          {formErrors.assignmentType && (
+            <p className="text-xs text-red-600 mt-1">{formErrors.assignmentType}</p>
+          )}
+          {assignmentPolicy.allowedAssignmentTypes.length < Object.values(EmployeeAssignmentType).length && (
+            <p className="text-xs text-gray-500 mt-1">
+              This department allows only: {assignmentPolicy.allowedAssignmentTypes.join(', ')}.
+            </p>
+          )}
+        </div>
+
+        {requiresClientDetails ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-gray-500 uppercase block mb-1">Client Name *</label>
+                <input
+                  disabled={isSubmitting}
+                  className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                    formErrors.clientName ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                  }`}
+                  value={formData.officialInfo.clientName || ''}
+                  onChange={e => {
+                    setFormData(prev => ({
+                      ...prev,
+                      officialInfo: { ...prev.officialInfo, clientName: e.target.value }
+                    }));
+                    if (formErrors.clientName) setFormErrors(prev => ({ ...prev, clientName: undefined }));
+                  }}
+                  placeholder="e.g. Acme Corp"
+                />
+                {formErrors.clientName && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.clientName}</p>
+                )}
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 uppercase block mb-1">Client Location *</label>
+                <input
+                  disabled={isSubmitting}
+                  className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                    formErrors.clientLocation ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                  }`}
+                  value={formData.officialInfo.clientLocation || ''}
+                  onChange={e => {
+                    setFormData(prev => ({
+                      ...prev,
+                      officialInfo: { ...prev.officialInfo, clientLocation: e.target.value }
+                    }));
+                    if (formErrors.clientLocation) setFormErrors(prev => ({ ...prev, clientLocation: undefined }));
+                  }}
+                  placeholder="e.g. Bengaluru"
+                />
+                {formErrors.clientLocation && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.clientLocation}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-gray-500 uppercase block mb-1">Manager Name *</label>
+                <input
+                  disabled={isSubmitting}
+                  className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                    formErrors.managerName ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                  }`}
+                  value={formData.officialInfo.managerName || ''}
+                  onChange={e => {
+                    setFormData(prev => ({
+                      ...prev,
+                      officialInfo: { ...prev.officialInfo, managerName: e.target.value }
+                    }));
+                    if (formErrors.managerName) setFormErrors(prev => ({ ...prev, managerName: undefined }));
+                  }}
+                  placeholder="e.g. Jane Smith"
+                />
+                {formErrors.managerName && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.managerName}</p>
+                )}
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 uppercase block mb-1">Director Name</label>
+                <input
+                  disabled={isSubmitting}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                  value={formData.officialInfo.directorName || ''}
+                  onChange={e => setFormData(prev => ({
+                    ...prev,
+                    officialInfo: { ...prev.officialInfo, directorName: e.target.value }
+                  }))}
+                  placeholder="Optional"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 uppercase block mb-1">Assignment Date *</label>
+              <input
+                type="date"
+                disabled={isSubmitting}
+                className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                  formErrors.assignmentDate ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                }`}
+                value={formData.officialInfo.assignmentDate || ''}
+                onChange={e => {
+                  setFormData(prev => ({
+                    ...prev,
+                    officialInfo: { ...prev.officialInfo, assignmentDate: e.target.value }
+                  }));
+                  if (formErrors.assignmentDate) setFormErrors(prev => ({ ...prev, assignmentDate: undefined }));
+                }}
+              />
+              {formErrors.assignmentDate && (
+                <p className="text-xs text-red-600 mt-1">{formErrors.assignmentDate}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 uppercase block mb-1">Project Description *</label>
+              <textarea
+                disabled={isSubmitting}
+                rows={3}
+                className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity resize-none ${
+                  formErrors.projectDescription ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                }`}
+                value={formData.officialInfo.projectDescription || ''}
+                onChange={e => {
+                  setFormData(prev => ({
+                    ...prev,
+                    officialInfo: { ...prev.officialInfo, projectDescription: e.target.value }
+                  }));
+                  if (formErrors.projectDescription) setFormErrors(prev => ({ ...prev, projectDescription: undefined }));
+                }}
+                placeholder="Short description of the engagement, team, and scope of work."
+              />
+              {formErrors.projectDescription && (
+                <p className="text-xs text-red-600 mt-1">{formErrors.projectDescription}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 uppercase block mb-1">{workNotesLabel}</label>
+              <textarea
+                disabled={isSubmitting}
+                rows={4}
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity resize-none"
+                value={formData.officialInfo.clientWorkNotes || ''}
+                onChange={e => setFormData(prev => ({
+                  ...prev,
+                  officialInfo: { ...prev.officialInfo, clientWorkNotes: e.target.value }
+                }))}
+                placeholder="Use this for engagement-specific work notes, context, and performance observations."
+              />
+            </div>
+          </>
+        ) : (
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-4">
+            <p className="text-sm font-medium text-gray-700">{formData.officialInfo.assignmentType || 'Assignment'} selected</p>
+            <p className="text-xs text-gray-500 mt-1">Client fields are only required for Client Billable assignments.</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render Official Information step
+  const renderOfficialStep = () => (
     <div className="space-y-4">
       <div className="bg-green-50/50 p-4 rounded-xl border border-green-100 flex items-start gap-3 mb-4">
         <div className="p-2 bg-white rounded-lg shadow-sm text-green-600">
@@ -1097,11 +1912,20 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
           }`}
           value={formData.officialInfo.department || ''}
           onChange={e => {
+            const department = e.target.value || undefined;
+            const assignmentPolicy = getDepartmentAssignmentPolicy(department);
             setFormData(prev => ({
               ...prev,
-              officialInfo: { ...prev.officialInfo, department: e.target.value || undefined }
+              officialInfo: applyAssignmentType(
+                {
+                  ...prev.officialInfo,
+                  department
+                },
+                assignmentPolicy.defaultAssignmentType
+              )
             }));
             if (formErrors.department) setFormErrors(prev => ({ ...prev, department: undefined }));
+            if (formErrors.assignmentType) setFormErrors(prev => ({ ...prev, assignmentType: undefined }));
           }}
         >
           <option value="">Select Department</option>
@@ -1146,7 +1970,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs text-gray-500 uppercase block mb-1">Start Date *</label>
+          <label className="text-xs text-gray-500 uppercase block mb-1">Employment Start Date *</label>
           <input
             type="date"
             disabled={isSubmitting}
@@ -1241,6 +2065,8 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       </div>
     </div>
   );
+
+  const viewingOfficialInfo = viewingEmployee?.officialInfo;
 
   return (
     <div className="space-y-6">
@@ -1363,11 +2189,9 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
               >
                 <div className="col-span-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center text-gray-700 font-semibold">
-                      {employee.name?.substring(0, 1) || employee.employeeId.substring(0, 1)}
-                    </div>
+                    <EmployeeAvatar employee={employee} sizeClass="w-9 h-9" />
                     <div>
-                      <p className="font-semibold text-gray-800 leading-tight">{employee.name || employee.employeeId}</p>
+                      <p className="font-semibold text-gray-800 leading-tight">{getEmployeeDisplayName(employee)}</p>
                     </div>
                   </div>
                 </div>
@@ -1390,10 +2214,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setViewingEmployee(employee);
-                      setActiveTab('overview');
-                    }}
+                    onClick={() => openEmployeeDetail(employee)}
                     className="p-2 hover:bg-green-50 text-green-600 rounded-lg transition-colors"
                     title="View Details"
                   >
@@ -1543,8 +2364,12 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                           Step 2: Personal
                         </span>
                         <span className="text-gray-300">/</span>
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 3 ? 'bg-green-100 text-green-700' : 'text-gray-400'}`}>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 3 ? 'bg-green-100 text-green-700' : currentStep > 3 ? 'bg-green-50 text-green-600' : 'text-gray-400'}`}>
                           Step 3: Official
+                        </span>
+                        <span className="text-gray-300">/</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${currentStep === 4 ? 'bg-amber-100 text-amber-700' : 'text-gray-400'}`}>
+                          Step 4: Assignment
                         </span>
                       </div>
                     </div>
@@ -1577,7 +2402,8 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   
                   {currentStep === 1 && renderStep1()}
                   {currentStep === 2 && renderStep2()}
-                  {currentStep === 3 && renderStep3()}
+                  {currentStep === 3 && renderOfficialStep()}
+                  {currentStep === 4 && renderAssignmentStep()}
                 </div>
 
                 <div className="pt-6 flex justify-between items-center shrink-0 border-t border-gray-100 mt-4">
@@ -1599,11 +2425,12 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                     </button>
                   )}
 
-                  {currentStep < 3 ? (
+                  {currentStep < 4 ? (
                     <button
                       type="button"
                       onClick={handleNext}
-                      className="relative px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg shadow-emerald-500/30 flex items-center gap-2 text-sm font-medium overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
+                      disabled={isPhotoUploading}
+                      className="relative px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg shadow-emerald-500/30 flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
                     >
                       Next <ArrowRight size={16} />
                     </button>
@@ -1611,13 +2438,13 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                     <button
                       type="button"
                       onClick={handleSubmit}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isPhotoUploading}
                       className="relative px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg shadow-emerald-500/30 flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
                     >
-                      {isSubmitting ? (
+                      {isSubmitting || isPhotoUploading ? (
                         <>
                           <Loader size={16} className="animate-spin" />
-                          {editingEmployee ? 'Saving...' : 'Creating...'}
+                          {isPhotoUploading ? 'Uploading Photo...' : (editingEmployee ? 'Saving...' : 'Creating...')}
                         </>
                       ) : (
                         <>
@@ -1646,26 +2473,27 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
       />
 
       {/* Employee Detail Modal */}
-      <AnimatePresence>
-        {viewingEmployee && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setViewingEmployee(null)}
-          >
+      <ModalPortal>
+        <AnimatePresence>
+          {viewingEmployee && (
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative max-h-[90vh] overflow-hidden flex flex-col"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+              onClick={closeEmployeeDetail}
             >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative h-[90vh] max-h-[90vh] overflow-hidden flex flex-col"
+              >
               <button 
                 className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 z-10" 
-                onClick={() => setViewingEmployee(null)}
+                onClick={closeEmployeeDetail}
               >
                 <X size={18} />
               </button>
@@ -1673,12 +2501,15 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
               {/* Header */}
               <div className="p-6 border-b border-gray-200 shrink-0">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center text-gray-700 text-2xl font-bold">
-                    {viewingEmployee.name?.substring(0, 1) || viewingEmployee.employeeId.substring(0, 1)}
-                  </div>
+                  <EmployeeAvatar
+                    employee={viewingEmployee}
+                    sizeClass="w-16 h-16"
+                    roundedClass="rounded-2xl"
+                    textClass="text-gray-700 text-2xl font-bold"
+                  />
                   <div className="flex-1">
                     <h3 className="text-2xl font-bold text-gray-900">
-                      {viewingEmployee.name || `${viewingEmployee.personalInfo?.firstName || ''} ${viewingEmployee.personalInfo?.lastName || ''}`.trim() || viewingEmployee.employeeId}
+                      {getEmployeeDisplayName(viewingEmployee)}
                     </h3>
                     <p className="text-sm font-mono text-gray-600">ID: {viewingEmployee.employeeId}</p>
                   </div>
@@ -1686,7 +2517,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                     <span className={statusBadge(viewingEmployee.status)}>{viewingEmployee.status}</span>
                     <button
                       onClick={() => {
-                        setViewingEmployee(null);
+                        closeEmployeeDetail();
                         openEdit(viewingEmployee);
                       }}
                       className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
@@ -1703,8 +2534,8 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                 <div className="flex gap-1 px-6">
                   {(
                     canViewPersonalDetails
-                      ? (['overview', 'personal', 'official', 'assets'] as const)
-                      : (['overview', 'official', 'assets'] as const)
+                      ? (['overview', 'engagement', 'personal', 'official', 'assets'] as const)
+                      : (['overview', 'engagement', 'official', 'assets'] as const)
                   ).map((tab) => (
                     <button
                       key={tab}
@@ -1729,6 +2560,17 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
               {/* Tab Content */}
               <div className="flex-1 overflow-y-auto p-6">
+                {isEmployeeDetailLoading && (
+                  <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <Loader size={16} className="animate-spin" />
+                    <span>Loading latest employee details...</span>
+                  </div>
+                )}
+                {employeeDetailError && (
+                  <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {employeeDetailError}
+                  </div>
+                )}
                 <AnimatePresence mode="wait">
                   {activeTab === 'overview' && (
                     <motion.div
@@ -1774,6 +2616,36 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                           </div>
                         </div>
                       </div>
+                      {viewingOfficialInfo?.assignmentType && (
+                        <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <p className="text-xs text-amber-700 uppercase mb-1">Current Assignment</p>
+                              <p className="text-base font-semibold text-gray-900">{viewingOfficialInfo.assignmentType}</p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {shouldShowEngagementDetails(viewingOfficialInfo.assignmentType)
+                                  ? [viewingOfficialInfo.clientName, viewingOfficialInfo.clientLocation].filter(Boolean).join(' · ') || 'Client engagement details available'
+                                  : 'Employee is currently on bench with no active client engagement.'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {viewingOfficialInfo.assignmentDate && (
+                                <div className="text-left md:text-right">
+                                  <p className="text-xs text-gray-500 uppercase mb-1">Assignment Date</p>
+                                  <p className="text-sm font-medium text-gray-900">{new Date(viewingOfficialInfo.assignmentDate).toLocaleDateString()}</p>
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setActiveTab('engagement')}
+                                className="px-4 py-2 rounded-lg border border-amber-200 bg-white text-amber-800 text-sm font-medium hover:bg-amber-50 transition-colors"
+                              >
+                                View Engagement
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       <div className="p-4 bg-gray-50 rounded-xl">
                         <div className="flex items-center gap-2 mb-3">
                           <MessageSquare size={16} className="text-gray-400" />
@@ -1836,6 +2708,221 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                     </motion.div>
                   )}
 
+                  {activeTab === 'engagement' && (
+                    <motion.div
+                      key="engagement"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-4"
+                    >
+                      {viewingOfficialInfo?.assignmentType ? (
+                        <>
+                          <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5">
+                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                              <div>
+                                <p className="text-xs text-amber-700 uppercase mb-1">Current Engagement</p>
+                                <p className="text-xl font-semibold text-gray-900">{viewingOfficialInfo.assignmentType}</p>
+                                <p className="text-sm text-gray-600 mt-2">
+                                  {shouldShowEngagementDetails(viewingOfficialInfo.assignmentType)
+                                    ? viewingOfficialInfo.clientName || 'Client engagement'
+                                    : 'Employee is currently on bench.'}
+                                </p>
+                              </div>
+                              <div className="flex flex-col items-start gap-3 md:items-end">
+                                {viewingOfficialInfo.assignmentDate && (
+                                  <div className="rounded-xl bg-white border border-amber-100 px-4 py-3">
+                                    <p className="text-xs text-gray-500 uppercase mb-1">Assignment Date</p>
+                                    <p className="text-sm font-medium text-gray-900">{new Date(viewingOfficialInfo.assignmentDate).toLocaleDateString()}</p>
+                                  </div>
+                                )}
+                                {canUpdate && (
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEngagementTransitionModal('change')}
+                                      className="px-3 py-2 rounded-lg border border-amber-200 bg-white text-amber-800 text-xs font-semibold hover:bg-amber-50 transition-colors"
+                                    >
+                                      Change Engagement
+                                    </button>
+                                    {viewingOfficialInfo.assignmentType !== EmployeeAssignmentType.BENCH && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openEngagementTransitionModal('bench')}
+                                        className="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 text-xs font-semibold hover:bg-gray-100 transition-colors"
+                                      >
+                                        Move To Bench
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {shouldShowEngagementDetails(viewingOfficialInfo.assignmentType) ? (
+                            <>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {viewingOfficialInfo.clientName && (
+                                  <div className="p-4 bg-gray-50 rounded-xl">
+                                    <p className="text-xs text-gray-500 uppercase mb-1">Client Name</p>
+                                    <p className="text-sm font-medium text-gray-900">{viewingOfficialInfo.clientName}</p>
+                                  </div>
+                                )}
+                                {viewingOfficialInfo.clientLocation && (
+                                  <div className="p-4 bg-gray-50 rounded-xl">
+                                    <p className="text-xs text-gray-500 uppercase mb-1">Client Location</p>
+                                    <p className="text-sm font-medium text-gray-900">{viewingOfficialInfo.clientLocation}</p>
+                                  </div>
+                                )}
+                                {viewingOfficialInfo.managerName && (
+                                  <div className="p-4 bg-gray-50 rounded-xl">
+                                    <p className="text-xs text-gray-500 uppercase mb-1">Manager Name</p>
+                                    <p className="text-sm font-medium text-gray-900">{viewingOfficialInfo.managerName}</p>
+                                  </div>
+                                )}
+                                {viewingOfficialInfo.directorName && (
+                                  <div className="p-4 bg-gray-50 rounded-xl">
+                                    <p className="text-xs text-gray-500 uppercase mb-1">Director Name</p>
+                                    <p className="text-sm font-medium text-gray-900">{viewingOfficialInfo.directorName}</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {viewingOfficialInfo.projectDescription && (
+                                <div className="p-4 bg-gray-50 rounded-xl">
+                                  <p className="text-xs text-gray-500 uppercase mb-1">Project Description</p>
+                                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{viewingOfficialInfo.projectDescription}</p>
+                                </div>
+                              )}
+
+                              {viewingOfficialInfo.clientWorkNotes && (
+                                <div className="p-4 bg-gray-50 rounded-xl">
+                                  <p className="text-xs text-gray-500 uppercase mb-1">{getAssignmentNotesLabel(viewingOfficialInfo.assignmentType)}</p>
+                                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{viewingOfficialInfo.clientWorkNotes}</p>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-5">
+                              <p className="text-sm font-medium text-gray-800">Bench assignment</p>
+                              <p className="text-sm text-gray-600 mt-1">There is no active client engagement for this employee right now.</p>
+                            </div>
+                          )}
+
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase mb-1">Engagement History</p>
+                                <p className="text-sm text-gray-700">Previous client and support assignments are captured here for audit and future reference.</p>
+                              </div>
+                              {viewingEmployee.engagementHistory && viewingEmployee.engagementHistory.length > 0 && (
+                                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                                  {viewingEmployee.engagementHistory.length} record{viewingEmployee.engagementHistory.length === 1 ? '' : 's'}
+                                </span>
+                              )}
+                            </div>
+
+                            {viewingEmployee.engagementHistory && viewingEmployee.engagementHistory.length > 0 ? (
+                              <div className="space-y-3">
+                                {viewingEmployee.engagementHistory.map((historyEntry) => (
+                                  <div key={historyEntry.id} className="rounded-xl border border-gray-200 bg-white p-4">
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                      <div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                                            {historyEntry.transitionType}
+                                          </span>
+                                          <span className="text-xs text-gray-500">
+                                            {new Date(historyEntry.changedAt).toLocaleString()}
+                                          </span>
+                                        </div>
+                                        <p className="mt-2 text-sm font-semibold text-gray-900">{historyEntry.transitionSummary}</p>
+                                        {historyEntry.changedByName && (
+                                          <p className="mt-1 text-xs text-gray-500">Recorded by {historyEntry.changedByName}</p>
+                                        )}
+                                        {historyEntry.transitionNote && (
+                                          <div className="mt-3 rounded-lg bg-gray-50 px-3 py-3">
+                                            <p className="text-xs text-gray-500 uppercase mb-1">Transition Note</p>
+                                            <p className="text-sm whitespace-pre-wrap text-gray-700">{historyEntry.transitionNote}</p>
+                                          </div>
+                                        )}
+                                        {historyEntry.performanceSummary && (
+                                          <div className="mt-3 rounded-lg bg-gray-50 px-3 py-3">
+                                            <p className="text-xs text-gray-500 uppercase mb-1">Performance Summary</p>
+                                            <p className="text-sm whitespace-pre-wrap text-gray-700">{historyEntry.performanceSummary}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="rounded-lg bg-gray-50 px-3 py-2">
+                                        <p className="text-xs text-gray-500 uppercase mb-1">Previous Assignment</p>
+                                        <p className="text-sm font-medium text-gray-900">{historyEntry.assignmentType}</p>
+                                        {historyEntry.assignmentDate && (
+                                          <p className="mt-1 text-xs text-gray-500">Started on {new Date(historyEntry.assignmentDate).toLocaleDateString()}</p>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                      {historyEntry.clientName && (
+                                        <div className="rounded-lg bg-gray-50 px-3 py-3">
+                                          <p className="text-xs text-gray-500 uppercase mb-1">Client Name</p>
+                                          <p className="text-sm text-gray-900">{historyEntry.clientName}</p>
+                                        </div>
+                                      )}
+                                      {historyEntry.clientLocation && (
+                                        <div className="rounded-lg bg-gray-50 px-3 py-3">
+                                          <p className="text-xs text-gray-500 uppercase mb-1">Client Location</p>
+                                          <p className="text-sm text-gray-900">{historyEntry.clientLocation}</p>
+                                        </div>
+                                      )}
+                                      {historyEntry.managerName && (
+                                        <div className="rounded-lg bg-gray-50 px-3 py-3">
+                                          <p className="text-xs text-gray-500 uppercase mb-1">Manager Name</p>
+                                          <p className="text-sm text-gray-900">{historyEntry.managerName}</p>
+                                        </div>
+                                      )}
+                                      {historyEntry.directorName && (
+                                        <div className="rounded-lg bg-gray-50 px-3 py-3">
+                                          <p className="text-xs text-gray-500 uppercase mb-1">Director Name</p>
+                                          <p className="text-sm text-gray-900">{historyEntry.directorName}</p>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {historyEntry.projectDescription && (
+                                      <div className="mt-3 rounded-lg bg-gray-50 px-3 py-3">
+                                        <p className="text-xs text-gray-500 uppercase mb-1">Project Description</p>
+                                        <p className="text-sm whitespace-pre-wrap text-gray-700">{historyEntry.projectDescription}</p>
+                                      </div>
+                                    )}
+
+                                    {historyEntry.clientWorkNotes && (
+                                      <div className="mt-3 rounded-lg bg-gray-50 px-3 py-3">
+                                        <p className="text-xs text-gray-500 uppercase mb-1">{getAssignmentNotesLabel(historyEntry.assignmentType)}</p>
+                                        <p className="text-sm whitespace-pre-wrap text-gray-700">{historyEntry.clientWorkNotes}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-5">
+                                <p className="text-sm font-medium text-gray-800">No engagement history yet</p>
+                                <p className="mt-1 text-sm text-gray-600">When this employee moves between client work, support, and bench, the previous assignment will be preserved here automatically.</p>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center py-12 text-gray-400 border border-dashed border-gray-200 rounded-xl bg-gray-50">
+                          <Building size={40} className="mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No engagement details available</p>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
                   {canViewPersonalDetails && activeTab === 'personal' && (
                     <motion.div
                       key="personal"
@@ -1846,6 +2933,16 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                     >
                       {viewingEmployee.personalInfo ? (
                         <div className="grid grid-cols-2 gap-4">
+                          {viewingEmployee.personalInfo.photoUrl && (
+                            <div className="p-4 bg-gray-50 rounded-xl col-span-2">
+                              <p className="text-xs text-gray-500 uppercase mb-3">Photograph</p>
+                              <img
+                                src={resolveEmployeePhotoSrc(viewingEmployee.personalInfo.photoUrl)}
+                                alt={`${getEmployeeDisplayName(viewingEmployee)} profile`}
+                                className="w-28 h-28 object-cover rounded-xl border border-gray-200"
+                              />
+                            </div>
+                          )}
                           {viewingEmployee.personalInfo.firstName && (
                             <div className="p-4 bg-gray-50 rounded-xl">
                               <p className="text-xs text-gray-500 uppercase mb-1">First Name</p>
@@ -1893,65 +2990,6 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                               </a>
                             </div>
                           )}
-                          <div className="col-span-2 p-4 bg-gray-50 rounded-xl">
-                            <div className="flex items-center gap-2 mb-3">
-                              <MessageSquare size={16} className="text-gray-400" />
-                              <p className="text-xs text-gray-500 uppercase">Additional Comments</p>
-                            </div>
-                            <form onSubmit={handleSubmitComment} className="mb-3">
-                              <div className="space-y-2">
-                                <textarea
-                                  value={commentText}
-                                  onChange={(e) => setCommentText(e.target.value)}
-                                  placeholder="Add a note about this employee..."
-                                  rows={3}
-                                  className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all text-sm resize-none"
-                                />
-                                <div className="flex justify-end">
-                                  <button
-                                    type="submit"
-                                    disabled={!commentText.trim()}
-                                    className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg font-medium hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-md shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
-                                  >
-                                    <Send size={16} />
-                                    Add Comment
-                                  </button>
-                                </div>
-                              </div>
-                            </form>
-                            {orderEmployeeComments(viewingEmployee.personalInfo.additionalComments).length > 0 ? (
-                              <div className="space-y-3">
-                                {orderEmployeeComments(viewingEmployee.personalInfo.additionalComments).map((entry, index) => {
-                                  const parsed = parseEmployeeCommentEntry(entry);
-                                  const timeLabel = formatCommentTime(parsed.timestamp);
-                                  const avatar = parsed.author?.charAt(0)?.toUpperCase() || 'N';
-                                  return (
-                                    <div key={`employee-comment-detail-${viewingEmployee.id}-${index}`} className="rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-900">
-                                      <div className="flex items-start justify-between gap-3 mb-2">
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold bg-gradient-to-br from-emerald-500 to-green-600 text-white">
-                                            {avatar}
-                                          </div>
-                                          <div>
-                                            <p className="text-sm font-semibold text-gray-900">{parsed.author}</p>
-                                            {timeLabel && (
-                                              <p className="text-xs text-gray-500">{timeLabel}</p>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{parsed.message}</p>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="text-center py-6 text-gray-400 border border-dashed border-gray-200 rounded-xl bg-white">
-                                <MessageSquare size={28} className="mx-auto mb-2 opacity-50" />
-                                <p className="text-sm">No comments yet</p>
-                              </div>
-                            )}
-                          </div>
                         </div>
                       ) : (
                         <div className="text-center py-12 text-gray-400">
@@ -1986,7 +3024,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                           )}
                           {viewingEmployee.officialInfo.startDate && (
                             <div className="p-4 bg-gray-50 rounded-xl">
-                              <p className="text-xs text-gray-500 uppercase mb-1">Start Date</p>
+                              <p className="text-xs text-gray-500 uppercase mb-1">Employment Start Date</p>
                               <p className="text-sm font-medium text-gray-900">{new Date(viewingEmployee.officialInfo.startDate).toLocaleDateString()}</p>
                             </div>
                           )}
@@ -2089,10 +3127,270 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   )}
                 </AnimatePresence>
               </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      </ModalPortal>
+
+      <ModalPortal>
+        <AnimatePresence>
+          {isTransitionModalOpen && viewingEmployee && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={closeEngagementTransitionModal}
+                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60]"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.97, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97, y: 16 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+                className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+              >
+                <GlassCard className="w-full max-w-3xl max-h-[90vh] overflow-y-auto !bg-white/95 shadow-2xl border-white/60">
+                <div className="flex items-start justify-between gap-4 mb-5">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {transitionMode === 'bench' ? 'Move To Bench' : 'Change Engagement'}
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Capture a transition note and optional performance summary so history remains audit-ready.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeEngagementTransitionModal}
+                    disabled={isTransitionSubmitting}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSubmitEngagementTransition} className="space-y-4">
+                  {transitionMode === 'change' && (
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase block mb-1">Target Assignment Type *</label>
+                      <select
+                        disabled={isTransitionSubmitting}
+                        value={transitionForm.targetAssignmentType}
+                        onChange={(e) => {
+                          const targetAssignmentType = e.target.value as EmployeeAssignmentType;
+                          const shouldClearClientFields = targetAssignmentType !== EmployeeAssignmentType.CLIENT_BILLABLE;
+                          setTransitionForm(prev => ({
+                            ...prev,
+                            targetAssignmentType,
+                            ...(shouldClearClientFields ? {
+                              clientName: '',
+                              clientLocation: '',
+                              managerName: '',
+                              directorName: '',
+                              projectDescription: '',
+                              clientWorkNotes: ''
+                            } : {})
+                          }));
+                        }}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {Object.values(EmployeeAssignmentType).map((assignmentType) => (
+                          <option key={assignmentType} value={assignmentType}>
+                            {assignmentType}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase block mb-1">Effective Date *</label>
+                    <input
+                      type="date"
+                      disabled={isTransitionSubmitting}
+                      value={transitionForm.assignmentDate}
+                      onChange={(e) => {
+                        setTransitionForm(prev => ({ ...prev, assignmentDate: e.target.value }));
+                        if (transitionErrors.assignmentDate) setTransitionErrors(prev => ({ ...prev, assignmentDate: undefined }));
+                      }}
+                      className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                        transitionErrors.assignmentDate ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                      }`}
+                    />
+                    {transitionErrors.assignmentDate && (
+                      <p className="text-xs text-red-600 mt-1">{transitionErrors.assignmentDate}</p>
+                    )}
+                  </div>
+
+                  {transitionForm.targetAssignmentType === EmployeeAssignmentType.CLIENT_BILLABLE && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase block mb-1">Client Name *</label>
+                          <input
+                            disabled={isTransitionSubmitting}
+                            value={transitionForm.clientName}
+                            onChange={(e) => {
+                              setTransitionForm(prev => ({ ...prev, clientName: e.target.value }));
+                              if (transitionErrors.clientName) setTransitionErrors(prev => ({ ...prev, clientName: undefined }));
+                            }}
+                            className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                              transitionErrors.clientName ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                            }`}
+                          />
+                          {transitionErrors.clientName && (
+                            <p className="text-xs text-red-600 mt-1">{transitionErrors.clientName}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase block mb-1">Client Location *</label>
+                          <input
+                            disabled={isTransitionSubmitting}
+                            value={transitionForm.clientLocation}
+                            onChange={(e) => {
+                              setTransitionForm(prev => ({ ...prev, clientLocation: e.target.value }));
+                              if (transitionErrors.clientLocation) setTransitionErrors(prev => ({ ...prev, clientLocation: undefined }));
+                            }}
+                            className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                              transitionErrors.clientLocation ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                            }`}
+                          />
+                          {transitionErrors.clientLocation && (
+                            <p className="text-xs text-red-600 mt-1">{transitionErrors.clientLocation}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase block mb-1">Manager Name *</label>
+                          <input
+                            disabled={isTransitionSubmitting}
+                            value={transitionForm.managerName}
+                            onChange={(e) => {
+                              setTransitionForm(prev => ({ ...prev, managerName: e.target.value }));
+                              if (transitionErrors.managerName) setTransitionErrors(prev => ({ ...prev, managerName: undefined }));
+                            }}
+                            className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                              transitionErrors.managerName ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                            }`}
+                          />
+                          {transitionErrors.managerName && (
+                            <p className="text-xs text-red-600 mt-1">{transitionErrors.managerName}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase block mb-1">Director Name</label>
+                          <input
+                            disabled={isTransitionSubmitting}
+                            value={transitionForm.directorName}
+                            onChange={(e) => setTransitionForm(prev => ({ ...prev, directorName: e.target.value }))}
+                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase block mb-1">Project Description *</label>
+                        <textarea
+                          rows={3}
+                          disabled={isTransitionSubmitting}
+                          value={transitionForm.projectDescription}
+                          onChange={(e) => {
+                            setTransitionForm(prev => ({ ...prev, projectDescription: e.target.value }));
+                            if (transitionErrors.projectDescription) setTransitionErrors(prev => ({ ...prev, projectDescription: undefined }));
+                          }}
+                          className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed resize-none ${
+                            transitionErrors.projectDescription ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                          }`}
+                        />
+                        {transitionErrors.projectDescription && (
+                          <p className="text-xs text-red-600 mt-1">{transitionErrors.projectDescription}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase block mb-1">{getAssignmentNotesLabel(transitionForm.targetAssignmentType)}</label>
+                        <textarea
+                          rows={3}
+                          disabled={isTransitionSubmitting}
+                          value={transitionForm.clientWorkNotes}
+                          onChange={(e) => setTransitionForm(prev => ({ ...prev, clientWorkNotes: e.target.value }))}
+                          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase block mb-1">Transition Note *</label>
+                    <textarea
+                      rows={3}
+                      required
+                      disabled={isTransitionSubmitting}
+                      value={transitionForm.transitionNote}
+                      onChange={(e) => {
+                        setTransitionForm(prev => ({ ...prev, transitionNote: e.target.value }));
+                        if (transitionErrors.transitionNote) setTransitionErrors(prev => ({ ...prev, transitionNote: undefined }));
+                      }}
+                      placeholder="Reason for this transition, key closure notes, and any handover context."
+                      className={`w-full p-3 bg-gray-50 border rounded-xl focus:ring-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed resize-none ${
+                        transitionErrors.transitionNote ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:ring-amber-100'
+                      }`}
+                    />
+                    {transitionErrors.transitionNote && (
+                      <p className="text-xs text-red-600 mt-1">{transitionErrors.transitionNote}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase block mb-1">Performance Summary</label>
+                    <textarea
+                      rows={3}
+                      disabled={isTransitionSubmitting}
+                      value={transitionForm.performanceSummary}
+                      onChange={(e) => setTransitionForm(prev => ({ ...prev, performanceSummary: e.target.value }))}
+                      placeholder="Optional appraisal-focused summary for future review cycles."
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+                    />
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={closeEngagementTransitionModal}
+                      disabled={isTransitionSubmitting}
+                      className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isTransitionSubmitting}
+                      className="relative px-5 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg shadow-emerald-500/30 flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden ring-1 ring-white/40 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/35 before:via-white/10 before:to-transparent before:pointer-events-none"
+                    >
+                      {isTransitionSubmitting ? (
+                        <>
+                          <Loader size={16} className="animate-spin" />
+                          Applying...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={16} />
+                          Apply Transition
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+                </GlassCard>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </ModalPortal>
     </div>
   );
 };
