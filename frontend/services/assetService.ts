@@ -32,12 +32,68 @@ const buildAssetSearchText = (asset: Asset): string =>
     asset.assignedTo,
     asset.specs?.brand,
     asset.specs?.model,
+    asset.specs?.osDetails,
+    asset.specs?.os,
     asset.assetSpecs?.brand,
-    asset.assetSpecs?.model
+    asset.assetSpecs?.model,
+    asset.assetSpecs?.osDetails,
+    asset.assetSpecs?.os
   ]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
     .toLowerCase();
+
+const firstTextValue = (...values: any[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+  return undefined;
+};
+
+const normalizeSpecsShape = (rawSpecs: any): any => {
+  if (!rawSpecs || typeof rawSpecs !== 'object') {
+    return undefined;
+  }
+
+  const cpu = firstTextValue(rawSpecs.cpu, rawSpecs.processorType, rawSpecs.processor_type);
+  const ram = firstTextValue(rawSpecs.ram, rawSpecs.ramCapacity, rawSpecs.ram_capacity);
+  const storage = firstTextValue(rawSpecs.storage, rawSpecs.storageCapacity, rawSpecs.storage_capacity);
+  const osDetails = firstTextValue(rawSpecs.osDetails, rawSpecs.os_details, rawSpecs.os);
+  const screenSize = firstTextValue(rawSpecs.screenSize, rawSpecs.screen_size);
+
+  return {
+    ...rawSpecs,
+    cpu,
+    processorType: firstTextValue(rawSpecs.processorType, rawSpecs.processor_type, rawSpecs.cpu),
+    ram,
+    ramCapacity: firstTextValue(rawSpecs.ramCapacity, rawSpecs.ram_capacity, rawSpecs.ram),
+    storage,
+    storageCapacity: firstTextValue(rawSpecs.storageCapacity, rawSpecs.storage_capacity, rawSpecs.storage),
+    os: osDetails,
+    osDetails,
+    screenSize,
+    printerType: firstTextValue(rawSpecs.printerType, rawSpecs.printer_type),
+    brand: firstTextValue(rawSpecs.brand),
+    model: firstTextValue(rawSpecs.model)
+  };
+};
+
+const parseSpecsSafe = (value: any): any => {
+  if (!value) return undefined;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return undefined;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    console.warn('Skipping invalid asset specs payload.', error);
+    return undefined;
+  }
+};
 
 const attachAssetSpecs = async (supabase: any, assets: Asset[]): Promise<Asset[]> => {
   if (assets.length === 0) return assets;
@@ -266,7 +322,7 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
         *,
         assigned_employee:employees!employee_id(id, employee_id, personal_info:employee_personal_info(first_name, last_name)),
         location:locations(id, name, city, country),
-        asset_specs:asset_specs(brand, model)
+        asset_specs:asset_specs(brand, model, os_details)
       `,
             { count: 'exact' }
           )
@@ -294,8 +350,11 @@ export const getAssetsPage = async (query: AssetQuery): Promise<PaginatedResult<
 
         // Add asset_specs search
         fallbackRequest = fallbackRequest.or(
-          `UPPER(asset_specs.brand) LIKE '%${search.toUpperCase()}%'`,
-          `UPPER(asset_specs.model) LIKE '%${search.toUpperCase()}%'`
+          [
+            `UPPER(asset_specs.brand) LIKE '%${search.toUpperCase()}%'`,
+            `UPPER(asset_specs.model) LIKE '%${search.toUpperCase()}%'`,
+            `UPPER(asset_specs.os_details) LIKE '%${search.toUpperCase()}%'`
+          ].join(',')
         );
 
         // Add locations search
@@ -538,6 +597,14 @@ export const updateAsset = async (asset: Asset, currentUser: UserAccount | null 
     if (error) throw error;
 
     const updatedAsset = transformAssetFromDB(data);
+
+    // Keep normalized specs row in sync when specs are provided.
+    if (asset.assetSpecs || asset.specs) {
+      const specsToSave = asset.assetSpecs || asset.specs;
+      if (specsToSave) {
+        await updateAssetSpecs(asset.id, asset.type, specsToSave);
+      }
+    }
     
     // Generate system comment for changes
     const changes = getAssetChanges(currentAsset, updatedAsset);
@@ -612,6 +679,10 @@ const getAssetChanges = (oldAsset: Asset, newAsset: Asset): string[] => {
     
     if (oldAsset.specs.storage !== newAsset.specs.storage) {
       changes.push(`storage changed from "${oldAsset.specs.storage || 'N/A'}" to "${newAsset.specs.storage || 'N/A'}"`);
+    }
+
+    if ((oldAsset.specs.osDetails || oldAsset.specs.os) !== (newAsset.specs.osDetails || newAsset.specs.os)) {
+      changes.push(`OS changed from "${oldAsset.specs.osDetails || oldAsset.specs.os || 'N/A'}" to "${newAsset.specs.osDetails || newAsset.specs.os || 'N/A'}"`);
     }
   } else if (!oldAsset.specs && newAsset.specs) {
     changes.push('specs added');
@@ -765,7 +836,7 @@ const transformAssetFromDB = (dbAsset: any): Asset => {
     manufacturer: dbAsset.manufacturer || undefined,
     previousTag: dbAsset.previous_tag || undefined,
     notes: dbAsset.notes || undefined,
-    specs: dbAsset.specs ? (typeof dbAsset.specs === 'string' ? JSON.parse(dbAsset.specs) : dbAsset.specs) : undefined, // Legacy JSONB specs
+    specs: normalizeSpecsShape(parseSpecsSafe(dbAsset.specs)), // Legacy JSONB specs
     // assetSpecs will be populated separately from asset_specs table
     comments: undefined
   };
@@ -877,13 +948,15 @@ const transformSpecsFromDB = (dbSpecs: any): any => {
     processorType: dbSpecs.processor_type,
     ramCapacity: dbSpecs.ram_capacity,
     storageCapacity: dbSpecs.storage_capacity,
+    osDetails: dbSpecs.os_details,
     screenSize: dbSpecs.screen_size,
     isTouchscreen: dbSpecs.is_touchscreen || false,
     printerType: dbSpecs.printer_type,
     // Legacy field mappings
     cpu: dbSpecs.processor_type,
     ram: dbSpecs.ram_capacity,
-    storage: dbSpecs.storage_capacity
+    storage: dbSpecs.storage_capacity,
+    os: dbSpecs.os_details
   };
 };
 
@@ -899,6 +972,7 @@ const transformSpecsToDB = (assetId: string, assetType: string, specs: any): any
     processor_type: specs.processorType || specs.cpu || null,
     ram_capacity: specs.ramCapacity || specs.ram || null,
     storage_capacity: specs.storageCapacity || specs.storage || null,
+    os_details: specs.osDetails || specs.os || null,
     screen_size: specs.screenSize || null,
     is_touchscreen: specs.isTouchscreen || false,
     printer_type: specs.printerType || null

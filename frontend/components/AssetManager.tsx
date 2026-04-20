@@ -26,6 +26,7 @@ const initialSpecs: AssetSpecs = {
   cpu: '',
   ram: '',
   storage: '',
+  osDetails: '',
   screenSize: '',
   printerType: 'Color'
 };
@@ -72,6 +73,48 @@ const formatAssetTypeLabel = (type: AssetType) => {
 const isComputeAssetType = (type: AssetType) =>
   type === AssetType.LAPTOP || type === AssetType.DESKTOP;
 
+const isLaptopAssetType = (type: AssetType) =>
+  type === AssetType.LAPTOP;
+
+const firstSpecText = (...values: any[]): string => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+  return '';
+};
+
+const normalizeSpecsForForm = (specs?: AssetSpecs, normalizedSpecs?: AssetSpecs): AssetSpecs => {
+  const merged: any = { ...initialSpecs, ...(specs || {}), ...(normalizedSpecs || {}) };
+  const cpu = firstSpecText(merged.cpu, merged.processorType, merged.processor_type);
+  const ram = firstSpecText(merged.ram, merged.ramCapacity, merged.ram_capacity);
+  const storage = firstSpecText(merged.storage, merged.storageCapacity, merged.storage_capacity);
+  const osDetails = firstSpecText(merged.osDetails, merged.os_details, merged.os);
+
+  return {
+    ...merged,
+    cpu,
+    processorType: firstSpecText(merged.processorType, merged.processor_type, merged.cpu),
+    ram,
+    ramCapacity: firstSpecText(merged.ramCapacity, merged.ram_capacity, merged.ram),
+    storage,
+    storageCapacity: firstSpecText(merged.storageCapacity, merged.storage_capacity, merged.storage),
+    os: osDetails,
+    osDetails,
+    screenSize: firstSpecText(merged.screenSize, merged.screen_size),
+    printerType: (firstSpecText(merged.printerType, merged.printer_type) || 'Color') as 'Color' | 'Monochrome'
+  };
+};
+
+const getNormalizedAssetSpecs = (asset?: Asset | null): AssetSpecs | undefined => {
+  if (!asset) return undefined;
+  return normalizeSpecsForForm(asset.specs, asset.assetSpecs);
+};
+
 const getSpecValue = (specs: AssetSpecs | undefined, keys: (keyof AssetSpecs)[], fallback = 'N/A') => {
   if (!specs) return fallback;
   for (const key of keys) {
@@ -81,6 +124,125 @@ const getSpecValue = (specs: AssetSpecs | undefined, keys: (keyof AssetSpecs)[],
     }
   }
   return fallback;
+};
+
+const getLaptopOsValue = (specs?: AssetSpecs) =>
+  getSpecValue(specs, ['osDetails', 'os'], '');
+
+const formatLaptopOsLabel = (specs?: AssetSpecs) =>
+  getLaptopOsValue(specs) || 'OS not specified';
+
+type LaptopOsKind = 'windows' | 'linux' | 'chrome' | 'macos' | 'dual' | 'unknown';
+
+const MacOsLogo: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 20 20" className={className} aria-hidden="true">
+    <path d="M14.3 12.3c.6 0 1.3-.4 1.7-.8-.4-.1-.8-.2-1.2-.2-.5 0-.9.2-1.2.5s-.6.8-.6 1.3c0 .1 0 .3.1.5.3-.5.7-.8 1.2-.8v.5c0-.6.4-1.1 1-1.1s1 .5 1 1.1v2.5c0 .3.1.5.2.6.2.2.4.3.7.3.3 0 .5-.1.7-.3s.2-.4.2-.6v-2.5c0-1.2-.8-2.1-1.9-2.1-1 0-1.8.8-1.9 1.8-.1-.5-.4-.9-.8-1.2-.4-.3-.9-.5-1.4-.5-1.2 0-2.1.9-2.1 2.1v2.5c0 .3.1.5.2.6.2.2.4.3.7.3.3 0 .5-.1.7-.3s.2-.4.2-.6v-2.5c0-1.2-.8-2.1-1.9-2.1-1 0-1.8.8-1.9 1.8h-.1v2.8c0 .3.1.5.2.6.2.2.4.3.7.3.3 0 .5-.1.7-.3s.2-.4.2-.6V12.1c0-1.2-.8-2.1-1.9-2.1-.5 0-1 .2-1.4.5-.4.3-.7.8-.8 1.2h-.1V10c0-.3-.1-.5-.2-.6-.2-.2-.4-.3-.7-.3-.3 0-.5.1-.7.3s-.2.4-.2.6v4.9c0 .3.1.5.2.6.2.2.4.3.7.3.3 0 .5-.1.7-.3s.2-.4.2-.6v-2.8h.1c.1 1 1 1.8 2.1 1.8s1.9-.8 2-1.8h.1c.1 1 1 1.8 2.1 1.8s2-.8 2.1-1.8h.1c.1 1 1 1.8 2.1 1.8.3 0 .5-.1.7-.3s.2-.4.2-.6v-4.9c0-.3-.1-.5-.2-.6-.2-.2-.4-.3-.7-.3-.3 0-.5.1-.7.3s-.2.4-.2.6v1.7z" fill="currentColor" opacity="0.1" />
+    <path d="M16 10.3c.1-.4 0-.8-.2-1.2-.3-.5-.8-.9-1.4-1.1-.1 0-.2 0-.3-.1.4-.7.4-1.6 0-2.3-.4-.8-1.3-1.3-2.3-1.3-.8 0-1.5.3-2 .8-.2.2-.4.5-.5.8-.1-.3-.3-.6-.5-.8-.5-.5-1.2-.8-2-.8-1 0-1.9.5-2.3 1.3-.4.7-.4 1.6 0 2.3-.1 0-.2.1-.3.1-.6.2-1.1.6-1.4 1.1-.4.8-.4 1.6 0 2.4.1.2.2.4.4.6C1.7 10.7 1 11.8 1 13c0 2.2 1.8 4 4 4 1.1 0 2.1-.4 2.8-1.2.7.8 1.7 1.2 2.8 1.2 1.1 0 2.1-.4 2.8-1.2.7.8 1.7 1.2 2.8 1.2 2.2 0 4-1.8 4-4 0-1.2-.7-2.3-1.7-2.9.2-.2.3-.4.4-.6.4-.8.4-1.6 0-2.4l-.1-.1z" fill="currentColor" />
+  </svg>
+);
+
+const detectLaptopOsKind = (specs?: AssetSpecs): LaptopOsKind | 'macos' => {
+  const osText = getLaptopOsValue(specs).toLowerCase();
+  if (!osText) return 'unknown';
+
+  const hasWindows = /windows|win11|win10|win 11|win 10/.test(osText);
+  const hasLinux = /linux|ubuntu|debian|fedora|centos|rhel|red hat|kali|\bmint\b|\barch\b/.test(osText);
+  const hasChrome = /chrome\s*os|chromeos|chromebook/.test(osText);
+  const hasMac = /macos|mac\s*os|osx|os\s*x|apple|macintosh/.test(osText);
+
+  if ((hasWindows && hasLinux) || /dual/.test(osText)) return 'dual';
+  if (hasMac) return 'macos';
+  if (hasChrome) return 'chrome';
+  if (hasWindows) return 'windows';
+  if (hasLinux) return 'linux';
+  return 'unknown';
+};
+
+const WindowsLogo: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 20 20" className={className} aria-hidden="true">
+    <rect x="1.5" y="2" width="7.2" height="7.2" rx="0.7" fill="currentColor" />
+    <rect x="11.3" y="1" width="7.2" height="8.2" rx="0.7" fill="currentColor" />
+    <rect x="1.5" y="10.8" width="7.2" height="7.2" rx="0.7" fill="currentColor" />
+    <rect x="11.3" y="10.1" width="7.2" height="8.2" rx="0.7" fill="currentColor" />
+  </svg>
+);
+
+const LinuxLogo: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 20 20" className={className} aria-hidden="true">
+    <ellipse cx="10" cy="12.2" rx="5.1" ry="5.7" fill="currentColor" />
+    <circle cx="10" cy="6.2" r="3.6" fill="currentColor" />
+    <circle cx="8.7" cy="5.9" r="0.45" fill="#fff" />
+    <circle cx="11.3" cy="5.9" r="0.45" fill="#fff" />
+    <path d="M10 6.9l1.2 1.4H8.8L10 6.9z" fill="#f59e0b" />
+  </svg>
+);
+
+const ChromeLogo: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 20 20" className={className} aria-hidden="true">
+    <circle cx="10" cy="10" r="9" fill="#ef4444" />
+    <path d="M10 10h9a9 9 0 0 1-13.7 7.7L10 10z" fill="#22c55e" />
+    <path d="M10 10 5.3 17.7A9 9 0 0 1 1 10a9 9 0 0 1 4.3-7.7L10 10z" fill="#eab308" />
+    <circle cx="10" cy="10" r="4" fill="#3b82f6" stroke="#fff" strokeWidth="1" />
+  </svg>
+);
+
+const renderLaptopOsIndicator = (specs?: AssetSpecs) => {
+  const osKind = detectLaptopOsKind(specs);
+  if (osKind === 'unknown') return null;
+
+  if (osKind === 'dual') {
+    return (
+      <span
+        title={formatLaptopOsLabel(specs)}
+        className="absolute -right-1 -bottom-1 inline-flex items-center gap-0.5 rounded-full bg-white border border-gray-200 px-1 py-0.5 shadow-sm"
+      >
+        <WindowsLogo className="h-2.5 w-2.5 text-blue-600" />
+        <LinuxLogo className="h-2.5 w-2.5 text-gray-700" />
+      </span>
+    );
+  }
+
+  if (osKind === 'macos') {
+    return (
+      <span
+        title={formatLaptopOsLabel(specs)}
+        className="absolute -right-1 -bottom-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-black border border-white shadow-sm"
+      >
+        <MacOsLogo className="h-2.5 w-2.5 text-white" />
+      </span>
+    );
+  }
+
+  if (osKind === 'windows') {
+    return (
+      <span
+        title={formatLaptopOsLabel(specs)}
+        className="absolute -right-1 -bottom-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 border border-white shadow-sm"
+      >
+        <WindowsLogo className="h-2.5 w-2.5 text-white" />
+      </span>
+    );
+  }
+
+  if (osKind === 'linux') {
+    return (
+      <span
+        title={formatLaptopOsLabel(specs)}
+        className="absolute -right-1 -bottom-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-gray-800 border border-white shadow-sm"
+      >
+        <LinuxLogo className="h-2.5 w-2.5 text-white" />
+      </span>
+    );
+  }
+
+  return (
+    <span
+      title={formatLaptopOsLabel(specs)}
+      className="absolute -right-1 -bottom-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white border border-gray-200 shadow-sm"
+    >
+      <ChromeLogo className="h-3 w-3" />
+    </span>
+  );
 };
 
 const PAGE_SIZE = 20;
@@ -152,6 +314,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   
   // Modal-based view state (new approach)
   const [viewingAsset, setViewingAsset] = useState<Asset | null>(null);
+  const viewingSpecs = useMemo(() => getNormalizedAssetSpecs(viewingAsset), [viewingAsset]);
+  const selectedSpecs = useMemo(() => getNormalizedAssetSpecs(selectedAsset), [selectedAsset]);
   
   // Comment State
   const [commentText, setCommentText] = useState('');
@@ -242,11 +406,14 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   const localFilteredAssets = useMemo(() => {
     const normalizedSearch = debouncedSearch.toLowerCase();
     return assets.filter(asset => {
+      const specs = getNormalizedAssetSpecs(asset);
       const matchesSearch =
         asset.name.toLowerCase().includes(normalizedSearch) ||
         asset.serialNumber.toLowerCase().includes(normalizedSearch) ||
-        asset.specs?.brand?.toLowerCase().includes(normalizedSearch) ||
-        asset.specs?.model?.toLowerCase().includes(normalizedSearch);
+        specs?.brand?.toLowerCase().includes(normalizedSearch) ||
+        specs?.model?.toLowerCase().includes(normalizedSearch) ||
+        specs?.osDetails?.toLowerCase().includes(normalizedSearch) ||
+        specs?.os?.toLowerCase().includes(normalizedSearch);
       const matchesFilter = filterType === 'All' || asset.type === filterType;
       const matchesStatus = filterStatus === 'All' || asset.status === filterStatus;
       return matchesSearch && matchesFilter && matchesStatus && matchesLocationFilter(asset);
@@ -604,7 +771,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
         assignedToId: assignedToId,
         employeeId: assignedToId,
         locationId: locationId,
-        specs: { ...initialSpecs, ...asset.specs, ...asset.assetSpecs }
+        specs: normalizeSpecsForForm(asset.specs, asset.assetSpecs)
     });
     setEmployeeSearchQuery(
       matchedAssignedEmployee
@@ -1101,6 +1268,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
   const renderStep2 = () => {
     const type = formData.type;
     const isComputing = type === AssetType.LAPTOP || type === AssetType.DESKTOP || type === AssetType.MOBILE;
+    const isLaptop = type === AssetType.LAPTOP;
     const isDisplay = type === AssetType.MONITOR || type === AssetType.TV;
     const isPrinter = type === AssetType.PRINTER;
 
@@ -1138,6 +1306,18 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   <input type="text" className="w-full p-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all" 
                       value={formData.specs?.storage} onChange={e => updateSpecs('storage', e.target.value)} placeholder="e.g. 512GB SSD" />
                 </div>
+                {(isLaptop || type === AssetType.DESKTOP) && (
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Operating System</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                      value={formData.specs?.osDetails || formData.specs?.os || ''}
+                      onChange={e => updateSpecs('osDetails', e.target.value)}
+                      placeholder="e.g. Windows 11 Pro, macOS Sonoma, Ubuntu 24.04, Dual Boot, Chrome OS"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1175,7 +1355,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
             <Search size={16} className="text-gray-400" />
             <input
               className="w-full bg-transparent focus:outline-none text-sm"
-              placeholder="Search assets by name, serial number, brand, or model"
+              placeholder="Search assets by name, serial number, brand, model, or OS"
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -1319,36 +1499,41 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               </motion.div>
             )}
 
-            {displayAssets.map((asset, index) => (
-              <motion.div
-                key={asset.id}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ delay: index * 0.05 }}
-                whileHover={{ scale: 1.01 }}
-                className="grid grid-cols-12 items-center px-3 py-3 rounded-xl hover:bg-white/60 transition-all border border-transparent hover:border-gray-100 hover:shadow-sm"
-              >
+            {displayAssets.map((asset, index) => {
+              const displaySpecs = getNormalizedAssetSpecs(asset);
+              return (
+                <motion.div
+                  key={asset.id}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ scale: 1.01 }}
+                  className="grid grid-cols-12 items-center px-3 py-3 rounded-xl hover:bg-white/60 transition-all border border-transparent hover:border-gray-100 hover:shadow-sm"
+                >
                 <div className="col-span-4">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl ${
-                      asset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-600' : 
-                      asset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-600' : 
-                      asset.status === AssetStatus.ASSIGNED ? 'bg-indigo-100 text-indigo-600' :
-                      asset.status === AssetStatus.MAINTENANCE ? 'bg-yellow-100 text-yellow-600' :
-                      asset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-600' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      {getIcon(asset.type)}
+                    <div className="relative">
+                      <div className={`p-2 rounded-xl ${
+                        asset.status === AssetStatus.IN_USE ? 'bg-blue-100 text-blue-600' : 
+                        asset.status === AssetStatus.AVAILABLE ? 'bg-green-100 text-green-600' : 
+                        asset.status === AssetStatus.ASSIGNED ? 'bg-indigo-100 text-indigo-600' :
+                        asset.status === AssetStatus.MAINTENANCE ? 'bg-yellow-100 text-yellow-600' :
+                        asset.status === AssetStatus.RETIRED ? 'bg-red-100 text-red-600' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {getIcon(asset.type)}
+                      </div>
+                      {isLaptopAssetType(asset.type) && renderLaptopOsIndicator(displaySpecs)}
                     </div>
                     <div>
                       <p className="font-semibold text-gray-800 leading-tight">{asset.name}</p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
                         <span>{asset.serialNumber}</span>
-                        {asset.specs?.brand && (
+                        {displaySpecs?.brand && (
                           <>
                             <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                            <span className="font-sans">{asset.specs.brand} {asset.specs.model}</span>
+                            <span className="font-sans">{displaySpecs.brand} {displaySpecs.model}</span>
                           </>
                         )}
                       </div>
@@ -1403,8 +1588,9 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                     </button>
                   )}
                 </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
 
@@ -1573,7 +1759,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               </div>
 
               {/* Specs Section */}
-              {viewingAsset.specs && (
+              {viewingSpecs && (
                 <div className="border-t pt-6">
                   <div className="flex items-center gap-2 mb-4">
                     <Cpu size={20} className="text-gray-600" />
@@ -1581,29 +1767,35 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-xl">
-                    {viewingAsset.specs.brand && (
+                    {viewingSpecs.brand && (
                       <div>
                         <p className="text-xs text-gray-500 uppercase">Brand</p>
-                        <p className="text-sm text-gray-800">{viewingAsset.specs.brand}</p>
+                        <p className="text-sm text-gray-800">{viewingSpecs.brand}</p>
                       </div>
                     )}
-                    {viewingAsset.specs.model && (
+                    {viewingSpecs.model && (
                       <div>
                         <p className="text-xs text-gray-500 uppercase">Model</p>
-                        <p className="text-sm text-gray-800">{viewingAsset.specs.model}</p>
+                        <p className="text-sm text-gray-800">{viewingSpecs.model}</p>
                       </div>
                     )}
-                    {viewingAsset.specs.cpu && (
+                    {viewingSpecs.cpu && (
                       <div>
                         <p className="text-xs text-gray-500 uppercase">Processor</p>
-                        <p className="text-sm text-gray-800">{viewingAsset.specs.cpu}</p>
+                        <p className="text-sm text-gray-800">{viewingSpecs.cpu}</p>
+                      </div>
+                    )}
+                    {isLaptopAssetType(viewingAsset.type) && (
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Operating System</p>
+                        <p className="text-sm text-gray-800">{formatLaptopOsLabel(viewingSpecs)}</p>
                       </div>
                     )}
                     {isComputeAssetType(viewingAsset.type) && (
                       <div>
                         <p className="text-xs text-gray-500 uppercase">Memory</p>
                         <p className="text-sm text-gray-800">
-                          {getSpecValue(viewingAsset.specs, ['ramCapacity', 'ram'])}
+                          {getSpecValue(viewingSpecs, ['ramCapacity', 'ram'])}
                         </p>
                       </div>
                     )}
@@ -1611,20 +1803,20 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                       <div>
                         <p className="text-xs text-gray-500 uppercase">Storage</p>
                         <p className="text-sm text-gray-800">
-                          {getSpecValue(viewingAsset.specs, ['storageCapacity', 'storage'])}
+                          {getSpecValue(viewingSpecs, ['storageCapacity', 'storage'])}
                         </p>
                       </div>
                     )}
-                    {viewingAsset.specs.screenSize && (
+                    {viewingSpecs.screenSize && (
                       <div>
                         <p className="text-xs text-gray-500 uppercase">Display</p>
-                        <p className="text-sm text-gray-800">{viewingAsset.specs.screenSize}</p>
+                        <p className="text-sm text-gray-800">{viewingSpecs.screenSize}</p>
                       </div>
                     )}
-                    {viewingAsset.specs.printerType && (
+                    {viewingSpecs.printerType && (
                       <div>
                         <p className="text-xs text-gray-500 uppercase">Type</p>
-                        <p className="text-sm text-gray-800">{viewingAsset.specs.printerType}</p>
+                        <p className="text-sm text-gray-800">{viewingSpecs.printerType}</p>
                       </div>
                     )}
                   </div>
@@ -1847,36 +2039,42 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                 </div>
 
                 {/* Specs */}
-                {selectedAsset.specs && (
+                {selectedSpecs && (
                   <div className="bg-gray-50 rounded-2xl p-6 space-y-4">
                      <div className="flex items-center gap-2 mb-2">
                         <Cpu className="text-gray-500" size={18} />
                         <h3 className="text-sm font-bold text-gray-700">Hardware Specs</h3>
                      </div>
                      <div className="space-y-3">
-                        {selectedAsset.specs.brand && (
+                        {selectedSpecs.brand && (
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">Brand</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.brand}</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedSpecs.brand}</span>
                           </div>
                         )}
-                        {selectedAsset.specs.model && (
+                        {selectedSpecs.model && (
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">Model</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.model}</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedSpecs.model}</span>
                           </div>
                         )}
-                        {selectedAsset.specs.cpu && (
+                        {selectedSpecs.cpu && (
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">Processor</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.cpu}</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedSpecs.cpu}</span>
+                          </div>
+                        )}
+                        {isLaptopAssetType(selectedAsset.type) && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-500">Operating System</span>
+                            <span className="text-sm font-medium text-gray-900">{formatLaptopOsLabel(selectedSpecs)}</span>
                           </div>
                         )}
                         {isComputeAssetType(selectedAsset.type) && (
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">Memory</span>
                             <span className="text-sm font-medium text-gray-900">
-                              {getSpecValue(selectedAsset.specs, ['ramCapacity', 'ram'])}
+                              {getSpecValue(selectedSpecs, ['ramCapacity', 'ram'])}
                             </span>
                           </div>
                         )}
@@ -1884,20 +2082,20 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">Storage</span>
                             <span className="text-sm font-medium text-gray-900">
-                              {getSpecValue(selectedAsset.specs, ['storageCapacity', 'storage'])}
+                              {getSpecValue(selectedSpecs, ['storageCapacity', 'storage'])}
                             </span>
                           </div>
                         )}
-                        {selectedAsset.specs.screenSize && (
+                        {selectedSpecs.screenSize && (
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">Display</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.screenSize}</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedSpecs.screenSize}</span>
                           </div>
                         )}
-                        {selectedAsset.specs.printerType && (
+                        {selectedSpecs.printerType && (
                           <div className="flex justify-between">
                             <span className="text-sm text-gray-500">Type</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedAsset.specs.printerType}</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedSpecs.printerType}</span>
                           </div>
                         )}
                      </div>
@@ -1993,36 +2191,42 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
               </div>
 
               {/* Hardware Specs Section */}
-              {selectedAsset.specs && (
+              {selectedSpecs && (
                 <div className="border-t pt-6">
                   <div className="flex items-center gap-2 mb-4">
                     <Cpu size={20} className="text-gray-600" />
                     <h4 className="text-lg font-bold text-gray-900">Hardware Specs</h4>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                    {selectedAsset.specs.brand && (
+                    {selectedSpecs.brand && (
                       <div>
                         <p className="text-sm text-gray-500">Brand</p>
-                        <p className="text-sm font-medium text-gray-900">{selectedAsset.specs.brand}</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedSpecs.brand}</p>
                       </div>
                     )}
-                    {selectedAsset.specs.model && (
+                    {selectedSpecs.model && (
                       <div>
                         <p className="text-sm text-gray-500">Model</p>
-                        <p className="text-sm font-medium text-gray-900">{selectedAsset.specs.model}</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedSpecs.model}</p>
                       </div>
                     )}
-                    {selectedAsset.specs.cpu && (
+                    {selectedSpecs.cpu && (
                       <div>
                         <p className="text-sm text-gray-500">Processor</p>
-                        <p className="text-sm font-medium text-gray-900">{selectedAsset.specs.cpu}</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedSpecs.cpu}</p>
+                      </div>
+                    )}
+                    {isLaptopAssetType(selectedAsset.type) && (
+                      <div>
+                        <p className="text-sm text-gray-500">Operating System</p>
+                        <p className="text-sm font-medium text-gray-900">{formatLaptopOsLabel(selectedSpecs)}</p>
                       </div>
                     )}
                         {isComputeAssetType(selectedAsset.type) && (
                           <div>
                             <p className="text-sm text-gray-500">Memory</p>
                             <p className="text-sm font-medium text-gray-900">
-                              {getSpecValue(selectedAsset.specs, ['ramCapacity', 'ram'])}
+                              {getSpecValue(selectedSpecs, ['ramCapacity', 'ram'])}
                             </p>
                           </div>
                         )}
@@ -2030,20 +2234,20 @@ const AssetManager: React.FC<AssetManagerProps> = ({ assets, employees = [], loc
                           <div>
                             <p className="text-sm text-gray-500">Storage</p>
                             <p className="text-sm font-medium text-gray-900">
-                              {getSpecValue(selectedAsset.specs, ['storageCapacity', 'storage'])}
+                              {getSpecValue(selectedSpecs, ['storageCapacity', 'storage'])}
                             </p>
                           </div>
                         )}
-                    {selectedAsset.specs.screenSize && (
+                    {selectedSpecs.screenSize && (
                       <div>
                         <p className="text-sm text-gray-500">Display</p>
-                        <p className="text-sm font-medium text-gray-900">{selectedAsset.specs.screenSize}</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedSpecs.screenSize}</p>
                       </div>
                     )}
-                    {selectedAsset.specs.printerType && (
+                    {selectedSpecs.printerType && (
                       <div>
                         <p className="text-sm text-gray-500">Type</p>
-                        <p className="text-sm font-medium text-gray-900">{selectedAsset.specs.printerType}</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedSpecs.printerType}</p>
                       </div>
                     )}
                   </div>

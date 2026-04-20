@@ -30,6 +30,7 @@ export interface AssetSpecs {
   processorType?: string; // CPU/Processor
   ramCapacity?: string; // e.g., "16GB", "32GB"
   storageCapacity?: string; // e.g., "512GB SSD"
+  osDetails?: string; // e.g., "Windows 11 Pro", "Dual Boot (Windows + Ubuntu)"
   screenSize?: string; // Monitor, TV (e.g. "27 inch")
   isTouchscreen?: boolean;
   printerType?: 'Color' | 'Monochrome'; // Printer
@@ -37,6 +38,7 @@ export interface AssetSpecs {
   cpu?: string;
   ram?: string;
   storage?: string;
+  os?: string;
 }
 
 export enum AssetCommentType {

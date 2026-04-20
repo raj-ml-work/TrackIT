@@ -21,6 +21,7 @@ export const generateInventoryInsight = async (assets: Asset[]): Promise<string>
           a.specs.cpu, 
           a.specs.ram, 
           a.specs.storage,
+          a.specs.osDetails || a.specs.os,
           a.specs.printerType
         ].filter(Boolean).join(', ')}]`;
       }

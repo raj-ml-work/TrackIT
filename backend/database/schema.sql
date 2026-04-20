@@ -545,6 +545,7 @@ CREATE TABLE IF NOT EXISTS asset_specs (
   processor_type VARCHAR(255),
   ram_capacity VARCHAR(50), -- e.g., "16GB", "32GB"
   storage_capacity VARCHAR(50), -- e.g., "512GB SSD"
+  os_details VARCHAR(255), -- e.g., "Windows 11", "Dual Boot (Windows + Linux)"
   screen_size VARCHAR(50), -- e.g., "15 inch", "27 inch"
   is_touchscreen BOOLEAN DEFAULT false,
   printer_type VARCHAR(50), -- 'Color' or 'Monochrome' for printers

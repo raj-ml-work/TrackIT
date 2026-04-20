@@ -19,8 +19,11 @@ SELECT
     COALESCE(l.name, '') || ' ' ||
     COALESCE(es.brand, '') || ' ' ||
     COALESCE(es.model, '') || ' ' ||
+    COALESCE(es.os_details, '') || ' ' ||
     COALESCE(json_extract(a.specs, '$.brand'), '') || ' ' ||
     COALESCE(json_extract(a.specs, '$.model'), '') || ' ' ||
+    COALESCE(json_extract(a.specs, '$.osDetails'), '') || ' ' ||
+    COALESCE(json_extract(a.specs, '$.os'), '') || ' ' ||
     COALESCE(pi.first_name, '') || ' ' ||
     COALESCE(pi.last_name, '') || ' ' ||
     COALESCE(e.employee_id, '')

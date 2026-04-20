@@ -88,6 +88,7 @@ const ensureAssetTables = (db) => {
         processor_type TEXT,
         ram_capacity TEXT,
         storage_capacity TEXT,
+        os_details TEXT,
         screen_size TEXT,
         is_touchscreen BOOLEAN DEFAULT 0,
         printer_type TEXT,
@@ -123,6 +124,21 @@ const ensureAssetTables = (db) => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+  }
+};
+
+const ensureAssetSpecsColumns = (db) => {
+  const table = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='asset_specs'")
+    .get();
+
+  if (!table) return;
+
+  const columns = db.prepare("PRAGMA table_info('asset_specs')").all();
+  const columnNames = new Set(columns.map((column) => column.name));
+
+  if (!columnNames.has('os_details')) {
+    db.exec('ALTER TABLE asset_specs ADD COLUMN os_details TEXT');
   }
 };
 
@@ -629,6 +645,7 @@ export const createSqliteProvider = (config) => {
   ensureSchema(db);
   ensureDepartmentsTable(db);
   ensureAssetTables(db);
+  ensureAssetSpecsColumns(db);
   ensureEmployeePersonalInfoColumns(db);
   ensureEmployeeOfficialInfoColumns(db);
   ensureEmployeeEngagementHistoryTable(db);
@@ -1156,7 +1173,7 @@ export const createSqliteProvider = (config) => {
     }
 
     if (query.search) {
-      filters.push('(lower(assets.name) LIKE @search OR lower(assets.serial_number) LIKE @search)');
+      filters.push('(lower(assets.name) LIKE @search OR lower(assets.serial_number) LIKE @search OR lower(assets.specs) LIKE @search)');
       params.search = `%${query.search.trim().toLowerCase()}%`;
     }
 
@@ -1262,7 +1279,88 @@ export const createSqliteProvider = (config) => {
     const row = db
       .prepare('SELECT id FROM assets WHERE serial_number = ? LIMIT 1')
       .get(asset.serialNumber.trim());
+    
+    if (row && asset.specs) {
+      upsertAssetSpecs(row.id, asset.type, asset.specs);
+    }
+    
     return row ? await getAssetById(row.id) : null;
+  };
+
+  const upsertAssetSpecs = (assetId, assetType, specs) => {
+    const existing = db.prepare('SELECT id FROM asset_specs WHERE asset_id = ?').get(assetId);
+    
+    const data = {
+      asset_id: assetId,
+      asset_type: assetType,
+      brand: specs.brand || null,
+      model: specs.model || null,
+      processor_type: specs.processorType || specs.cpu || null,
+      ram_capacity: specs.ramCapacity || specs.ram || null,
+      storage_capacity: specs.storageCapacity || specs.storage || null,
+      os_details: specs.osDetails || specs.os || null,
+      screen_size: specs.screenSize || null,
+      is_touchscreen: specs.isTouchscreen ? 1 : 0,
+      printer_type: specs.printerType || null
+    };
+
+    if (existing) {
+      db.prepare(`
+        UPDATE asset_specs
+           SET asset_type = ?,
+               brand = ?,
+               model = ?,
+               processor_type = ?,
+               ram_capacity = ?,
+               storage_capacity = ?,
+               os_details = ?,
+               screen_size = ?,
+               is_touchscreen = ?,
+               printer_type = ?,
+               updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?
+      `).run(
+        data.asset_type,
+        data.brand,
+        data.model,
+        data.processor_type,
+        data.ram_capacity,
+        data.storage_capacity,
+        data.os_details,
+        data.screen_size,
+        data.is_touchscreen,
+        data.printer_type,
+        existing.id
+      );
+    } else {
+      db.prepare(`
+        INSERT INTO asset_specs (
+          asset_id,
+          asset_type,
+          brand,
+          model,
+          processor_type,
+          ram_capacity,
+          storage_capacity,
+          os_details,
+          screen_size,
+          is_touchscreen,
+          printer_type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        data.asset_id,
+        data.asset_type,
+        data.brand,
+        data.model,
+        data.processor_type,
+        data.ram_capacity,
+        data.storage_capacity,
+        data.os_details,
+        data.screen_size,
+        data.is_touchscreen,
+        data.printer_type
+      );
+    }
   };
 
   const updateAsset = async (asset) => {
@@ -1332,6 +1430,10 @@ export const createSqliteProvider = (config) => {
       specs,
       asset.id
     );
+
+    if (asset.specs) {
+      upsertAssetSpecs(asset.id, asset.type, asset.specs);
+    }
 
     return await getAssetById(asset.id);
   };

@@ -31,6 +31,13 @@ const ensureEmployeeOfficialInfoColumns = async (pool) => {
   `);
 };
 
+const ensureAssetSpecsColumns = async (pool) => {
+  await pool.query(`
+    ALTER TABLE IF EXISTS asset_specs
+      ADD COLUMN IF NOT EXISTS os_details VARCHAR(255)
+  `);
+};
+
 const ensureEmployeeEngagementHistoryTable = async (pool) => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS employee_engagement_history (
@@ -491,6 +498,7 @@ export const createPostgresProvider = async (config) => {
   await ensureUsersTable(pool);
   await ensureEmployeePersonalInfoColumns(pool);
   await ensureEmployeeOfficialInfoColumns(pool);
+  await ensureAssetSpecsColumns(pool);
   await ensureEmployeeEngagementHistoryTable(pool);
   await ensureEmployeeFeedbackHistoryTable(pool);
   await ensureDefaultAdmin(pool, config);

@@ -13,8 +13,11 @@ SELECT
     COALESCE(l.name, '') || ' ' ||
     COALESCE(es.brand, '') || ' ' ||
     COALESCE(es.model, '') || ' ' ||
+    COALESCE(es.os_details, '') || ' ' ||
     COALESCE(a.specs->>'brand', '') || ' ' ||
     COALESCE(a.specs->>'model', '') || ' ' ||
+    COALESCE(a.specs->>'osDetails', '') || ' ' ||
+    COALESCE(a.specs->>'os', '') || ' ' ||
     COALESCE(pi.first_name, '') || ' ' ||
     COALESCE(pi.last_name, '') || ' ' ||
     COALESCE(e.employee_id, '')
