@@ -988,6 +988,15 @@ const buildServer = async () => {
 
   // ── Employee Salary Routes (RBAC: Admin + Management) ──
 
+  app.get('/salaries/latest', { preHandler: authorize('employees.salary', 'view') }, async (request, reply) => {
+    try {
+      const records = await provider.getLatestSalaries();
+      return records;
+    } catch (error) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
+
   app.get('/employees/:id/salary', { preHandler: authorize('employees.salary', 'view') }, async (request, reply) => {
     try {
       const records = await provider.getEmployeeSalary(request.params.id);

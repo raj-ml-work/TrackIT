@@ -16,6 +16,13 @@ export const getEmployeeSalary = async (employeeId: string): Promise<EmployeeSal
 };
 
 /**
+ * Get the latest salary record for all employees (Management Summary)
+ */
+export const getLatestSalaries = async (): Promise<EmployeeSalaryInfo[]> => {
+  return apiFetchJson<EmployeeSalaryInfo[]>('/salaries/latest');
+};
+
+/**
  * Add a new salary record for an employee
  */
 export const addEmployeeSalary = async (

@@ -1906,6 +1906,19 @@ export const createSqliteProvider = (config) => {
     };
   };
 
+  const getLatestSalaries = async () => {
+    const rows = db.prepare(`
+      SELECT * FROM employee_salary_info
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id, ROW_NUMBER() OVER(PARTITION BY employee_id ORDER BY effective_date DESC, created_at DESC) as rn
+          FROM employee_salary_info
+        ) WHERE rn = 1
+      )
+    `).all();
+    return rows.map(mapSalaryRow);
+  };
+
   const getEmployeeSalary = async (employeeId) => {
     const rows = db.prepare(
       'SELECT * FROM employee_salary_info WHERE employee_id = ? ORDER BY effective_date DESC'
@@ -2016,6 +2029,7 @@ export const createSqliteProvider = (config) => {
     deleteEmployee,
 
     // Employee Salary
+    getLatestSalaries,
     getEmployeeSalary,
     addEmployeeSalary,
     updateEmployeeSalary,

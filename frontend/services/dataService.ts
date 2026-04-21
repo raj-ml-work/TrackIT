@@ -124,3 +124,4 @@ export {
   updateEmployeeSalary,
   deleteEmployeeSalary
 } from './salaryService';
+export { getLatestSalaries } from './salaryService';

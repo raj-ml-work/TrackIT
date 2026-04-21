@@ -6,10 +6,11 @@ import Settings from './components/Settings';
 import UserManagement from './components/UserManagement';
 import EmployeeManagement from './components/EmployeeManagement';
 import LocationManagement from './components/LocationManagement';
-import DepartmentManagementPage from './src/pages/DepartmentManagementPage';
+import DepartmentManagement from './components/DepartmentManagement';
+import ManagementDashboard from './components/ManagementDashboard';
 import Login from './components/Login';
 import ProfilePanel from './components/ProfilePanel';
-import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, MapPin, Briefcase, Building2 } from 'lucide-react';
+import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users, MapPin, Briefcase, Building2, TrendingUp, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as authClient from './services/authClient';
 import ConfirmDialog, { DialogType } from './components/ConfirmDialog';
@@ -880,54 +881,6 @@ const App: React.FC = () => {
    }
   };
 
-  // Load fresh department data when navigating to departments view
-  const loadFreshDepartmentData = async () => {
-   try {
-     const freshDepartments = await getDepartments();
-     setDepartments(freshDepartments);
-   } catch (error) {
-     console.error('Error loading fresh department data:', error);
-     showDialog(DialogType.ERROR, 'Load Department Data Failed', 'Failed to load latest department data. Please try again.');
-   }
-  };
-
-  // Refresh department data when navigating to departments view
-  useEffect(() => {
-   if (currentView === View.DEPARTMENTS && useBackend) {
-     loadFreshDepartmentData();
-   }
-  }, [currentView, useBackend]);
-
-  // Load fresh department data when navigating to employees view
-  const loadFreshDepartmentDataForEmployees = async () => {
-   try {
-     const freshDepartments = await getDepartments();
-     setDepartments(freshDepartments);
-   } catch (error) {
-     console.error('Error loading fresh department data for employees:', error);
-     showDialog(DialogType.ERROR, 'Load Department Data Failed', 'Failed to load latest department data. Please try again.');
-   }
-  };
-
-  // Load fresh location data when navigating to employees view
-  const loadFreshLocationDataForEmployees = async () => {
-   try {
-     const freshLocations = await getLocations();
-     setLocations(freshLocations);
-   } catch (error) {
-     console.error('Error loading fresh location data for employees:', error);
-     showDialog(DialogType.ERROR, 'Load Location Data Failed', 'Failed to load latest location data. Please try again.');
-   }
-  };
-
-  // Refresh department and location data when navigating to employees view
-  useEffect(() => {
-   if (currentView === View.EMPLOYEES && useBackend) {
-     loadFreshDepartmentDataForEmployees();
-     loadFreshLocationDataForEmployees();
-   }
-  }, [currentView, useBackend]);
-
   const NavItem = ({ view, icon: Icon }: { view: View, icon: any }) => (
     <button
       onClick={() => { setCurrentView(view); setIsMobileMenuOpen(false); }}
@@ -939,6 +892,23 @@ const App: React.FC = () => {
     >
       <Icon size={20} />
       <span className="text-sm font-medium">{view}</span>
+    </button>
+  );
+
+  const SidebarItem = ({ icon, label, active, onClick, disabled }: { icon: any, label: string, active: boolean, onClick: () => void, disabled?: boolean }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 w-full text-left ${
+        disabled ? 'opacity-50 cursor-not-allowed' : ''
+      } ${
+        active 
+          ? 'relative bg-green-50 text-green-600 font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] before:content-[\'\'] before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/40 before:via-white/10 before:to-transparent before:pointer-events-none' 
+          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+      }`}
+    >
+      {icon}
+      <span className="text-sm font-medium">{label}</span>
     </button>
   );
 
@@ -980,13 +950,37 @@ const App: React.FC = () => {
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
-          {checkPermission(session?.user || null, 'nav.inventory', 'view') && <NavItem view={View.INVENTORY} icon={Box} />}
-          {checkPermission(session?.user || null, 'nav.employees', 'view') && <NavItem view={View.EMPLOYEES} icon={Briefcase} />}
-          {checkPermission(session?.user || null, 'nav.departments', 'view') && <NavItem view={View.DEPARTMENTS} icon={Building2} />}
-          {checkPermission(session?.user || null, 'nav.locations', 'view') && <NavItem view={View.LOCATIONS} icon={MapPin} />}
-          {checkPermission(session?.user || null, 'nav.users', 'view') && <NavItem view={View.USERS} icon={Users} />}
-          {checkPermission(session?.user || null, 'nav.settings', 'view') && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
+          <SidebarItem icon={<LayoutDashboard size={20} />} label="Dashboard" active={currentView === View.DASHBOARD} onClick={() => setCurrentView(View.DASHBOARD)} />
+          {checkPermission(session?.user || null, 'nav.mgmtDashboard', 'view') && (
+            <SidebarItem 
+              icon={<TrendingUp size={20} />} 
+              label="Management" 
+              active={currentView === View.MGMT_DASHBOARD} 
+              onClick={() => setCurrentView(View.MGMT_DASHBOARD)} 
+            />
+          )}
+          <SidebarItem 
+            icon={<Package size={20} />} 
+            label="Inventory" 
+            active={currentView === View.INVENTORY} 
+            onClick={() => setCurrentView(View.INVENTORY)} 
+            disabled={!checkPermission(session?.user || null, 'nav.inventory', 'view')}
+          />
+          {checkPermission(session?.user || null, 'nav.employees', 'view') && (
+            <SidebarItem icon={<Briefcase size={20} />} label="Employees" active={currentView === View.EMPLOYEES} onClick={() => setCurrentView(View.EMPLOYEES)} />
+          )}
+          {checkPermission(session?.user || null, 'nav.departments', 'view') && (
+            <SidebarItem icon={<Building2 size={20} />} label="Departments" active={currentView === View.DEPARTMENTS} onClick={() => setCurrentView(View.DEPARTMENTS)} />
+          )}
+          {checkPermission(session?.user || null, 'nav.locations', 'view') && (
+            <SidebarItem icon={<MapPin size={20} />} label="Locations" active={currentView === View.LOCATIONS} onClick={() => setCurrentView(View.LOCATIONS)} />
+          )}
+          {checkPermission(session?.user || null, 'nav.users', 'view') && (
+            <SidebarItem icon={<Users size={20} />} label="Users" active={currentView === View.USERS} onClick={() => setCurrentView(View.USERS)} />
+          )}
+          {checkPermission(session?.user || null, 'nav.settings', 'view') && (
+            <SidebarItem icon={<SettingsIcon size={20} />} label="Settings" active={currentView === View.SETTINGS} onClick={() => setCurrentView(View.SETTINGS)} />
+          )}
         </nav>
 
         <div className="p-4 border-t border-gray-200">
@@ -1065,6 +1059,9 @@ const App: React.FC = () => {
                   canViewAssets={checkPermission(session?.user || null, 'assets', 'view')}
                   canViewEmployees={checkPermission(session?.user || null, 'employees', 'view')}
                 />
+              )}
+              {currentView === View.MGMT_DASHBOARD && checkPermission(session?.user || null, 'nav.mgmtDashboard', 'view') && (
+                <ManagementDashboard />
               )}
               {currentView === View.INVENTORY && checkPermission(session?.user || null, 'assets', 'view') && (
                 <AssetManager

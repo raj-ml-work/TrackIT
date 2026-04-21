@@ -1719,19 +1719,32 @@ export const createPostgresProvider = async (config) => {
     return {
       id: row.id,
       employeeId: row.employee_id,
-      ctc: Number(row.ctc || 0),
-      currency: row.currency || 'INR',
-      payFrequency: row.pay_frequency || 'Monthly',
-      effectiveDate: normalizeDateOutput(row.effective_date),
-      bonus: Number(row.bonus || 0),
-      clientBillingRate: row.client_billing_rate != null ? Number(row.client_billing_rate) : undefined,
-      clientBillingCurrency: row.client_billing_currency || undefined,
-      notes: row.notes || undefined,
-      createdBy: row.created_by || undefined,
-      createdByName: row.created_by_name || undefined,
+      ctc: parseFloat(row.ctc),
+      currency: row.currency,
+      payFrequency: row.pay_frequency,
+      effectiveDate: row.effective_date instanceof Date ? row.effective_date.toISOString().split('T')[0] : row.effective_date,
+      bonus: row.bonus ? parseFloat(row.bonus) : null,
+      clientBillingRate: row.client_billing_rate ? parseFloat(row.client_billing_rate) : null,
+      clientBillingCurrency: row.client_billing_currency,
+      notes: row.notes,
       createdAt: row.created_at,
+      createdBy: row.created_by,
+      createdByName: row.created_by_name,
       updatedAt: row.updated_at
     };
+  };
+
+  const getLatestSalaries = async () => {
+    const result = await pool.query(`
+      SELECT * FROM employee_salary_info
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id, ROW_NUMBER() OVER(PARTITION BY employee_id ORDER BY effective_date DESC, created_at DESC) as rn
+          FROM employee_salary_info
+        ) sub WHERE rn = 1
+      )
+    `);
+    return result.rows.map(mapSalaryRow);
   };
 
   const getEmployeeSalary = async (employeeId) => {
@@ -1843,6 +1856,7 @@ export const createPostgresProvider = async (config) => {
     deleteEmployee,
 
     // Employee Salary
+    getLatestSalaries,
     getEmployeeSalary,
     addEmployeeSalary,
     updateEmployeeSalary,
