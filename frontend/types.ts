@@ -88,6 +88,10 @@ export interface DashboardStats {
 
 export enum UserRole {
   ADMIN = 'Admin',
+  MANAGEMENT = 'Management',
+  IT = 'IT',
+  DELIVERY = 'Delivery',
+  /** @deprecated Use IT instead. Kept for backward compatibility during migration. */
   USER = 'User'
 }
 
@@ -286,4 +290,21 @@ export interface AssetQuery {
   type?: AssetType | 'All';
   status?: AssetStatus | 'All';
   locationId?: string;
+}
+
+export interface EmployeeSalaryInfo {
+  id: string;
+  employeeId: string;
+  ctc: number;                  // Cost to Company (annual)
+  currency: string;             // e.g., 'INR', 'USD'
+  payFrequency: string;         // 'Monthly', 'Bi-weekly'
+  effectiveDate: string;        // When this salary record takes effect
+  bonus?: number;               // Bonus component (if any)
+  clientBillingRate?: number;   // What the client is billed (for comparison)
+  clientBillingCurrency?: string;
+  notes?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
