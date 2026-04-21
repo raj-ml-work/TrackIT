@@ -116,3 +116,11 @@ export {
   updateDepartment,
   deleteDepartment
 } from './departmentService';
+
+export {
+  // Salary services
+  getEmployeeSalary,
+  addEmployeeSalary,
+  updateEmployeeSalary,
+  deleteEmployeeSalary
+} from './salaryService';

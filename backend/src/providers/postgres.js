@@ -1712,6 +1712,113 @@ export const createPostgresProvider = async (config) => {
     await pool.query('DELETE FROM departments WHERE id = $1', [id]);
   };
 
+  // ── Salary CRUD ──
+
+  const mapSalaryRow = (row) => {
+    if (!row) return null;
+    return {
+      id: row.id,
+      employeeId: row.employee_id,
+      ctc: Number(row.ctc || 0),
+      currency: row.currency || 'INR',
+      payFrequency: row.pay_frequency || 'Monthly',
+      effectiveDate: normalizeDateOutput(row.effective_date),
+      bonus: Number(row.bonus || 0),
+      clientBillingRate: row.client_billing_rate != null ? Number(row.client_billing_rate) : undefined,
+      clientBillingCurrency: row.client_billing_currency || undefined,
+      notes: row.notes || undefined,
+      createdBy: row.created_by || undefined,
+      createdByName: row.created_by_name || undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  };
+
+  const getEmployeeSalary = async (employeeId) => {
+    const result = await pool.query(
+      'SELECT * FROM employee_salary_info WHERE employee_id = $1 ORDER BY effective_date DESC',
+      [employeeId]
+    );
+    return result.rows.map(mapSalaryRow);
+  };
+
+  const addEmployeeSalary = async (employeeId, salary, currentUser) => {
+    if (!salary.ctc || salary.ctc <= 0) {
+      throw new Error('CTC is required and must be positive.');
+    }
+    if (!salary.effectiveDate) {
+      throw new Error('Effective date is required.');
+    }
+
+    // Verify employee exists
+    const empCheck = await pool.query('SELECT id FROM employees WHERE id = $1', [employeeId]);
+    if (empCheck.rows.length === 0) {
+      throw new Error('Employee not found');
+    }
+
+    const result = await pool.query(
+      `INSERT INTO employee_salary_info
+        (employee_id, ctc, currency, pay_frequency, effective_date, bonus,
+         client_billing_rate, client_billing_currency, notes,
+         created_by, created_by_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING *`,
+      [
+        employeeId,
+        salary.ctc,
+        salary.currency || 'INR',
+        salary.payFrequency || 'Monthly',
+        normalizeDateInput(salary.effectiveDate),
+        salary.bonus || 0,
+        salary.clientBillingRate || null,
+        salary.clientBillingCurrency || null,
+        salary.notes || null,
+        currentUser?.id || null,
+        currentUser?.name || null
+      ]
+    );
+    return mapSalaryRow(result.rows[0]);
+  };
+
+  const updateEmployeeSalary = async (salaryId, salary) => {
+    if (!salary.ctc || salary.ctc <= 0) {
+      throw new Error('CTC is required and must be positive.');
+    }
+    if (!salary.effectiveDate) {
+      throw new Error('Effective date is required.');
+    }
+
+    const result = await pool.query(
+      `UPDATE employee_salary_info
+       SET ctc = $1, currency = $2, pay_frequency = $3, effective_date = $4,
+           bonus = $5, client_billing_rate = $6, client_billing_currency = $7, notes = $8
+       WHERE id = $9
+       RETURNING *`,
+      [
+        salary.ctc,
+        salary.currency || 'INR',
+        salary.payFrequency || 'Monthly',
+        normalizeDateInput(salary.effectiveDate),
+        salary.bonus || 0,
+        salary.clientBillingRate || null,
+        salary.clientBillingCurrency || null,
+        salary.notes || null,
+        salaryId
+      ]
+    );
+    if (result.rows.length === 0) {
+      throw new Error('Salary record not found');
+    }
+    return mapSalaryRow(result.rows[0]);
+  };
+
+  const deleteEmployeeSalary = async (salaryId) => {
+    const result = await pool.query('DELETE FROM employee_salary_info WHERE id = $1', [salaryId]);
+    if (result.rowCount === 0) {
+      throw new Error('Salary record not found');
+    }
+  };
+
   return {
     // Assets
     getAssets,
@@ -1734,6 +1841,12 @@ export const createPostgresProvider = async (config) => {
     createEmployee,
     updateEmployee,
     deleteEmployee,
+
+    // Employee Salary
+    getEmployeeSalary,
+    addEmployeeSalary,
+    updateEmployeeSalary,
+    deleteEmployeeSalary,
 
     // Locations
     getLocations,
@@ -1763,3 +1876,4 @@ export const createPostgresProvider = async (config) => {
     deleteDepartment
   };
 };
+

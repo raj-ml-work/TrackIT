@@ -986,6 +986,52 @@ const buildServer = async () => {
     }
   });
 
+  // ── Employee Salary Routes (RBAC: Admin + Management) ──
+
+  app.get('/employees/:id/salary', { preHandler: authorize('employees.salary', 'view') }, async (request, reply) => {
+    try {
+      const records = await provider.getEmployeeSalary(request.params.id);
+      return records;
+    } catch (error) {
+      const status = error.message === 'Employee not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
+  app.post('/employees/:id/salary', { preHandler: authorize('employees.salary', 'edit') }, async (request, reply) => {
+    try {
+      const created = await provider.addEmployeeSalary(
+        request.params.id,
+        request.body,
+        request.currentUser
+      );
+      return reply.code(201).send(created);
+    } catch (error) {
+      const status = error.message === 'Employee not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
+  app.put('/salary/:id', { preHandler: authorize('employees.salary', 'edit') }, async (request, reply) => {
+    try {
+      const updated = await provider.updateEmployeeSalary(request.params.id, request.body);
+      return updated;
+    } catch (error) {
+      const status = error.message === 'Salary record not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
+  app.delete('/salary/:id', { preHandler: authorize('employees.salary', 'delete') }, async (request, reply) => {
+    try {
+      await provider.deleteEmployeeSalary(request.params.id);
+      return { ok: true };
+    } catch (error) {
+      const status = error.message === 'Salary record not found' ? 404 : 400;
+      return reply.code(status).send({ error: error.message });
+    }
+  });
+
   app.get('/users', { preHandler: authorize('users', 'view') }, async (request) => {
     const { email } = request.query || {};
     if (email) {

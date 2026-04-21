@@ -1884,6 +1884,114 @@ export const createSqliteProvider = (config) => {
     db.prepare('DELETE FROM locations WHERE id = ?').run(id);
   };
 
+  // ── Salary CRUD ──
+
+  const mapSalaryRow = (row) => {
+    if (!row) return null;
+    return {
+      id: row.id,
+      employeeId: row.employee_id,
+      ctc: Number(row.ctc || 0),
+      currency: row.currency || 'INR',
+      payFrequency: row.pay_frequency || 'Monthly',
+      effectiveDate: normalizeDateOutput(row.effective_date),
+      bonus: Number(row.bonus || 0),
+      clientBillingRate: row.client_billing_rate != null ? Number(row.client_billing_rate) : undefined,
+      clientBillingCurrency: row.client_billing_currency || undefined,
+      notes: row.notes || undefined,
+      createdBy: row.created_by || undefined,
+      createdByName: row.created_by_name || undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  };
+
+  const getEmployeeSalary = async (employeeId) => {
+    const rows = db.prepare(
+      'SELECT * FROM employee_salary_info WHERE employee_id = ? ORDER BY effective_date DESC'
+    ).all(employeeId);
+    return rows.map(mapSalaryRow);
+  };
+
+  const addEmployeeSalary = async (employeeId, salary, currentUser) => {
+    if (!salary.ctc || salary.ctc <= 0) {
+      throw new Error('CTC is required and must be positive.');
+    }
+    if (!salary.effectiveDate) {
+      throw new Error('Effective date is required.');
+    }
+
+    const empRow = db.prepare('SELECT id FROM employees WHERE id = ?').get(employeeId);
+    if (!empRow) {
+      throw new Error('Employee not found');
+    }
+
+    const info = db.prepare(`
+      INSERT INTO employee_salary_info
+        (employee_id, ctc, currency, pay_frequency, effective_date, bonus,
+         client_billing_rate, client_billing_currency, notes,
+         created_by, created_by_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      employeeId,
+      salary.ctc,
+      salary.currency || 'INR',
+      salary.payFrequency || 'Monthly',
+      normalizeDateInput(salary.effectiveDate),
+      salary.bonus || 0,
+      salary.clientBillingRate || null,
+      salary.clientBillingCurrency || null,
+      salary.notes || null,
+      currentUser?.id || null,
+      currentUser?.name || null
+    );
+
+    const row = db.prepare('SELECT * FROM employee_salary_info WHERE rowid = ?').get(info.lastInsertRowid);
+    return mapSalaryRow(row);
+  };
+
+  const updateEmployeeSalary = async (salaryId, salary) => {
+    if (!salary.ctc || salary.ctc <= 0) {
+      throw new Error('CTC is required and must be positive.');
+    }
+    if (!salary.effectiveDate) {
+      throw new Error('Effective date is required.');
+    }
+
+    const existing = db.prepare('SELECT id FROM employee_salary_info WHERE id = ?').get(salaryId);
+    if (!existing) {
+      throw new Error('Salary record not found');
+    }
+
+    db.prepare(`
+      UPDATE employee_salary_info
+      SET ctc = ?, currency = ?, pay_frequency = ?, effective_date = ?,
+          bonus = ?, client_billing_rate = ?, client_billing_currency = ?, notes = ?
+      WHERE id = ?
+    `).run(
+      salary.ctc,
+      salary.currency || 'INR',
+      salary.payFrequency || 'Monthly',
+      normalizeDateInput(salary.effectiveDate),
+      salary.bonus || 0,
+      salary.clientBillingRate || null,
+      salary.clientBillingCurrency || null,
+      salary.notes || null,
+      salaryId
+    );
+
+    const row = db.prepare('SELECT * FROM employee_salary_info WHERE id = ?').get(salaryId);
+    return mapSalaryRow(row);
+  };
+
+  const deleteEmployeeSalary = async (salaryId) => {
+    const existing = db.prepare('SELECT id FROM employee_salary_info WHERE id = ?').get(salaryId);
+    if (!existing) {
+      throw new Error('Salary record not found');
+    }
+    db.prepare('DELETE FROM employee_salary_info WHERE id = ?').run(salaryId);
+  };
+
   return {
     // Assets
     getAssets,
@@ -1906,6 +2014,12 @@ export const createSqliteProvider = (config) => {
     createEmployee,
     updateEmployee,
     deleteEmployee,
+
+    // Employee Salary
+    getEmployeeSalary,
+    addEmployeeSalary,
+    updateEmployeeSalary,
+    deleteEmployeeSalary,
 
     // Locations
     getLocations,
@@ -1935,3 +2049,4 @@ export const createSqliteProvider = (config) => {
     deleteDepartment
   };
 };
+
