@@ -1087,6 +1087,10 @@ const App: React.FC = () => {
                   canCreate={checkPermission(session?.user || null, 'employees', 'create')}
                   canUpdate={checkPermission(session?.user || null, 'employees.info', 'edit')}
                   canDelete={checkPermission(session?.user || null, 'employees', 'delete')}
+                  canEditEngagement={checkPermission(session?.user || null, 'employees.engagement', 'edit')}
+                  canEditFeedback={checkPermission(session?.user || null, 'employees.feedback', 'edit')}
+                  canViewSalary={checkPermission(session?.user || null, 'employees.salary', 'view')}
+                  canEditSalary={checkPermission(session?.user || null, 'employees.salary', 'edit')}
                   useBackend={useBackend}
                   currentUser={session?.user || null}
                 />

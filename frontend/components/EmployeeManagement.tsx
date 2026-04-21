@@ -16,7 +16,7 @@ import { UserPlus, Search, Mail, MapPin, Briefcase, Building, X, Pencil, Trash2,
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog, { DialogType } from './ConfirmDialog';
 import ModalPortal from './ModalPortal';
-import { isAdmin } from '../services/permissionUtil';
+import { checkPermission } from '../services/permissionUtil';
 import { addEmployeeFeedback, getEmployeeById, getEmployeesPage, uploadEmployeePhoto } from '../services/dataService';
 import { getRuntimeConfig } from '../services/runtimeConfig';
 
@@ -29,10 +29,14 @@ interface EmployeeManagementProps {
   onUpdate: (employee: Employee) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   canCreate?: boolean;
-  canUpdate?: boolean;
+  canUpdate?: boolean;          // Gates employee info (personal/official) editing
   canDelete?: boolean;
+  canEditEngagement?: boolean;  // Gates engagement transition buttons (Admin, Delivery)
+  canEditFeedback?: boolean;    // Gates feedback form submission (Admin, Delivery)
+  canViewSalary?: boolean;      // Gates salary tab visibility (Admin, Management)
+  canEditSalary?: boolean;      // Gates salary editing (Admin, Management)
   useBackend?: boolean;
-  currentUser?: any; // Add current user for authentication
+  currentUser?: any;
 }
 
 interface EmployeeFormData {
@@ -311,7 +315,10 @@ const EmployeeAvatar: React.FC<EmployeeAvatarProps> = ({
 
 const PAGE_SIZE = 20;
 
-const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, useBackend = false, currentUser }) => {
+const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, canEditEngagement, canEditFeedback, canViewSalary = false, canEditSalary = false, useBackend = false, currentUser }) => {
+  // Derive engagement/feedback permissions: if explicit props provided, use them; otherwise fall back to canUpdate for backward compat
+  const effectiveCanEditEngagement = canEditEngagement !== undefined ? canEditEngagement : canUpdate;
+  const effectiveCanEditFeedback = canEditFeedback !== undefined ? canEditFeedback : canUpdate;
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('All');
@@ -525,7 +532,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     viewingEmployeeIdRef.current = viewingEmployee?.id || null;
   }, [viewingEmployee?.id]);
 
-  const canViewPersonalDetails = isAdmin(currentUser || null);
+  const canViewPersonalDetails = checkPermission(currentUser || null, 'employees.info', 'edit');
 
   useEffect(() => {
     if (!canViewPersonalDetails && activeTab === 'personal') {
@@ -2695,7 +2702,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                                     <p className="text-sm font-medium text-gray-900">{new Date(viewingOfficialInfo.assignmentDate).toLocaleDateString()}</p>
                                   </div>
                                 )}
-                                {canUpdate && (
+                                {effectiveCanEditEngagement && (
                                   <div className="flex flex-wrap gap-2">
                                     <button
                                       type="button"
@@ -2934,7 +2941,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                             <div>
                               <label className="text-xs text-gray-500 uppercase block mb-1">Category</label>
                               <select
-                                disabled={!canUpdate || isFeedbackSubmitting}
+                                disabled={!effectiveCanEditFeedback || isFeedbackSubmitting}
                                 value={feedbackForm.feedbackCategory}
                                 onChange={(e) => setFeedbackForm(prev => ({
                                   ...prev,
@@ -2950,7 +2957,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                             <div>
                               <label className="text-xs text-gray-500 uppercase block mb-1">Sentiment</label>
                               <select
-                                disabled={!canUpdate || isFeedbackSubmitting}
+                                disabled={!effectiveCanEditFeedback || isFeedbackSubmitting}
                                 value={feedbackForm.sentiment || ''}
                                 onChange={(e) => setFeedbackForm(prev => ({
                                   ...prev,
@@ -2967,7 +2974,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                               <label className="text-xs text-gray-500 uppercase block mb-1">Feedback Date</label>
                               <input
                                 type="date"
-                                disabled={!canUpdate || isFeedbackSubmitting}
+                                disabled={!effectiveCanEditFeedback || isFeedbackSubmitting}
                                 value={feedbackForm.feedbackDate}
                                 onChange={(e) => setFeedbackForm(prev => ({ ...prev, feedbackDate: e.target.value }))}
                                 className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
@@ -2978,7 +2985,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                             <label className="text-xs text-gray-500 uppercase block mb-1">Feedback</label>
                             <textarea
                               rows={4}
-                              disabled={!canUpdate || isFeedbackSubmitting}
+                              disabled={!effectiveCanEditFeedback || isFeedbackSubmitting}
                               value={feedbackForm.feedbackText}
                               onChange={(e) => {
                                 setFeedbackForm(prev => ({ ...prev, feedbackText: e.target.value }));
@@ -2991,7 +2998,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                               <p className="text-xs text-red-600 mt-1">{feedbackError}</p>
                             )}
                           </div>
-                          {canUpdate ? (
+                          {effectiveCanEditFeedback ? (
                             <div className="flex justify-end">
                               <button
                                 type="submit"
