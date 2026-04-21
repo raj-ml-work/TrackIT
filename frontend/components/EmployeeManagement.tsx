@@ -19,6 +19,7 @@ import ModalPortal from './ModalPortal';
 import { checkPermission } from '../services/permissionUtil';
 import { addEmployeeFeedback, getEmployeeById, getEmployeesPage, uploadEmployeePhoto } from '../services/dataService';
 import { getRuntimeConfig } from '../services/runtimeConfig';
+import SalarySection from './SalarySection';
 
 interface EmployeeManagementProps {
   employees: Employee[];
@@ -342,7 +343,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [isEmployeeDetailLoading, setIsEmployeeDetailLoading] = useState(false);
   const [employeeDetailError, setEmployeeDetailError] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'engagement' | 'feedback' | 'personal' | 'official' | 'assets'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'engagement' | 'feedback' | 'personal' | 'official' | 'assets' | 'salary'>('overview');
   const [isTransitionModalOpen, setIsTransitionModalOpen] = useState(false);
   const [transitionMode, setTransitionMode] = useState<'bench' | 'change'>('change');
   const [transitionForm, setTransitionForm] = useState<EngagementTransitionFormData>(() =>
@@ -2527,9 +2528,13 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
               <div className="border-b border-gray-200 shrink-0">
                 <div className="flex gap-1 px-6">
                   {(
-                    canViewPersonalDetails
-                      ? (['overview', 'engagement', 'feedback', 'personal', 'official', 'assets'] as const)
-                      : (['overview', 'engagement', 'feedback', 'official', 'assets'] as const)
+                    (() => {
+                      const tabs = ['overview', 'engagement', 'feedback'] as string[];
+                      if (canViewPersonalDetails) tabs.push('personal');
+                      tabs.push('official', 'assets');
+                      if (canViewSalary) tabs.push('salary');
+                      return tabs;
+                    })()
                   ).map((tab) => (
                     <button
                       key={tab}
@@ -3351,6 +3356,20 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                           <p className="text-sm text-gray-500">This employee has no assets currently assigned to them</p>
                         </div>
                       )}
+                    </motion.div>
+                  )}
+
+                  {activeTab === 'salary' && canViewSalary && (
+                    <motion.div
+                      key="salary"
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                    >
+                      <SalarySection 
+                        employeeId={viewingEmployee.id} 
+                        canEditSalary={!!canEditSalary} 
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>
