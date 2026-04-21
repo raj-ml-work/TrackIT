@@ -13,7 +13,7 @@ import { LayoutDashboard, Box, Settings as SettingsIcon, Hexagon, Menu, X, Users
 import { motion, AnimatePresence } from 'framer-motion';
 import * as authClient from './services/authClient';
 import ConfirmDialog, { DialogType } from './components/ConfirmDialog';
-import { canCreate, canUpdate, canDelete, canView, getPermissionError, isAdmin } from './services/permissionUtil';
+import { checkPermission, isAdmin, getPermissionError } from './services/permissionUtil';
 import {
   isDatabaseReady,
   getAssets, getAssetById, createAsset, updateAsset, deleteAsset, addAssetComment, getAssetComments,
@@ -176,6 +176,7 @@ const MOCK_USERS: UserAccount[] = [
 
 enum View {
   DASHBOARD = 'Dashboard',
+  MGMT_DASHBOARD = 'Management',
   INVENTORY = 'Inventory',
   EMPLOYEES = 'Employees',
   LOCATIONS = 'Locations',
@@ -980,12 +981,12 @@ const App: React.FC = () => {
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
-          <NavItem view={View.INVENTORY} icon={Box} />
-          <NavItem view={View.EMPLOYEES} icon={Briefcase} />
-          <NavItem view={View.DEPARTMENTS} icon={Building2} />
-          <NavItem view={View.LOCATIONS} icon={MapPin} />
-          {isAdmin(session?.user || null) && <NavItem view={View.USERS} icon={Users} />}
-          {isAdmin(session?.user || null) && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
+          {checkPermission(session?.user || null, 'nav.inventory', 'view') && <NavItem view={View.INVENTORY} icon={Box} />}
+          {checkPermission(session?.user || null, 'nav.employees', 'view') && <NavItem view={View.EMPLOYEES} icon={Briefcase} />}
+          {checkPermission(session?.user || null, 'nav.departments', 'view') && <NavItem view={View.DEPARTMENTS} icon={Building2} />}
+          {checkPermission(session?.user || null, 'nav.locations', 'view') && <NavItem view={View.LOCATIONS} icon={MapPin} />}
+          {checkPermission(session?.user || null, 'nav.users', 'view') && <NavItem view={View.USERS} icon={Users} />}
+          {checkPermission(session?.user || null, 'nav.settings', 'view') && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
         </nav>
 
         <div className="p-4 border-t border-gray-200">
@@ -1021,12 +1022,12 @@ const App: React.FC = () => {
           >
              <nav className="space-y-1">
              <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
-              <NavItem view={View.INVENTORY} icon={Box} />
-              <NavItem view={View.EMPLOYEES} icon={Briefcase} />
-              <NavItem view={View.DEPARTMENTS} icon={Building2} />
-              <NavItem view={View.LOCATIONS} icon={MapPin} />
-              {canDelete(session?.user || null) && <NavItem view={View.USERS} icon={Users} />}
-              {canDelete(session?.user || null) && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
+              {checkPermission(session?.user || null, 'nav.inventory', 'view') && <NavItem view={View.INVENTORY} icon={Box} />}
+              {checkPermission(session?.user || null, 'nav.employees', 'view') && <NavItem view={View.EMPLOYEES} icon={Briefcase} />}
+              {checkPermission(session?.user || null, 'nav.departments', 'view') && <NavItem view={View.DEPARTMENTS} icon={Building2} />}
+              {checkPermission(session?.user || null, 'nav.locations', 'view') && <NavItem view={View.LOCATIONS} icon={MapPin} />}
+              {checkPermission(session?.user || null, 'nav.users', 'view') && <NavItem view={View.USERS} icon={Users} />}
+              {checkPermission(session?.user || null, 'nav.settings', 'view') && <NavItem view={View.SETTINGS} icon={SettingsIcon} />}
             </nav>
           </motion.div>
         )}
@@ -1059,7 +1060,7 @@ const App: React.FC = () => {
               {currentView === View.DASHBOARD && (
                 <Dashboard assets={assets} locations={locations} employees={employees} />
               )}
-              {currentView === View.INVENTORY && (
+              {currentView === View.INVENTORY && checkPermission(session?.user || null, 'assets', 'view') && (
                 <AssetManager
                   assets={assets}
                   employees={employees}
@@ -1068,9 +1069,9 @@ const App: React.FC = () => {
                   onUpdate={handleUpdateAsset}
                   onDelete={handleDeleteAsset}
                   onAddComment={handleAddComment}
-                  canCreate={canCreate(session?.user || null)}
-                  canUpdate={canUpdate(session?.user || null)}
-                  canDelete={canDelete(session?.user || null)}
+                  canCreate={checkPermission(session?.user || null, 'assets', 'create')}
+                  canUpdate={checkPermission(session?.user || null, 'assets', 'edit')}
+                  canDelete={checkPermission(session?.user || null, 'assets', 'delete')}
                   useBackend={useBackend}
                 />
               )}
@@ -1083,26 +1084,26 @@ const App: React.FC = () => {
                   onAdd={handleAddEmployee}
                   onUpdate={handleUpdateEmployee}
                   onDelete={handleDeleteEmployee}
-                  canCreate={canCreate(session?.user || null)}
-                  canUpdate={canUpdate(session?.user || null)}
-                  canDelete={canDelete(session?.user || null)}
+                  canCreate={checkPermission(session?.user || null, 'employees', 'create')}
+                  canUpdate={checkPermission(session?.user || null, 'employees.info', 'edit')}
+                  canDelete={checkPermission(session?.user || null, 'employees', 'delete')}
                   useBackend={useBackend}
                   currentUser={session?.user || null}
                 />
               )}
-              {currentView === View.LOCATIONS && (
+              {currentView === View.LOCATIONS && checkPermission(session?.user || null, 'locations', 'view') && (
                 <LocationManagement
                   locations={locations}
                   assets={assets}
                   onAdd={handleAddLocation}
                   onUpdate={handleUpdateLocation}
                   onDelete={handleDeleteLocation}
-                  canCreate={canCreate(session?.user || null)}
-                  canUpdate={canUpdate(session?.user || null)}
-                  canDelete={canDelete(session?.user || null)}
+                  canCreate={checkPermission(session?.user || null, 'locations', 'create')}
+                  canUpdate={checkPermission(session?.user || null, 'locations', 'edit')}
+                  canDelete={checkPermission(session?.user || null, 'locations', 'delete')}
                 />
               )}
-              {currentView === View.DEPARTMENTS && (
+              {currentView === View.DEPARTMENTS && checkPermission(session?.user || null, 'departments', 'view') && (
                 <DepartmentManagementPage
                   departments={departments}
                   assets={assets}
@@ -1110,13 +1111,13 @@ const App: React.FC = () => {
                   onAdd={handleAddDepartment}
                   onUpdate={handleUpdateDepartment}
                   onDelete={handleDeleteDepartment}
-                  canCreate={canCreate(session?.user || null)}
-                  canUpdate={canUpdate(session?.user || null)}
-                  canDelete={canDelete(session?.user || null)}
+                  canCreate={checkPermission(session?.user || null, 'departments', 'create')}
+                  canUpdate={checkPermission(session?.user || null, 'departments', 'edit')}
+                  canDelete={checkPermission(session?.user || null, 'departments', 'delete')}
                   currentUser={session?.user || null}
                 />
               )}
-              {currentView === View.USERS && canDelete(session?.user || null) && (
+              {currentView === View.USERS && checkPermission(session?.user || null, 'users', 'view') && (
                 <UserManagement
                   users={users}
                   onAdd={handleAddUser}
@@ -1125,7 +1126,7 @@ const App: React.FC = () => {
                   onResetPassword={handleResetUserPassword}
                 />
               )}
-              {currentView === View.SETTINGS && canDelete(session?.user || null) && <Settings />}
+              {currentView === View.SETTINGS && checkPermission(session?.user || null, 'nav.settings', 'view') && <Settings />}
             </motion.div>
           </AnimatePresence>
           </div>

@@ -16,16 +16,26 @@ interface UserManagementProps {
 const initialForm: Omit<UserAccount, 'id' | 'lastLogin'> = {
   name: '',
   email: '',
-  role: UserRole.USER,
+  role: UserRole.IT,
   status: UserStatus.ACTIVE
 };
 
+// Active roles available for assignment (excludes deprecated 'User')
+const ASSIGNABLE_ROLES = [UserRole.ADMIN, UserRole.MANAGEMENT, UserRole.IT, UserRole.DELIVERY];
+
 const roleBadge = (role: UserRole) => {
   const base = 'text-xs px-3 py-1 rounded-full font-semibold';
-  if (role === UserRole.ADMIN) {
-    return `${base} bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-sm`;
-  } else {
-    return `${base} bg-gray-100 text-gray-700`;
+  switch (role) {
+    case UserRole.ADMIN:
+      return `${base} bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-sm`;
+    case UserRole.MANAGEMENT:
+      return `${base} bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm`;
+    case UserRole.IT:
+      return `${base} bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm`;
+    case UserRole.DELIVERY:
+      return `${base} bg-gradient-to-r from-purple-500 to-violet-500 text-white shadow-sm`;
+    default:
+      return `${base} bg-gray-100 text-gray-700`;
   }
 };
 
@@ -212,7 +222,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
               className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none"
             >
               <option value="All">All</option>
-              {Object.values(UserRole).map(role => (
+              {ASSIGNABLE_ROLES.map(role => (
                 <option key={role} value={role}>{role}</option>
               ))}
             </select>
@@ -522,7 +532,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                       value={form.role}
                       onChange={e => setForm(prev => ({ ...prev, role: e.target.value as UserRole }))}
                     >
-                      {Object.values(UserRole).map(role => (
+                      {ASSIGNABLE_ROLES.map(role => (
                         <option key={role} value={role}>{role}</option>
                       ))}
                     </select>
