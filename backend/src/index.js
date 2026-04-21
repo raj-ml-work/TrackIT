@@ -19,6 +19,7 @@ import {
 } from './auth.js';
 import { sanitizeUser } from './utils/user.js';
 import { verifyPassword } from './utils/password.js';
+import { createAuthorize } from './middleware/authorize.js';
 
 const EMPLOYEE_ASSIGNMENT_TYPES = new Set(['Client Billable', 'Bench', 'Support']);
 const EMPLOYEE_FEEDBACK_CATEGORIES = new Set(['General', 'Client Engagement', 'Bench Performance']);
@@ -376,6 +377,9 @@ const buildServer = async () => {
   const app = Fastify({ logger: true });
   const provider = await getProvider(config);
 
+  // Create authorization middleware bound to this provider instance
+  const authorize = createAuthorize(() => provider);
+
   await app.register(cookie);
   const normalizeOrigin = (value) => value.replace(/\/$/, '');
   const allowedOrigins = config.corsOrigins.map(normalizeOrigin);
@@ -558,7 +562,7 @@ const buildServer = async () => {
     return location;
   });
 
-  app.post('/locations', async (request, reply) => {
+  app.post('/locations', { preHandler: authorize('locations', 'create') }, async (request, reply) => {
     const { name, city } = request.body || {};
     if (!name || !city) {
       return reply.code(400).send({ error: 'Name and city are required.' });
@@ -572,7 +576,7 @@ const buildServer = async () => {
     }
   });
 
-  app.put('/locations/:id', async (request, reply) => {
+  app.put('/locations/:id', { preHandler: authorize('locations', 'edit') }, async (request, reply) => {
     const { name, city } = request.body || {};
     if (!name || !city) {
       return reply.code(400).send({ error: 'Name and city are required.' });
@@ -590,7 +594,7 @@ const buildServer = async () => {
     }
   });
 
-  app.delete('/locations/:id', async (request, reply) => {
+  app.delete('/locations/:id', { preHandler: authorize('locations', 'delete') }, async (request, reply) => {
     try {
       await provider.deleteLocation(request.params.id, null);
       return { ok: true };
@@ -611,7 +615,7 @@ const buildServer = async () => {
     return department;
   });
 
-  app.post('/departments', async (request, reply) => {
+  app.post('/departments', { preHandler: authorize('departments', 'create') }, async (request, reply) => {
     const { name, description } = request.body || {};
     if (!name) {
       return reply.code(400).send({ error: 'Name is required.' });
@@ -625,7 +629,7 @@ const buildServer = async () => {
     }
   });
 
-  app.put('/departments/:id', async (request, reply) => {
+  app.put('/departments/:id', { preHandler: authorize('departments', 'edit') }, async (request, reply) => {
     const { name, description } = request.body || {};
     if (!name) {
       return reply.code(400).send({ error: 'Name is required.' });
@@ -643,7 +647,7 @@ const buildServer = async () => {
     }
   });
 
-  app.delete('/departments/:id', async (request, reply) => {
+  app.delete('/departments/:id', { preHandler: authorize('departments', 'delete') }, async (request, reply) => {
     try {
       await provider.deleteDepartment(request.params.id, null);
       return { ok: true };
@@ -683,7 +687,7 @@ const buildServer = async () => {
     return asset;
   });
 
-  app.post('/assets', async (request, reply) => {
+  app.post('/assets', { preHandler: authorize('assets', 'create') }, async (request, reply) => {
     const { name, type, serialNumber } = request.body || {};
     if (!name || !type || !serialNumber) {
       return reply.code(400).send({ error: 'Name, type, and serial number are required.' });
@@ -697,7 +701,7 @@ const buildServer = async () => {
     }
   });
 
-  app.put('/assets/:id', async (request, reply) => {
+  app.put('/assets/:id', { preHandler: authorize('assets', 'edit') }, async (request, reply) => {
     const { name, type, serialNumber } = request.body || {};
     if (!name || !type || !serialNumber) {
       return reply.code(400).send({ error: 'Name, type, and serial number are required.' });
@@ -715,7 +719,7 @@ const buildServer = async () => {
     }
   });
 
-  app.delete('/assets/:id', async (request, reply) => {
+  app.delete('/assets/:id', { preHandler: authorize('assets', 'delete') }, async (request, reply) => {
     try {
       await provider.deleteAsset(request.params.id, null);
       return { ok: true };
@@ -729,7 +733,7 @@ const buildServer = async () => {
     return provider.getAssetComments(request.params.id);
   });
 
-  app.post('/assets/:id/comments', async (request, reply) => {
+  app.post('/assets/:id/comments', { preHandler: authorize('assets', 'edit') }, async (request, reply) => {
     const { authorName, message, type, authorId, createdAt } = request.body || {};
     if (!authorName || !message) {
       return reply.code(400).send({ error: 'Author name and message are required.' });
@@ -769,7 +773,7 @@ const buildServer = async () => {
     });
   });
 
-  app.post('/employees/:id/photo', async (request, reply) => {
+  app.post('/employees/:id/photo', { preHandler: authorize('employees.info', 'edit') }, async (request, reply) => {
     const employee = await provider.getEmployeeById(request.params.id);
     if (!employee) {
       return reply.code(404).send({ error: 'Employee not found.' });
@@ -856,7 +860,7 @@ const buildServer = async () => {
     }
   });
 
-  app.post('/employees/:id/feedback', async (request, reply) => {
+  app.post('/employees/:id/feedback', { preHandler: authorize('employees.feedback', 'edit') }, async (request, reply) => {
     const currentUser = await getRequestUser(request);
     if (!currentUser) {
       return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
@@ -884,7 +888,7 @@ const buildServer = async () => {
     return employee;
   });
 
-  app.post('/employees', async (request, reply) => {
+  app.post('/employees', { preHandler: authorize('employees', 'create') }, async (request, reply) => {
     const { employeeId, personalInfo } = request.body || {};
     if (!employeeId) {
       return reply.code(400).send({ error: 'Employee ID is required.' });
@@ -912,7 +916,7 @@ const buildServer = async () => {
     }
   });
 
-  app.put('/employees/:id', async (request, reply) => {
+  app.put('/employees/:id', { preHandler: authorize('employees.info', 'edit') }, async (request, reply) => {
     const { employeeId, personalInfo } = request.body || {};
     if (!employeeId) {
       return reply.code(400).send({ error: 'Employee ID is required.' });
@@ -964,7 +968,7 @@ const buildServer = async () => {
     }
   });
 
-  app.delete('/employees/:id', async (request, reply) => {
+  app.delete('/employees/:id', { preHandler: authorize('employees', 'delete') }, async (request, reply) => {
     try {
       const existing = await provider.getEmployeeById(request.params.id);
       const localPhotoToDelete = isLocalEmployeePhotoPath(existing?.personalInfo?.photoUrl)
@@ -982,7 +986,7 @@ const buildServer = async () => {
     }
   });
 
-  app.get('/users', async (request) => {
+  app.get('/users', { preHandler: authorize('users', 'view') }, async (request) => {
     const { email } = request.query || {};
     if (email) {
       const user = await provider.getUserByEmail(email);
@@ -1001,22 +1005,17 @@ const buildServer = async () => {
     return sanitizeUser(user);
   });
 
-  app.post('/users', async (request, reply) => {
+  app.post('/users', { preHandler: authorize('users', 'create') }, async (request, reply) => {
     const { name, email, role, status, password } = request.body || {};
     if (!name || !email || !role || !status || !password) {
       return reply.code(400).send({ error: 'Name, email, role, status, and password are required.' });
-    }
-
-    const currentUser = await getRequestUser(request);
-    if (!currentUser) {
-      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
     }
 
     try {
       const created = await provider.createUser(
         { name, email, role, status },
         password,
-        currentUser
+        request.currentUser
       );
       return reply.code(201).send(sanitizeUser(created));
     } catch (error) {
@@ -1024,21 +1023,16 @@ const buildServer = async () => {
     }
   });
 
-  app.put('/users/:id', async (request, reply) => {
+  app.put('/users/:id', { preHandler: authorize('users', 'edit') }, async (request, reply) => {
     const { name, email, role, status } = request.body || {};
     if (!name || !email || !role || !status) {
       return reply.code(400).send({ error: 'Name, email, role, and status are required.' });
     }
 
-    const currentUser = await getRequestUser(request);
-    if (!currentUser) {
-      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
-    }
-
     try {
       const updated = await provider.updateUser(
         { id: request.params.id, name, email, role, status },
-        currentUser
+        request.currentUser
       );
       return sanitizeUser(updated);
     } catch (error) {
@@ -1070,18 +1064,13 @@ const buildServer = async () => {
     }
   });
 
-  app.post('/users/:id/reset-password', async (request, reply) => {
+  app.post('/users/:id/reset-password', { preHandler: authorize('users', 'edit') }, async (request, reply) => {
     const { passwordOption } = request.body || {};
-
-    const currentUser = await getRequestUser(request);
-    if (!currentUser) {
-      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
-    }
 
     try {
       const temporaryPassword = await provider.resetUserPassword(
         request.params.id,
-        currentUser,
+        request.currentUser,
         passwordOption
       );
       return { temporaryPassword };
@@ -1090,14 +1079,9 @@ const buildServer = async () => {
     }
   });
 
-  app.delete('/users/:id', async (request, reply) => {
-    const currentUser = await getRequestUser(request);
-    if (!currentUser) {
-      return reply.code(401).send({ error: 'Authorization token missing or invalid.' });
-    }
-
+  app.delete('/users/:id', { preHandler: authorize('users', 'delete') }, async (request, reply) => {
     try {
-      await provider.deleteUser(request.params.id, currentUser);
+      await provider.deleteUser(request.params.id, request.currentUser);
       return { ok: true };
     } catch (error) {
       const statusCode = error.message === 'User not found' ? 404 : 400;
