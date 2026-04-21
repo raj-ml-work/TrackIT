@@ -10,6 +10,8 @@ interface DashboardProps {
   assets: Asset[];
   locations: Location[];
   employees: Employee[];
+  canViewAssets?: boolean;
+  canViewEmployees?: boolean;
 }
 
 const COLORS = ['#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#f59e0b'];
@@ -21,16 +23,28 @@ const STATUS_COLORS: Record<AssetStatus, string> = {
   [AssetStatus.RETIRED]: '#94a3b8'
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) => {
+const Dashboard: React.FC<DashboardProps> = ({ 
+  assets, 
+  locations, 
+  employees,
+  canViewAssets = true,
+  canViewEmployees = true
+}) => {
   const [insight, setInsight] = useState<string>("");
   const [loadingInsight, setLoadingInsight] = useState(false);
 
+  // Asset stats
   const totalValue = assets.reduce((acc, curr) => acc + curr.cost, 0);
   const isUtilized = (asset: Asset) =>
     asset.status === AssetStatus.IN_USE || asset.status === AssetStatus.ASSIGNED;
   const inUseCount = assets.filter(isUtilized).length;
   const utilizationRate = assets.length > 0 ? Math.round((inUseCount / assets.length) * 100) : 0;
   
+  // Employee stats
+  const totalEmployees = employees.length;
+  const benchEmployees = employees.filter(e => e.officialInfo?.assignmentType === 'Bench').length;
+  const billableEmployees = employees.filter(e => e.officialInfo?.assignmentType === 'Client Billable').length;
+
   // Calculate expiring warranties (next 90 days)
   const expiringCount = assets.filter(a => {
     const today = new Date();
@@ -139,11 +153,11 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
 
   useEffect(() => {
     // Initial insight generation if API key is present
-    if (process.env.API_KEY && assets.length > 0 && !insight) {
+    if (process.env.API_KEY && assets.length > 0 && !insight && canViewAssets) {
       handleGenerateInsight();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assets]); // Only re-run if assets change drastically or on mount
+  }, [assets, canViewAssets]); // Only re-run if assets change drastically or on mount
 
   const handleGenerateInsight = async () => {
     setLoadingInsight(true);
@@ -154,460 +168,609 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, locations, employees }) =
 
   return (
     <div className="space-y-6">
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <GlassCard hoverEffect>
-          <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-              <Package size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Total Assets</p>
-              <h3 className="text-2xl font-bold text-gray-800">{assets.length}</h3>
-            </div>
-          </div>
-        </GlassCard>
-
-        <GlassCard hoverEffect>
-          <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-full bg-emerald-100 text-emerald-600">
-              <IndianRupee size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Total Value</p>
-              <h3 className="text-2xl font-bold text-gray-800">₹{totalValue.toLocaleString()}</h3>
-            </div>
-          </div>
-        </GlassCard>
-
-        <GlassCard hoverEffect>
-          <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-full bg-violet-100 text-violet-600">
-              <TrendingUp size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Utilization</p>
-              <h3 className="text-2xl font-bold text-gray-800">{utilizationRate}%</h3>
-            </div>
-          </div>
-        </GlassCard>
-
-        <GlassCard hoverEffect>
-          <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-full bg-rose-100 text-rose-600">
-              <AlertCircle size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Warranty Alerts</p>
-              <h3 className="text-2xl font-bold text-gray-800">{expiringCount}</h3>
-            </div>
-          </div>
-        </GlassCard>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <GlassCard className="lg:col-span-2">
-           <div className="flex justify-between items-center mb-4">
-             <div>
-               <h3 className="text-lg font-bold text-gray-800">Asset Utilization</h3>
-               <p className="text-xs text-gray-500 mt-1">Available, assigned, and maintenance by type</p>
-             </div>
-             <div className="flex items-center gap-3 text-xs text-gray-600">
-               <span className="flex items-center gap-1.5">
-                 <span
-                   className="w-2.5 h-2.5 rounded-full"
-                   style={{ backgroundColor: '#093163' }}
-                 />
-                 Assigned
-               </span>
-               <span className="flex items-center gap-1.5">
-                 <span
-                   className="w-2.5 h-2.5 rounded-full"
-                   style={{ backgroundColor: '#3cad43' }}
-                 />
-                 Available
-               </span>
-               <span className="flex items-center gap-1.5">
-                 <span
-                   className="w-2.5 h-2.5 rounded-full"
-                   style={{ backgroundColor: '#f59e0b' }}
-                 />
-                 Maintenance
-               </span>
-             </div>
-           </div>
-           <div className="h-64 w-full">
-             <ResponsiveContainer width="100%" height="100%">
-               <BarChart data={typeData} barCategoryGap={18}>
-                 <defs>
-                 <linearGradient id="assignedGradient" x1="0" y1="0" x2="0" y2="1">
-                   <stop offset="0%" stopColor="#556b87" stopOpacity={0.85} />
-                   <stop offset="100%" stopColor="#093163" stopOpacity={0.95} />
-                 </linearGradient>
-                 <linearGradient id="availableGradient" x1="0" y1="0" x2="0" y2="1">
-                   <stop offset="0%" stopColor="#6ad06f" stopOpacity={0.9} />
-                   <stop offset="100%" stopColor="#3cad43" stopOpacity={0.95} />
-                 </linearGradient>
-                 <linearGradient id="maintenanceGradient" x1="0" y1="0" x2="0" y2="1">
-                   <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.9} />
-                   <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.95} />
-                 </linearGradient>
-                 </defs>
-                 <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" vertical={false} />
-                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                 <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                 <Tooltip 
-                    cursor={{fill: 'transparent'}}
-                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }} 
-                 />
-                 <Bar
-                   dataKey="assigned"
-                   name="Assigned"
-                   stackId="utilization"
-                   fill="url(#assignedGradient)"
-                   radius={[6, 6, 6, 6]}
-                   barSize={26}
-                 />
-                 <Bar
-                   dataKey="available"
-                   name="Available"
-                   stackId="utilization"
-                   fill="url(#availableGradient)"
-                   radius={[6, 6, 6, 6]}
-                   barSize={26}
-                 />
-                 <Bar
-                   dataKey="maintenance"
-                   name="Maintenance"
-                   stackId="utilization"
-                   fill="url(#maintenanceGradient)"
-                   radius={[6, 6, 6, 6]}
-                   barSize={26}
-                 />
-               </BarChart>
-             </ResponsiveContainer>
-           </div>
-        </GlassCard>
-
-        <GlassCard>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800">Status Breakdown</h3>
-              <p className="text-xs text-gray-500 mt-1">Current asset lifecycle state</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">Total Assets</p>
-              <p className="text-lg font-semibold text-gray-800">{assets.length}</p>
-            </div>
-          </div>
-          <div className="h-60 w-full relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <defs>
-                  {statusData.map((entry) => (
-                    <linearGradient
-                      key={`grad-${entry.name}`}
-                      id={`statusGrad-${entry.name.replace(/\s+/g, '')}`}
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop offset="0%" stopColor={entry.color} stopOpacity={0.95} />
-                      <stop offset="100%" stopColor={entry.color} stopOpacity={0.55} />
-                    </linearGradient>
-                  ))}
-                </defs>
-                <Pie
-                  data={[{ name: 'track', count: assets.length || 1 }]}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={64}
-                  outerRadius={86}
-                  dataKey="count"
-                  fill="#eef2f7"
-                  stroke="none"
-                />
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={64}
-                  outerRadius={86}
-                  paddingAngle={3}
-                  dataKey="count"
-                  stroke="#f8fafc"
-                  strokeWidth={2}
-                >
-                  {statusData.map((entry) => (
-                    <Cell
-                      key={`cell-${entry.name}`}
-                      fill={`url(#statusGrad-${entry.name.replace(/\s+/g, '')})`}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="text-center">
-                <span className="block text-2xl font-bold text-gray-800">{assets.length}</span>
-                <span className="text-xs text-gray-500 uppercase tracking-wider">Total</span>
+        {canViewAssets ? (
+          <>
+            <GlassCard hoverEffect>
+              <div className="flex items-center space-x-4">
+                <div className="p-3 rounded-full bg-blue-100 text-blue-600">
+                  <Package size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Total Assets</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{assets.length}</h3>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {statusData.map((status) => (
-              <div
-                key={status.name}
-                className="flex items-center gap-2 rounded-full border border-gray-100 bg-white px-3 py-1.5 text-xs shadow-sm"
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: status.color }}
-                />
-                <span className="font-medium text-gray-600">{status.name}</span>
-                <span className="font-semibold text-gray-800">{status.count}</span>
+            </GlassCard>
+
+            <GlassCard hoverEffect>
+              <div className="flex items-center space-x-4">
+                <div className="p-3 rounded-full bg-emerald-100 text-emerald-600">
+                  <IndianRupee size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Total Value</p>
+                  <h3 className="text-2xl font-bold text-gray-800">₹{totalValue.toLocaleString()}</h3>
+                </div>
               </div>
-            ))}
-          </div>
-        </GlassCard>
+            </GlassCard>
+
+            <GlassCard hoverEffect>
+              <div className="flex items-center space-x-4">
+                <div className="p-3 rounded-full bg-violet-100 text-violet-600">
+                  <TrendingUp size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Utilization</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{utilizationRate}%</h3>
+                </div>
+              </div>
+            </GlassCard>
+
+            <GlassCard hoverEffect>
+              <div className="flex items-center space-x-4">
+                <div className="p-3 rounded-full bg-rose-100 text-rose-600">
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Warranty Alerts</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{expiringCount}</h3>
+                </div>
+              </div>
+            </GlassCard>
+          </>
+        ) : canViewEmployees ? (
+          <>
+            <GlassCard hoverEffect>
+              <div className="flex items-center space-x-4">
+                <div className="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                  <Package size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Total Employees</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{totalEmployees}</h3>
+                </div>
+              </div>
+            </GlassCard>
+
+            <GlassCard hoverEffect>
+              <div className="flex items-center space-x-4">
+                <div className="p-3 rounded-full bg-amber-100 text-amber-600">
+                  <TrendingUp size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">On Bench</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{benchEmployees}</h3>
+                </div>
+              </div>
+            </GlassCard>
+
+            <GlassCard hoverEffect>
+              <div className="flex items-center space-x-4">
+                <div className="p-3 rounded-full bg-emerald-100 text-emerald-600">
+                  <TrendingUp size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Billable</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{billableEmployees}</h3>
+                </div>
+              </div>
+            </GlassCard>
+
+            <GlassCard hoverEffect>
+              <div className="flex items-center space-x-4">
+                <div className="p-3 rounded-full bg-violet-100 text-violet-600">
+                  <TrendingUp size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Active Rate</p>
+                  <h3 className="text-2xl font-bold text-gray-800">
+                    {totalEmployees > 0 ? Math.round((billableEmployees / totalEmployees) * 100) : 0}%
+                  </h3>
+                </div>
+              </div>
+            </GlassCard>
+          </>
+        ) : null}
       </div>
 
-      {/* Laptop Status Widgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GlassCard>
-          <div className="flex items-center gap-3 mb-6">
-            <Package className="text-emerald-500" size={20} />
-            <div>
-              <h3 className="text-lg font-bold text-gray-800">Laptops by Location</h3>
-              <p className="text-xs text-gray-500">Used vs available</p>
-            </div>
-          </div>
-          {laptopLocationStats.length > 0 ? (
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={laptopLocationStats}
-                  layout="vertical"
-                  margin={{ left: 16, right: 16 }}
-                >
-                  <defs>
-                    <linearGradient id="laptopUsedGradient" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#1f4f8a" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#093266" stopOpacity={0.9} />
-                    </linearGradient>
-                    <linearGradient id="laptopAvailableGradient" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#6ad06f" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#3faf43" stopOpacity={0.9} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" horizontal={false} />
-                  <XAxis type="number" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="location"
-                    width={120}
-                    stroke="#94a3b8"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    cursor={{ fill: 'transparent' }}
-                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }}
-                  />
-                  <Bar dataKey="used" name="Used" stackId="a" fill="url(#laptopUsedGradient)" radius={[8, 8, 8, 8]} />
-                  <Bar dataKey="available" name="Available" stackId="a" fill="url(#laptopAvailableGradient)" radius={[8, 8, 8, 8]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-400">
-              <Package size={40} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No laptop data available</p>
-            </div>
-          )}
-        </GlassCard>
 
-        <GlassCard>
-          <div className="flex items-center gap-3 mb-6">
-            <TrendingUp className="text-indigo-500" size={20} />
-            <div>
-              <h3 className="text-lg font-bold text-gray-800">Laptops by Department</h3>
-              <p className="text-xs text-gray-500">Assigned laptop usage</p>
-            </div>
-          </div>
-          {laptopDepartmentStats.length > 0 ? (
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={laptopDepartmentStats} margin={{ left: 8, right: 16, bottom: 16 }}>
-                  <defs>
-                    <linearGradient id="departmentUsageGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#6ad06f" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#3cad43" stopOpacity={0.95} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" vertical={false} />
-                  <XAxis
-                    dataKey="department"
-                    stroke="#94a3b8"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={0}
-                    angle={-15}
-                    textAnchor="end"
-                    height={48}
-                  />
-                  <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    cursor={{ fill: 'transparent' }}
-                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }}
-                  />
-                  <Bar dataKey="used" name="Used" fill="url(#departmentUsageGradient)" radius={[6, 6, 0, 0]} barSize={26} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-400">
-              <TrendingUp size={40} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No assigned laptops yet</p>
-            </div>
-          )}
-        </GlassCard>
-      </div>
-
-      {/* Location Distribution Widgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Location Name Distribution */}
-        <GlassCard>
-          <div className="flex items-center gap-3 mb-6">
-            <MapPin className="text-green-500" size={20} />
-            <h3 className="text-lg font-bold text-gray-800">Distribution by Location</h3>
-          </div>
-          {locationData.length > 0 ? (
-            <div className="space-y-3">
-              {locationData.map((loc, index) => {
-                const percentage = assets.length > 0 ? Math.round((loc.assets / assets.length) * 100) : 0;
-                return (
-                  <motion.div
-                    key={`${loc.name || 'location'}-${index}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="flex items-center gap-4"
-                  >
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-semibold text-gray-800">{loc.name}</span>
-                        <span className="text-sm text-gray-600">{loc.assets} assets ({percentage}%)</span>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${percentage}%` }}
-                          transition={{ duration: 0.8, delay: index * 0.1 }}
-                          className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full"
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-400">
-              <MapPin size={40} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No location data available</p>
-            </div>
-          )}
-        </GlassCard>
-
-        {/* City Distribution */}
-        <GlassCard>
-          <div className="flex items-center gap-3 mb-6">
-            <MapPin className="text-blue-500" size={20} />
-            <h3 className="text-lg font-bold text-gray-800">Distribution by City</h3>
-          </div>
-          {cityDistribution.length > 0 ? (
-            <div className="space-y-3">
-              {cityDistribution.map((city, index) => {
-                const percentage = assets.length > 0 ? Math.round((city.assets / assets.length) * 100) : 0;
-                return (
-                  <motion.div
-                    key={city.name}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="flex items-center gap-4"
-                  >
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-semibold text-gray-800">{city.name}</span>
-                        <span className="text-sm text-gray-600">{city.assets} assets ({percentage}%)</span>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${percentage}%` }}
-                          transition={{ duration: 0.8, delay: index * 0.1 }}
-                          className="h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full"
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-400">
-              <MapPin size={40} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No city data available</p>
-            </div>
-          )}
-        </GlassCard>
-      </div>
-
-      <GlassCard className="relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-          <Sparkles size={100} />
-        </div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-3">
-             <Sparkles className="text-violet-500" size={20} />
-             <h3 className="text-lg font-bold text-gray-800">TrackIT Insights</h3>
-          </div>
-          
-          <div className="min-h-[60px]">
-            {loadingInsight ? (
-               <div className="flex items-center space-x-2 text-gray-500 animate-pulse">
-                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
-                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                 <span>Analyzing inventory patterns...</span>
+      {canViewAssets ? (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <GlassCard className="lg:col-span-2">
+               <div className="flex justify-between items-center mb-4">
+                 <div>
+                   <h3 className="text-lg font-bold text-gray-800">Asset Utilization</h3>
+                   <p className="text-xs text-gray-500 mt-1">Available, assigned, and maintenance by type</p>
+                 </div>
+                 <div className="flex items-center gap-3 text-xs text-gray-600">
+                   <span className="flex items-center gap-1.5">
+                     <span
+                       className="w-2.5 h-2.5 rounded-full"
+                       style={{ backgroundColor: '#093163' }}
+                     />
+                     Assigned
+                   </span>
+                   <span className="flex items-center gap-1.5">
+                     <span
+                       className="w-2.5 h-2.5 rounded-full"
+                       style={{ backgroundColor: '#3cad43' }}
+                     />
+                     Available
+                   </span>
+                   <span className="flex items-center gap-1.5">
+                     <span
+                       className="w-2.5 h-2.5 rounded-full"
+                       style={{ backgroundColor: '#f59e0b' }}
+                     />
+                     Maintenance
+                   </span>
+                 </div>
                </div>
-            ) : (
-              <motion.p 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-gray-600 leading-relaxed max-w-4xl"
-              >
-                {insight || "Connect your API key and add assets to receive AI-powered optimization summaries."}
-              </motion.p>
-            )}
+               <div className="h-64 w-full">
+                 <ResponsiveContainer width="100%" height="100%">
+                   <BarChart data={typeData} barCategoryGap={18}>
+                     <defs>
+                     <linearGradient id="assignedGradient" x1="0" y1="0" x2="0" y2="1">
+                       <stop offset="0%" stopColor="#556b87" stopOpacity={0.85} />
+                       <stop offset="100%" stopColor="#093163" stopOpacity={0.95} />
+                     </linearGradient>
+                     <linearGradient id="availableGradient" x1="0" y1="0" x2="0" y2="1">
+                       <stop offset="0%" stopColor="#6ad06f" stopOpacity={0.9} />
+                       <stop offset="100%" stopColor="#3cad43" stopOpacity={0.95} />
+                     </linearGradient>
+                     <linearGradient id="maintenanceGradient" x1="0" y1="0" x2="0" y2="1">
+                       <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.9} />
+                       <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.95} />
+                     </linearGradient>
+                     </defs>
+                     <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" vertical={false} />
+                     <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                     <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                     <Tooltip 
+                        cursor={{fill: 'transparent'}}
+                        contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }} 
+                     />
+                     <Bar
+                       dataKey="assigned"
+                       name="Assigned"
+                       stackId="utilization"
+                       fill="url(#assignedGradient)"
+                       radius={[6, 6, 6, 6]}
+                       barSize={26}
+                     />
+                     <Bar
+                       dataKey="available"
+                       name="Available"
+                       stackId="utilization"
+                       fill="url(#availableGradient)"
+                       radius={[6, 6, 6, 6]}
+                       barSize={26}
+                     />
+                     <Bar
+                       dataKey="maintenance"
+                       name="Maintenance"
+                       stackId="utilization"
+                       fill="url(#maintenanceGradient)"
+                       radius={[6, 6, 6, 6]}
+                       barSize={26}
+                     />
+                   </BarChart>
+                 </ResponsiveContainer>
+               </div>
+            </GlassCard>
+
+            <GlassCard>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Status Breakdown</h3>
+                  <p className="text-xs text-gray-500 mt-1">Current asset lifecycle state</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500">Total Assets</p>
+                  <p className="text-lg font-semibold text-gray-800">{assets.length}</p>
+                </div>
+              </div>
+              <div className="h-60 w-full relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <defs>
+                      {statusData.map((entry) => (
+                        <linearGradient
+                          key={`grad-${entry.name}`}
+                          id={`statusGrad-${entry.name.replace(/\s+/g, '')}`}
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop offset="0%" stopColor={entry.color} stopOpacity={0.95} />
+                          <stop offset="100%" stopColor={entry.color} stopOpacity={0.55} />
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <Pie
+                      data={[{ name: 'track', count: assets.length || 1 }]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={64}
+                      outerRadius={86}
+                      dataKey="count"
+                      fill="#eef2f7"
+                      stroke="none"
+                    />
+                    <Pie
+                      data={statusData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={64}
+                      outerRadius={86}
+                      paddingAngle={3}
+                      dataKey="count"
+                      stroke="#f8fafc"
+                      strokeWidth={2}
+                    >
+                      {statusData.map((entry) => (
+                        <Cell
+                          key={`cell-${entry.name}`}
+                          fill={`url(#statusGrad-${entry.name.replace(/\s+/g, '')})`}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <span className="block text-2xl font-bold text-gray-800">{assets.length}</span>
+                    <span className="text-xs text-gray-500 uppercase tracking-wider">Total</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {statusData.map((status) => (
+                  <div
+                    key={status.name}
+                    className="flex items-center gap-2 rounded-full border border-gray-100 bg-white px-3 py-1.5 text-xs shadow-sm"
+                  >
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: status.color }}
+                    />
+                    <span className="font-medium text-gray-600">{status.name}</span>
+                    <span className="font-semibold text-gray-800">{status.count}</span>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
           </div>
-          
-          <div className="mt-4">
-             <button 
-                onClick={handleGenerateInsight}
-                disabled={loadingInsight}
-                className="text-sm font-medium text-violet-600 hover:text-violet-800 transition-colors flex items-center gap-1"
-             >
-               Refresh Analysis
-             </button>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <GlassCard>
+              <div className="flex items-center gap-3 mb-6">
+                <Package className="text-emerald-500" size={20} />
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Laptops by Location</h3>
+                  <p className="text-xs text-gray-500">Used vs available</p>
+                </div>
+              </div>
+              {laptopLocationStats.length > 0 ? (
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={laptopLocationStats}
+                      layout="vertical"
+                      margin={{ left: 16, right: 16 }}
+                    >
+                      <defs>
+                        <linearGradient id="laptopUsedGradient" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#1f4f8a" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#093266" stopOpacity={0.9} />
+                        </linearGradient>
+                        <linearGradient id="laptopAvailableGradient" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#6ad06f" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#3faf43" stopOpacity={0.9} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" horizontal={false} />
+                      <XAxis type="number" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="location"
+                        width={120}
+                        stroke="#94a3b8"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip
+                        cursor={{ fill: 'transparent' }}
+                        contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }}
+                      />
+                      <Bar dataKey="used" name="Used" stackId="a" fill="url(#laptopUsedGradient)" radius={[8, 8, 8, 8]} />
+                      <Bar dataKey="available" name="Available" stackId="a" fill="url(#laptopAvailableGradient)" radius={[8, 8, 8, 8]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <Package size={40} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No laptop data available</p>
+                </div>
+              )}
+            </GlassCard>
+
+            <GlassCard>
+              <div className="flex items-center gap-3 mb-6">
+                <TrendingUp className="text-indigo-500" size={20} />
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Laptops by Department</h3>
+                  <p className="text-xs text-gray-500">Assigned laptop usage</p>
+                </div>
+              </div>
+              {laptopDepartmentStats.length > 0 ? (
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={laptopDepartmentStats} margin={{ left: 8, right: 16, bottom: 16 }}>
+                      <defs>
+                        <linearGradient id="departmentUsageGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#6ad06f" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#3cad43" stopOpacity={0.95} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 8" stroke="#e5e7eb" vertical={false} />
+                      <XAxis
+                        dataKey="department"
+                        stroke="#94a3b8"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        interval={0}
+                        angle={-15}
+                        textAnchor="end"
+                        height={48}
+                      />
+                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        cursor={{ fill: 'transparent' }}
+                        contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 6px 18px rgba(15,23,42,0.12)' }}
+                      />
+                      <Bar dataKey="used" name="Used" fill="url(#departmentUsageGradient)" radius={[6, 6, 0, 0]} barSize={26} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <TrendingUp size={40} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No assigned laptops yet</p>
+                </div>
+              )}
+            </GlassCard>
           </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <GlassCard>
+              <div className="flex items-center gap-3 mb-6">
+                <MapPin className="text-green-500" size={20} />
+                <h3 className="text-lg font-bold text-gray-800">Distribution by Location</h3>
+              </div>
+              {locationData.length > 0 ? (
+                <div className="space-y-3">
+                  {locationData.map((loc, index) => {
+                    const percentage = assets.length > 0 ? Math.round((loc.assets / assets.length) * 100) : 0;
+                    return (
+                      <motion.div
+                        key={`${loc.name || 'location'}-${index}`}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="flex items-center gap-4"
+                      >
+                        <div className="flex-1">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-semibold text-gray-800">{loc.name}</span>
+                            <span className="text-sm text-gray-600">{loc.assets} assets ({percentage}%)</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${percentage}%` }}
+                              transition={{ duration: 0.8, delay: index * 0.1 }}
+                              className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full"
+                            />
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <MapPin size={40} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No location data available</p>
+                </div>
+              )}
+            </GlassCard>
+
+            <GlassCard>
+              <div className="flex items-center gap-3 mb-6">
+                <MapPin className="text-blue-500" size={20} />
+                <h3 className="text-lg font-bold text-gray-800">Distribution by City</h3>
+              </div>
+              {cityDistribution.length > 0 ? (
+                <div className="space-y-3">
+                  {cityDistribution.map((city, index) => {
+                    const percentage = assets.length > 0 ? Math.round((city.assets / assets.length) * 100) : 0;
+                    return (
+                      <motion.div
+                        key={city.name}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="flex items-center gap-4"
+                      >
+                        <div className="flex-1">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-semibold text-gray-800">{city.name}</span>
+                            <span className="text-sm text-gray-600">{city.assets} assets ({percentage}%)</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${percentage}%` }}
+                              transition={{ duration: 0.8, delay: index * 0.1 }}
+                              className="h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full"
+                            />
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <MapPin size={40} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No city data available</p>
+                </div>
+              )}
+            </GlassCard>
+          </div>
+
+          <GlassCard className="relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <Sparkles size={100} />
+            </div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-3">
+                 <Sparkles className="text-violet-500" size={20} />
+                 <h3 className="text-lg font-bold text-gray-800">TrackIT Insights</h3>
+              </div>
+              
+              <div className="min-h-[60px]">
+                {loadingInsight ? (
+                   <div className="flex items-center space-x-2 text-gray-500 animate-pulse">
+                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                     <span>Analyzing inventory patterns...</span>
+                   </div>
+                ) : (
+                  <motion.p 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-gray-600 leading-relaxed max-w-4xl"
+                  >
+                    {insight || "Connect your API key and add assets to receive AI-powered optimization summaries."}
+                  </motion.p>
+                )}
+              </div>
+              
+              <div className="mt-4">
+                 <button 
+                    onClick={handleGenerateInsight}
+                    disabled={loadingInsight}
+                    className="text-sm font-medium text-violet-600 hover:text-violet-800 transition-colors flex items-center gap-1"
+                 >
+                   Refresh Analysis
+                 </button>
+              </div>
+            </div>
+          </GlassCard>
+        </>
+      ) : canViewEmployees ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <GlassCard>
+             <h3 className="text-lg font-bold text-gray-800 mb-4">Resource Distribution</h3>
+             <div className="h-64">
+               <ResponsiveContainer width="100%" height="100%">
+                 <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Billable', value: billableEmployees, color: '#10b981' },
+                        { name: 'Bench', value: benchEmployees, color: '#f59e0b' },
+                        { name: 'Other', value: totalEmployees - billableEmployees - benchEmployees, color: '#94a3b8' }
+                      ].filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {[
+                        { name: 'Billable', value: billableEmployees, color: '#10b981' },
+                        { name: 'Bench', value: benchEmployees, color: '#f59e0b' },
+                        { name: 'Other', value: totalEmployees - billableEmployees - benchEmployees, color: '#94a3b8' }
+                      ].filter(d => d.value > 0).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                 </PieChart>
+               </ResponsiveContainer>
+             </div>
+             <div className="flex justify-center gap-4 mt-2">
+                <div className="flex items-center gap-2">
+                   <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                   <span className="text-xs text-gray-600 font-medium">Billable</span>
+                </div>
+                <div className="flex items-center gap-2">
+                   <div className="w-3 h-3 rounded-full bg-amber-500" />
+                   <span className="text-xs text-gray-600 font-medium">Bench</span>
+                </div>
+                <div className="flex items-center gap-2">
+                   <div className="w-3 h-3 rounded-full bg-slate-400" />
+                   <span className="text-xs text-gray-600 font-medium">Other</span>
+                </div>
+             </div>
+          </GlassCard>
+
+          <GlassCard>
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Top Departments</h3>
+            <div className="space-y-4">
+              {(() => {
+                const deptCounts = new Map<string, number>();
+                employees.forEach(e => {
+                  const dept = e.department || 'Unassigned';
+                  deptCounts.set(dept, (deptCounts.get(dept) || 0) + 1);
+                });
+                return Array.from(deptCounts.entries())
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 5)
+                  .map(([dept, count], idx) => {
+                    const percentage = Math.round((count / totalEmployees) * 100);
+                    return (
+                      <div key={dept} className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="font-semibold text-gray-700">{dept}</span>
+                          <span className="text-gray-500">{count} employees</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-indigo-500 rounded-full"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  });
+              })()}
+            </div>
+          </GlassCard>
         </div>
-      </GlassCard>
+      ) : (
+        <div className="p-12 text-center bg-white rounded-2xl border border-gray-100 shadow-sm">
+           <AlertCircle className="mx-auto text-gray-300 mb-4" size={48} />
+           <h3 className="text-lg font-bold text-gray-800">No Dashboard Access</h3>
+           <p className="text-sm text-gray-500 mt-2">You don't have permission to view inventory or employee metrics.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
     </div>
   );
 };

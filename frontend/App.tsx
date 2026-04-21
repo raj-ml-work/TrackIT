@@ -1057,8 +1057,14 @@ const App: React.FC = () => {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
             >
-              {currentView === View.DASHBOARD && (
-                <Dashboard assets={assets} locations={locations} employees={employees} />
+                {currentView === View.DASHBOARD && (
+                <Dashboard 
+                  assets={assets} 
+                  locations={locations} 
+                  employees={employees} 
+                  canViewAssets={checkPermission(session?.user || null, 'assets', 'view')}
+                  canViewEmployees={checkPermission(session?.user || null, 'employees', 'view')}
+                />
               )}
               {currentView === View.INVENTORY && checkPermission(session?.user || null, 'assets', 'view') && (
                 <AssetManager
