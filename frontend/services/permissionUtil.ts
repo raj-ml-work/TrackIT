@@ -38,6 +38,7 @@ const PERMISSION_REGISTRY: PermissionEntry[] = [
   // ── Employees — core records ──
   { resource: 'employees',      action: 'view',   roles: ['Admin', 'Management', 'IT', 'Delivery'] },
   { resource: 'employees',      action: 'create', roles: ['Admin', 'IT'] },
+  { resource: 'employees.info', action: 'view',   roles: ['Admin', 'Management', 'IT'] },
   { resource: 'employees.info', action: 'edit',   roles: ['Admin', 'IT'] },
   { resource: 'employees',      action: 'delete', roles: ['Admin'] },
 

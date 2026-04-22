@@ -6,7 +6,7 @@ import Settings from './components/Settings';
 import UserManagement from './components/UserManagement';
 import EmployeeManagement from './components/EmployeeManagement';
 import LocationManagement from './components/LocationManagement';
-import DepartmentManagement from './components/DepartmentManagement';
+import DepartmentManagementPage from './src/pages/DepartmentManagementPage';
 import ManagementDashboard from './components/ManagementDashboard';
 import Login from './components/Login';
 import ProfilePanel from './components/ProfilePanel';
@@ -301,7 +301,7 @@ const App: React.FC = () => {
 
         // Load data from backend if configured
         if (dbReady) {
-          await loadDataFromBackend();
+          await loadDataFromBackend(restored?.user || null);
         } else {
           setAssets(MOCK_ASSETS);
           setEmployees(MOCK_EMPLOYEES);
@@ -320,30 +320,41 @@ const App: React.FC = () => {
   }, []);
 
   // Load data from backend
-  const loadDataFromBackend = async () => {
+  const loadDataFromBackend = async (userOverride?: UserAccount | null) => {
     setIsDataLoading(true);
     try {
+      const user = userOverride !== undefined ? userOverride : (session?.user || null);
       const [assetsData, employeesData, locationsData, usersData, departmentsData] = await Promise.all([
-        getAssets().catch(err => {
-          console.error('Error loading assets:', err);
-          return MOCK_ASSETS;
-        }),
-        getEmployees().catch(err => {
-          console.error('Error loading employees:', err);
-          return [];
-        }),
-        getLocations().catch(err => {
-          console.error('Error loading locations:', err);
-          throw err; // Don't fallback to mock data for locations
-        }),
-        getUsers().catch(err => {
-          console.error('Error loading users:', err);
-          return MOCK_USERS;
-        }),
-        getDepartments().catch(err => {
-          console.error('Error loading departments:', err);
-          return []; // Fallback to empty array for departments
-        })
+        checkPermission(user, 'assets', 'view') 
+          ? getAssets().catch(err => {
+              console.error('Error loading assets:', err);
+              return MOCK_ASSETS;
+            })
+          : Promise.resolve([]),
+        checkPermission(user, 'employees', 'view')
+          ? getEmployees().catch(err => {
+              console.error('Error loading employees:', err);
+              return [];
+            })
+          : Promise.resolve([]),
+        checkPermission(user, 'locations', 'view')
+          ? getLocations().catch(err => {
+              console.error('Error loading locations:', err);
+              throw err;
+            })
+          : Promise.resolve([]),
+        checkPermission(user, 'users', 'view')
+          ? getUsers().catch(err => {
+              console.error('Error loading users:', err);
+              return MOCK_USERS;
+            })
+          : Promise.resolve([]),
+        checkPermission(user, 'departments', 'view')
+          ? getDepartments().catch(err => {
+              console.error('Error loading departments:', err);
+              return [];
+            })
+          : Promise.resolve([])
       ]);
 
       setAssets(assetsData);
@@ -370,6 +381,9 @@ const App: React.FC = () => {
     const newSession = await authClient.login(credentials);
     setSession(newSession);
     authClient.saveSession(newSession);
+    if (useBackend) {
+      await loadDataFromBackend(newSession.user);
+    }
   };
 
   const handleLogout = async () => {
@@ -881,6 +895,35 @@ const App: React.FC = () => {
    }
   };
 
+  // Load fresh department data when navigating to departments view
+  const loadFreshDepartmentData = async () => {
+    try {
+      const freshDepartments = await getDepartments();
+      setDepartments(freshDepartments);
+    } catch (error) {
+      console.error('Error loading fresh department data:', error);
+    }
+  };
+
+  // Refresh department data when navigating to departments view
+  useEffect(() => {
+    if (currentView === View.DEPARTMENTS && useBackend) {
+      loadFreshDepartmentData();
+    }
+  }, [currentView, useBackend]);
+
+  // Refresh department and location data when navigating to employees view
+  useEffect(() => {
+    if (currentView === View.EMPLOYEES && useBackend) {
+      if (checkPermission(session?.user || null, 'departments', 'view')) {
+        getDepartments().then(setDepartments).catch(console.error);
+      }
+      if (checkPermission(session?.user || null, 'locations', 'view')) {
+        getLocations().then(setLocations).catch(console.error);
+      }
+    }
+  }, [currentView, useBackend, session?.user]);
+
   const NavItem = ({ view, icon: Icon }: { view: View, icon: any }) => (
     <button
       onClick={() => { setCurrentView(view); setIsMobileMenuOpen(false); }}
@@ -959,13 +1002,14 @@ const App: React.FC = () => {
               onClick={() => setCurrentView(View.MGMT_DASHBOARD)} 
             />
           )}
-          <SidebarItem 
-            icon={<Package size={20} />} 
-            label="Inventory" 
-            active={currentView === View.INVENTORY} 
-            onClick={() => setCurrentView(View.INVENTORY)} 
-            disabled={!checkPermission(session?.user || null, 'nav.inventory', 'view')}
-          />
+          {checkPermission(session?.user || null, 'nav.inventory', 'view') && (
+            <SidebarItem 
+              icon={<Package size={20} />} 
+              label="Inventory" 
+              active={currentView === View.INVENTORY} 
+              onClick={() => setCurrentView(View.INVENTORY)} 
+            />
+          )}
           {checkPermission(session?.user || null, 'nav.employees', 'view') && (
             <SidebarItem icon={<Briefcase size={20} />} label="Employees" active={currentView === View.EMPLOYEES} onClick={() => setCurrentView(View.EMPLOYEES)} />
           )}
@@ -1015,8 +1059,9 @@ const App: React.FC = () => {
             className="fixed top-14 left-0 w-full z-20 bg-white p-4 shadow-lg border-b border-gray-200 lg:hidden"
           >
              <nav className="space-y-1">
-             <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
-              {checkPermission(session?.user || null, 'nav.inventory', 'view') && <NavItem view={View.INVENTORY} icon={Box} />}
+              <NavItem view={View.DASHBOARD} icon={LayoutDashboard} />
+               {checkPermission(session?.user || null, 'nav.mgmtDashboard', 'view') && <NavItem view={View.MGMT_DASHBOARD} icon={TrendingUp} />}
+               {checkPermission(session?.user || null, 'nav.inventory', 'view') && <NavItem view={View.INVENTORY} icon={Box} />}
               {checkPermission(session?.user || null, 'nav.employees', 'view') && <NavItem view={View.EMPLOYEES} icon={Briefcase} />}
               {checkPermission(session?.user || null, 'nav.departments', 'view') && <NavItem view={View.DEPARTMENTS} icon={Building2} />}
               {checkPermission(session?.user || null, 'nav.locations', 'view') && <NavItem view={View.LOCATIONS} icon={MapPin} />}
@@ -1094,6 +1139,8 @@ const App: React.FC = () => {
                   canEditFeedback={checkPermission(session?.user || null, 'employees.feedback', 'edit')}
                   canViewSalary={checkPermission(session?.user || null, 'employees.salary', 'view')}
                   canEditSalary={checkPermission(session?.user || null, 'employees.salary', 'edit')}
+                  canViewAssets={checkPermission(session?.user || null, 'assets', 'view')}
+                  canViewOfficialDetails={checkPermission(session?.user || null, 'employees.info', 'view')}
                   useBackend={useBackend}
                   currentUser={session?.user || null}
                 />

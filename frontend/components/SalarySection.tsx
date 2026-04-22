@@ -7,12 +7,11 @@ import {
   History, 
   DollarSign, 
   Calendar, 
-  ChevronRight, 
   AlertCircle,
   Loader,
   TrendingUp,
-  TrendingDown,
-  Info
+  Info,
+  AlertTriangle
 } from 'lucide-react';
 import { EmployeeSalaryInfo } from '../types';
 import { 
@@ -34,6 +33,12 @@ const SalarySection: React.FC<SalarySectionProps> = ({ employeeId, canEditSalary
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSalary, setEditingSalary] = useState<EmployeeSalaryInfo | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  // Delete confirmation state
+  const [deleteTarget, setDeleteTarget] = useState<EmployeeSalaryInfo | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   // Form State
   const [formData, setFormData] = useState({
@@ -65,15 +70,17 @@ const SalarySection: React.FC<SalarySectionProps> = ({ employeeId, canEditSalary
   };
 
   const openAddForm = () => {
+    const current = salaries.length > 0 ? salaries[0] : null;
     setEditingSalary(null);
+    setFormError('');
     setFormData({
-      ctc: '',
-      currency: 'INR',
-      payFrequency: 'Monthly',
+      ctc: current ? current.ctc.toString() : '',
+      currency: current ? current.currency : 'INR',
+      payFrequency: current ? current.payFrequency : 'Monthly',
       effectiveDate: new Date().toISOString().split('T')[0],
-      bonus: '',
-      clientBillingRate: '',
-      clientBillingCurrency: 'INR',
+      bonus: current?.bonus ? current.bonus.toString() : '',
+      clientBillingRate: current?.clientBillingRate ? current.clientBillingRate.toString() : '',
+      clientBillingCurrency: current?.clientBillingCurrency || 'INR',
       notes: ''
     });
     setIsFormOpen(true);
@@ -81,6 +88,7 @@ const SalarySection: React.FC<SalarySectionProps> = ({ employeeId, canEditSalary
 
   const openEditForm = (salary: EmployeeSalaryInfo) => {
     setEditingSalary(salary);
+    setFormError('');
     setFormData({
       ctc: salary.ctc.toString(),
       currency: salary.currency,
@@ -97,6 +105,7 @@ const SalarySection: React.FC<SalarySectionProps> = ({ employeeId, canEditSalary
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setFormError('');
     try {
       const payload = {
         ctc: parseFloat(formData.ctc),
@@ -118,23 +127,35 @@ const SalarySection: React.FC<SalarySectionProps> = ({ employeeId, canEditSalary
       await fetchSalaries();
       setIsFormOpen(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to save salary record');
+      setFormError(err.message || 'Failed to save salary record. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this salary record? This action cannot be undone.')) {
-      return;
-    }
+  const requestDelete = (salary: EmployeeSalaryInfo) => {
+    setDeleteTarget(salary);
+    setDeleteError('');
+  };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    setDeleteError('');
     try {
-      await deleteEmployeeSalary(id);
+      await deleteEmployeeSalary(deleteTarget.id);
       await fetchSalaries();
+      setDeleteTarget(null);
     } catch (err: any) {
-      alert(err.message || 'Failed to delete salary record');
+      setDeleteError(err.message || 'Failed to delete salary record. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteTarget(null);
+    setDeleteError('');
   };
 
   const formatCurrency = (amount: number, currency: string) => {
@@ -297,7 +318,7 @@ const SalarySection: React.FC<SalarySectionProps> = ({ employeeId, canEditSalary
                               <Pencil size={16} />
                             </button>
                             <button
-                              onClick={() => handleDelete(salary.id)}
+                              onClick={() => requestDelete(salary)}
                               className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
                               title="Delete"
                             >
@@ -323,137 +344,208 @@ const SalarySection: React.FC<SalarySectionProps> = ({ employeeId, canEditSalary
       )}
 
       {/* Add/Edit Modal */}
-      {isFormOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden"
-          >
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <h3 className="text-xl font-bold text-gray-900">
-                {editingSalary ? 'Edit Salary Record' : 'Add New Salary Record'}
-              </h3>
-              <button onClick={() => setIsFormOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-                <X size={20} />
-              </button>
-            </div>
+      <AnimatePresence>
+        {isFormOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <h3 className="text-xl font-bold text-gray-900">
+                  {editingSalary ? 'Edit Salary Record' : 'Add New Salary Record'}
+                </h3>
+                <button onClick={() => setIsFormOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
 
-            <form onSubmit={handleSubmit} className="p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Annual CTC</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                      <DollarSign size={16} />
+              <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                {/* Inline form error */}
+                {formError && (
+                  <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                    <AlertCircle size={18} className="shrink-0" />
+                    <span>{formError}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Annual CTC</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <DollarSign size={16} />
+                      </div>
+                      <input
+                        required
+                        type="number"
+                        step="0.01"
+                        className="w-full pl-9 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+                        placeholder="e.g. 1200000"
+                        value={formData.ctc}
+                        onChange={e => setFormData({ ...formData, ctc: e.target.value })}
+                      />
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Currency</label>
+                    <select
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+                      value={formData.currency}
+                      onChange={e => setFormData({ ...formData, currency: e.target.value })}
+                    >
+                      <option value="INR">INR (₹)</option>
+                      <option value="USD">USD ($)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="GBP">GBP (£)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Bonus Component</label>
                     <input
-                      required
                       type="number"
                       step="0.01"
-                      className="w-full pl-9 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
-                      placeholder="e.g. 1200000"
-                      value={formData.ctc}
-                      onChange={e => setFormData({ ...formData, ctc: e.target.value })}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+                      placeholder="Variable / Performance Bonus"
+                      value={formData.bonus}
+                      onChange={e => setFormData({ ...formData, bonus: e.target.value })}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Effective Date</label>
+                    <input
+                      required
+                      type="date"
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+                      value={formData.effectiveDate}
+                      onChange={e => setFormData({ ...formData, effectiveDate: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Billing Rate (Annual)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+                      placeholder="Gross billing"
+                      value={formData.clientBillingRate}
+                      onChange={e => setFormData({ ...formData, clientBillingRate: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pay Frequency</label>
+                    <select
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+                      value={formData.payFrequency}
+                      onChange={e => setFormData({ ...formData, payFrequency: e.target.value })}
+                    >
+                      <option value="Monthly">Monthly</option>
+                      <option value="Bi-weekly">Bi-weekly</option>
+                      <option value="Weekly">Weekly</option>
+                    </select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Currency</label>
-                  <select
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
-                    value={formData.currency}
-                    onChange={e => setFormData({ ...formData, currency: e.target.value })}
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Internal Notes</label>
+                  <textarea
+                    rows={2}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all resize-none"
+                    placeholder="Rationale for update, increment details, etc."
+                    value={formData.notes}
+                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsFormOpen(false)}
+                    className="flex-1 px-6 py-3 border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition-colors"
                   >
-                    <option value="INR">INR (₹)</option>
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Bonus Component</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
-                    placeholder="Variable / Performance Bonus"
-                    value={formData.bonus}
-                    onChange={e => setFormData({ ...formData, bonus: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Effective Date</label>
-                  <input
-                    required
-                    type="date"
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
-                    value={formData.effectiveDate}
-                    onChange={e => setFormData({ ...formData, effectiveDate: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Billing Rate (Annual)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
-                    placeholder="Gross billing"
-                    value={formData.clientBillingRate}
-                    onChange={e => setFormData({ ...formData, clientBillingRate: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pay Frequency</label>
-                  <select
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
-                    value={formData.payFrequency}
-                    onChange={e => setFormData({ ...formData, payFrequency: e.target.value })}
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-[2] px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    <option value="Monthly">Monthly</option>
-                    <option value="Bi-weekly">Bi-weekly</option>
-                    <option value="Weekly">Weekly</option>
-                  </select>
+                    {isSubmitting ? <Loader size={18} className="animate-spin" /> : null}
+                    {editingSalary ? 'Update Record' : 'Save Salary Record'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteTarget && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 flex flex-col items-center text-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
+                  <AlertTriangle size={28} className="text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">Delete Salary Record?</h3>
+                  <p className="text-sm text-gray-500">
+                    You're about to permanently delete the{' '}
+                    <span className="font-semibold text-gray-700">
+                      {formatCurrency(deleteTarget.ctc, deleteTarget.currency)}
+                    </span>{' '}
+                    record effective{' '}
+                    <span className="font-semibold text-gray-700">
+                      {new Date(deleteTarget.effectiveDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </span>.
+                    This action cannot be undone.
+                  </p>
+                </div>
+
+                {/* Inline delete error */}
+                {deleteError && (
+                  <div className="w-full flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm text-left">
+                    <AlertCircle size={16} className="shrink-0" />
+                    <span>{deleteError}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-3 w-full pt-2">
+                  <button
+                    onClick={cancelDelete}
+                    disabled={isDeleting}
+                    className="flex-1 px-5 py-3 border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    disabled={isDeleting}
+                    className="flex-1 px-5 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-100 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isDeleting ? <Loader size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                    {isDeleting ? 'Deleting…' : 'Yes, Delete'}
+                  </button>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Internal Notes</label>
-                <textarea
-                  rows={2}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-100 outline-none transition-all resize-none"
-                  placeholder="Rationale for update, increment details, etc."
-                  value={formData.notes}
-                  onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsFormOpen(false)}
-                  className="flex-1 px-6 py-3 border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-[2] px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isSubmitting ? <Loader size={18} className="animate-spin" /> : null}
-                  {editingSalary ? 'Update Record' : 'Save Salary Record'}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

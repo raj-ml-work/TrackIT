@@ -1749,7 +1749,7 @@ export const createPostgresProvider = async (config) => {
 
   const getEmployeeSalary = async (employeeId) => {
     const result = await pool.query(
-      'SELECT * FROM employee_salary_info WHERE employee_id = $1 ORDER BY effective_date DESC',
+      'SELECT * FROM employee_salary_info WHERE employee_id = $1 ORDER BY effective_date DESC, created_at DESC',
       [employeeId]
     );
     return result.rows.map(mapSalaryRow);

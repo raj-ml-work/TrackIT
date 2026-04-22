@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { randomUUID } from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
@@ -177,6 +178,48 @@ const ensureEmployeeOfficialInfoColumns = (db) => {
   addColumnIfMissing('assignment_date', 'DATE');
 
   db.exec('CREATE INDEX IF NOT EXISTS idx_employee_official_info_assignment_type ON employee_official_info(assignment_type)');
+};
+
+const ensureSalaryTable = (db) => {
+  const table = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='employee_salary_info'")
+    .get();
+
+  if (!table) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS employee_salary_info (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+        employee_id TEXT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+        ctc REAL NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'INR',
+        pay_frequency TEXT NOT NULL DEFAULT 'Monthly',
+        effective_date TEXT NOT NULL,
+        bonus REAL DEFAULT 0,
+        client_billing_rate REAL,
+        client_billing_currency TEXT,
+        notes TEXT,
+        created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_by_name TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_employee_salary_employee_id ON employee_salary_info(employee_id);
+      CREATE INDEX IF NOT EXISTS idx_employee_salary_effective_date ON employee_salary_info(effective_date DESC);
+      CREATE INDEX IF NOT EXISTS idx_employee_salary_employee_effective ON employee_salary_info(employee_id, effective_date DESC);
+    `);
+  }
+
+  // Ensure trigger is created even if table existed (backfill for previous missing trigger)
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS update_employee_salary_info_updated_at
+      AFTER UPDATE ON employee_salary_info
+      FOR EACH ROW
+      WHEN NEW.updated_at = OLD.updated_at
+    BEGIN
+      UPDATE employee_salary_info SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+    END;
+  `);
 };
 
 const ensureEmployeeEngagementHistoryTable = (db) => {
@@ -648,6 +691,7 @@ export const createSqliteProvider = (config) => {
   ensureAssetSpecsColumns(db);
   ensureEmployeePersonalInfoColumns(db);
   ensureEmployeeOfficialInfoColumns(db);
+  ensureSalaryTable(db);
   ensureEmployeeEngagementHistoryTable(db);
   ensureEmployeeFeedbackHistoryTable(db);
   ensureDefaultAdmin(db, config);
@@ -1921,7 +1965,7 @@ export const createSqliteProvider = (config) => {
 
   const getEmployeeSalary = async (employeeId) => {
     const rows = db.prepare(
-      'SELECT * FROM employee_salary_info WHERE employee_id = ? ORDER BY effective_date DESC'
+      'SELECT * FROM employee_salary_info WHERE employee_id = ? ORDER BY effective_date DESC, created_at DESC'
     ).all(employeeId);
     return rows.map(mapSalaryRow);
   };
@@ -1939,13 +1983,16 @@ export const createSqliteProvider = (config) => {
       throw new Error('Employee not found');
     }
 
-    const info = db.prepare(`
+    const newId = randomUUID();
+
+    db.prepare(`
       INSERT INTO employee_salary_info
-        (employee_id, ctc, currency, pay_frequency, effective_date, bonus,
+        (id, employee_id, ctc, currency, pay_frequency, effective_date, bonus,
          client_billing_rate, client_billing_currency, notes,
          created_by, created_by_name)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
+      newId,
       employeeId,
       salary.ctc,
       salary.currency || 'INR',
@@ -1959,7 +2006,7 @@ export const createSqliteProvider = (config) => {
       currentUser?.name || null
     );
 
-    const row = db.prepare('SELECT * FROM employee_salary_info WHERE rowid = ?').get(info.lastInsertRowid);
+    const row = db.prepare('SELECT * FROM employee_salary_info WHERE id = ?').get(newId);
     return mapSalaryRow(row);
   };
 

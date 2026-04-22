@@ -34,6 +34,8 @@ interface EmployeeManagementProps {
   canDelete?: boolean;
   canEditEngagement?: boolean;  // Gates engagement transition buttons (Admin, Delivery)
   canEditFeedback?: boolean;    // Gates feedback form submission (Admin, Delivery)
+  canViewAssets?: boolean;      // Gates assets tab visibility (Admin, Management, IT)
+  canViewOfficialDetails?: boolean; // Gates official info tab visibility (Admin, IT)
   canViewSalary?: boolean;      // Gates salary tab visibility (Admin, Management)
   canEditSalary?: boolean;      // Gates salary editing (Admin, Management)
   useBackend?: boolean;
@@ -316,7 +318,16 @@ const EmployeeAvatar: React.FC<EmployeeAvatarProps> = ({
 
 const PAGE_SIZE = 20;
 
-const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, assets, locations, departments, onAdd, onUpdate, onDelete, canCreate = true, canUpdate = true, canDelete = true, canEditEngagement, canEditFeedback, canViewSalary = false, canEditSalary = false, useBackend = false, currentUser }) => {
+const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ 
+  employees, assets, locations, departments, onAdd, onUpdate, onDelete, 
+  canCreate = true, canUpdate = true, canDelete = true, 
+  canEditEngagement, canEditFeedback, 
+  canViewSalary = false, canEditSalary = false,
+  canViewAssets = false,
+  canViewOfficialDetails = false,
+  useBackend = false,
+  currentUser
+}) => {
   // Derive engagement/feedback permissions: if explicit props provided, use them; otherwise fall back to canUpdate for backward compat
   const effectiveCanEditEngagement = canEditEngagement !== undefined ? canEditEngagement : canUpdate;
   const effectiveCanEditFeedback = canEditFeedback !== undefined ? canEditFeedback : canUpdate;
@@ -533,7 +544,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
     viewingEmployeeIdRef.current = viewingEmployee?.id || null;
   }, [viewingEmployee?.id]);
 
-  const canViewPersonalDetails = checkPermission(currentUser || null, 'employees.info', 'edit');
+  const canViewPersonalDetails = checkPermission(currentUser || null, 'employees.info', 'view');
 
   useEffect(() => {
     if (!canViewPersonalDetails && activeTab === 'personal') {
@@ -2121,11 +2132,11 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
 
         <div className="space-y-2">
           <div className="grid grid-cols-12 text-xs text-gray-400 px-2">
-            <span className="col-span-3">Name</span>
+            <span className={canViewAssets ? "col-span-3" : "col-span-5"}>Name</span>
             <span className="col-span-2">Employee ID</span>
             <span className="col-span-2">Department</span>
             <span className="col-span-2">Status</span>
-            <span className="col-span-2">Assets</span>
+            {canViewAssets && <span className="col-span-2">Assets</span>}
             <span className="col-span-1 text-right">Actions</span>
           </div>
 
@@ -2170,7 +2181,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                 whileHover={{ scale: 1.01 }}
                 className="grid grid-cols-12 items-center px-3 py-3 rounded-xl hover:bg-white/60 transition-all border border-transparent hover:border-gray-100 hover:shadow-sm"
               >
-                <div className="col-span-3">
+                <div className={canViewAssets ? "col-span-3" : "col-span-5"}>
                   <div className="flex items-center gap-3">
                     <EmployeeAvatar employee={employee} sizeClass="w-9 h-9" />
                     <div>
@@ -2187,12 +2198,14 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                 <div className="col-span-2">
                   <span className={statusBadge(employee.status)}>{employee.status}</span>
                 </div>
-                <div className="col-span-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-800">{assetCounts[employee.id] || 0}</span>
-                    <span className="text-xs text-gray-500">assigned</span>
+                {canViewAssets && (
+                  <div className="col-span-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-800">{assetCounts[employee.id] || 0}</span>
+                      <span className="text-xs text-gray-500">assigned</span>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="col-span-1 flex items-center gap-2 justify-end">
                   <motion.button
                     whileHover={{ scale: 1.1 }}
@@ -2510,16 +2523,18 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={statusBadge(viewingEmployee.status)}>{viewingEmployee.status}</span>
-                    <button
-                      onClick={() => {
-                        closeEmployeeDetail();
-                        openEdit(viewingEmployee);
-                      }}
-                      className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                      title="Edit"
-                    >
-                      <Pencil size={18} />
-                    </button>
+                    {canUpdate && (
+                      <button
+                        onClick={() => {
+                          closeEmployeeDetail();
+                          openEdit(viewingEmployee);
+                        }}
+                        className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil size={18} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2530,8 +2545,9 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                   {(
                     (() => {
                       const tabs = ['overview', 'engagement', 'feedback'] as string[];
-                      if (canViewPersonalDetails) tabs.push('personal');
-                      tabs.push('official', 'assets');
+                      if (canUpdate || canViewPersonalDetails) tabs.push('personal');
+                      if (canViewOfficialDetails) tabs.push('official');
+                      if (canViewAssets) tabs.push('assets');
                       if (canViewSalary) tabs.push('salary');
                       return tabs;
                     })()
@@ -2687,7 +2703,12 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                       exit={{ opacity: 0, y: -10 }}
                       className="space-y-4"
                     >
-                      {viewingOfficialInfo?.assignmentType ? (
+                      {!viewingOfficialInfo && isEmployeeDetailLoading ? (
+                        <div className="flex flex-col items-center justify-center py-12 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                          <Loader size={24} className="text-amber-500 animate-spin mb-3" />
+                          <p className="text-gray-500 text-sm font-medium">Loading engagement status...</p>
+                        </div>
+                      ) : viewingOfficialInfo ? (
                         <>
                           <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5">
                             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-4">
@@ -2917,9 +2938,23 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, asse
                           </div>
                         </>
                       ) : (
-                        <div className="text-center py-12 text-gray-400 border border-dashed border-gray-200 rounded-xl bg-gray-50">
-                          <Building size={40} className="mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">No engagement details available</p>
+                        <div className="p-12 text-center border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/30">
+                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                            <Briefcase size={24} />
+                          </div>
+                          <h4 className="text-gray-900 font-bold mb-1">No Engagement Data</h4>
+                          <p className="text-gray-500 text-sm max-w-xs mx-auto mb-6">
+                            No official engagement record was found for this employee.
+                          </p>
+                          {effectiveCanEditEngagement && (
+                            <button
+                              type="button"
+                              onClick={() => openEngagementTransitionModal('change')}
+                              className="px-4 py-2 bg-amber-600 text-white rounded-xl text-sm font-bold hover:bg-amber-700 transition-colors shadow-sm"
+                            >
+                              Initialize Engagement
+                            </button>
+                          )}
                         </div>
                       )}
                     </motion.div>
