@@ -207,6 +207,7 @@ CREATE TABLE IF NOT EXISTS assets (
   previous_tag TEXT,
   notes TEXT,
   specs TEXT, -- Store flexible asset specifications as JSON
+  voice_info TEXT, -- Voice Information
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

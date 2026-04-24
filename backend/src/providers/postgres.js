@@ -31,6 +31,17 @@ const ensureEmployeeOfficialInfoColumns = async (pool) => {
   `);
 };
 
+const ensureAssetsColumns = async (pool) => {
+  await pool.query(`DO $$ BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' AND table_name = 'assets' AND column_name = 'voice_info'
+    ) THEN
+      ALTER TABLE assets ADD COLUMN voice_info TEXT;
+    END IF;
+  END $$;`);
+};
+
 const ensureAssetSpecsColumns = async (pool) => {
   await pool.query(`
     ALTER TABLE IF EXISTS asset_specs
@@ -387,7 +398,20 @@ const mapAssetRow = (row) => {
     manufacturer: row.manufacturer || undefined,
     previousTag: row.previous_tag || undefined,
     notes: row.notes || undefined,
-    specs: parseJsonSafe(row.specs)
+    voiceInfo: row.voice_info || undefined,
+    specs: parseJsonSafe(row.specs),
+    assetSpecs: row.spec_id ? {
+      id: row.spec_id,
+      brand: row.brand,
+      model: row.model,
+      processorType: row.processor_type,
+      ramCapacity: row.ram_capacity,
+      storageCapacity: row.storage_capacity,
+      osDetails: row.os_details,
+      screenSize: row.screen_size,
+      isTouchscreen: Boolean(row.is_touchscreen),
+      printerType: row.printer_type
+    } : undefined
   };
 };
 
@@ -499,6 +523,7 @@ export const createPostgresProvider = async (config) => {
   await ensureEmployeePersonalInfoColumns(pool);
   await ensureEmployeeOfficialInfoColumns(pool);
   await ensureAssetSpecsColumns(pool);
+  await ensureAssetsColumns(pool);
   await ensureEmployeeEngagementHistoryTable(pool);
   await ensureEmployeeFeedbackHistoryTable(pool);
   await ensureDefaultAdmin(pool, config);
@@ -507,7 +532,17 @@ export const createPostgresProvider = async (config) => {
     SELECT assets.*,
            locations.name AS location_name,
            personal.first_name AS assigned_first_name,
-           personal.last_name AS assigned_last_name
+           personal.last_name AS assigned_last_name,
+           asset_specs.id AS spec_id,
+           asset_specs.brand,
+           asset_specs.model,
+           asset_specs.processor_type,
+           asset_specs.ram_capacity,
+           asset_specs.storage_capacity,
+           asset_specs.os_details,
+           asset_specs.screen_size,
+           asset_specs.is_touchscreen,
+           asset_specs.printer_type
       FROM assets
       LEFT JOIN locations
         ON locations.id = assets.location_id
@@ -515,6 +550,8 @@ export const createPostgresProvider = async (config) => {
         ON employees.id = assets.employee_id
       LEFT JOIN employee_personal_info AS personal
         ON personal.id = employees.personal_info_id
+      LEFT JOIN asset_specs
+        ON asset_specs.asset_id = assets.id
   `;
 
   const employeeSelect = `
@@ -749,7 +786,40 @@ export const createPostgresProvider = async (config) => {
     return result.rows.length > 0;
   };
 
+  const generateAssetTag = async (type) => {
+    // Determine prefix based on type or just use BS
+    let prefix = 'BS';
+    if (type === 'Laptop') prefix = 'BS-L';
+    else if (type === 'Desktop') prefix = 'BS-D';
+    else if (type === 'Monitor') prefix = 'BS-M';
+    else prefix = 'BS-A'; // Generic Asset
+
+    const year = new Date().getFullYear();
+    const prefixWithYear = `${prefix}-${year}-`;
+
+    const result = await pool.query(
+      'SELECT name FROM assets WHERE name LIKE $1 ORDER BY name DESC LIMIT 1',
+      [`${prefixWithYear}%`]
+    );
+
+    const lastAsset = result.rows?.[0];
+    let nextNumber = 1;
+    if (lastAsset) {
+      const parts = lastAsset.name.split('-');
+      const lastNumber = parseInt(parts[parts.length - 1]);
+      if (!isNaN(lastNumber)) {
+        nextNumber = lastNumber + 1;
+      }
+    }
+
+    return `${prefixWithYear}${String(nextNumber).padStart(4, '0')}`;
+  };
+
   const createAsset = async (asset) => {
+    // Auto-generate name if not provided or if it follows the old location pattern
+    if (!asset.name || asset.name.startsWith('BS_HYD_')) {
+      asset.name = await generateAssetTag(asset.type);
+    }
     if (!asset?.name) {
       throw new Error('Asset name is required');
     }
@@ -787,8 +857,9 @@ export const createPostgresProvider = async (config) => {
         manufacturer,
         previous_tag,
         notes,
-        specs
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        specs,
+        voice_info
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING id
     `,
       [
@@ -808,7 +879,8 @@ export const createPostgresProvider = async (config) => {
         asset.manufacturer || null,
         asset.previousTag || null,
         asset.notes || null,
-        specs
+        specs,
+        asset.voiceInfo || null
       ]
     );
 
@@ -862,8 +934,9 @@ export const createPostgresProvider = async (config) => {
              manufacturer = $14,
              previous_tag = $15,
              notes = $16,
-             specs = $17
-       WHERE id = $18
+             specs = $17,
+             voice_info = $18
+       WHERE id = $19
     `,
       [
         asset.name,
@@ -883,6 +956,7 @@ export const createPostgresProvider = async (config) => {
         asset.previousTag || null,
         asset.notes || null,
         specs,
+        asset.voiceInfo || null,
         asset.id
       ]
     );

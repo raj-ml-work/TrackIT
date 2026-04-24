@@ -72,6 +72,7 @@ const ensureAssetTables = (db) => {
         previous_tag TEXT,
         notes TEXT,
         specs TEXT,
+        voice_info TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -140,6 +141,21 @@ const ensureAssetSpecsColumns = (db) => {
 
   if (!columnNames.has('os_details')) {
     db.exec('ALTER TABLE asset_specs ADD COLUMN os_details TEXT');
+  }
+};
+
+const ensureAssetsColumns = (db) => {
+  const table = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='assets'")
+    .get();
+
+  if (!table) return;
+
+  const columns = db.prepare("PRAGMA table_info('assets')").all();
+  const columnNames = new Set(columns.map((column) => column.name));
+
+  if (!columnNames.has('voice_info')) {
+    db.exec('ALTER TABLE assets ADD COLUMN voice_info TEXT');
   }
 };
 
@@ -576,7 +592,20 @@ const mapAssetRow = (row) => {
     manufacturer: row.manufacturer || undefined,
     previousTag: row.previous_tag || undefined,
     notes: row.notes || undefined,
-    specs: parseJsonSafe(row.specs)
+    voiceInfo: row.voice_info || undefined,
+    specs: parseJsonSafe(row.specs),
+    assetSpecs: row.spec_id ? {
+      id: row.spec_id,
+      brand: row.brand,
+      model: row.model,
+      processorType: row.processor_type,
+      ramCapacity: row.ram_capacity,
+      storageCapacity: row.storage_capacity,
+      osDetails: row.os_details,
+      screenSize: row.screen_size,
+      isTouchscreen: Boolean(row.is_touchscreen),
+      printerType: row.printer_type
+    } : undefined
   };
 };
 
@@ -689,6 +718,7 @@ export const createSqliteProvider = (config) => {
   ensureDepartmentsTable(db);
   ensureAssetTables(db);
   ensureAssetSpecsColumns(db);
+  ensureAssetsColumns(db);
   ensureEmployeePersonalInfoColumns(db);
   ensureEmployeeOfficialInfoColumns(db);
   ensureSalaryTable(db);
@@ -803,7 +833,17 @@ export const createSqliteProvider = (config) => {
     SELECT assets.*,
            locations.name AS location_name,
            personal.first_name AS assigned_first_name,
-           personal.last_name AS assigned_last_name
+           personal.last_name AS assigned_last_name,
+           asset_specs.id AS spec_id,
+           asset_specs.brand,
+           asset_specs.model,
+           asset_specs.processor_type,
+           asset_specs.ram_capacity,
+           asset_specs.storage_capacity,
+           asset_specs.os_details,
+           asset_specs.screen_size,
+           asset_specs.is_touchscreen,
+           asset_specs.printer_type
       FROM assets
       LEFT JOIN locations
         ON locations.id = assets.location_id
@@ -811,6 +851,8 @@ export const createSqliteProvider = (config) => {
         ON employees.id = assets.employee_id
       LEFT JOIN employee_personal_info AS personal
         ON personal.id = employees.personal_info_id
+      LEFT JOIN asset_specs
+        ON asset_specs.asset_id = assets.id
   `;
 
   const employeeSelect = `
@@ -1261,7 +1303,38 @@ export const createSqliteProvider = (config) => {
     return !!row;
   };
 
+  const generateAssetTag = async (type) => {
+    // Determine prefix based on type or just use BS
+    let prefix = 'BS';
+    if (type === 'Laptop') prefix = 'BS-L';
+    else if (type === 'Desktop') prefix = 'BS-D';
+    else if (type === 'Monitor') prefix = 'BS-M';
+    else prefix = 'BS-A'; // Generic Asset
+
+    const year = new Date().getFullYear();
+    const prefixWithYear = `${prefix}-${year}-`;
+
+    const lastAsset = db
+      .prepare('SELECT name FROM assets WHERE name LIKE ? ORDER BY name DESC LIMIT 1')
+      .get(`${prefixWithYear}%`);
+
+    let nextNumber = 1;
+    if (lastAsset) {
+      const parts = lastAsset.name.split('-');
+      const lastNumber = parseInt(parts[parts.length - 1]);
+      if (!isNaN(lastNumber)) {
+        nextNumber = lastNumber + 1;
+      }
+    }
+
+    return `${prefixWithYear}${String(nextNumber).padStart(4, '0')}`;
+  };
+
   const createAsset = async (asset) => {
+    // Auto-generate name if not provided or if it follows the old location pattern
+    if (!asset.name || asset.name.startsWith('BS_HYD_')) {
+      asset.name = await generateAssetTag(asset.type);
+    }
     if (!asset?.name) {
       throw new Error('Asset name is required');
     }
@@ -1298,8 +1371,9 @@ export const createSqliteProvider = (config) => {
         manufacturer,
         previous_tag,
         notes,
-        specs
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        specs,
+        voice_info
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       asset.name,
       asset.type,
@@ -1317,7 +1391,8 @@ export const createSqliteProvider = (config) => {
       asset.manufacturer || null,
       asset.previousTag || null,
       asset.notes || null,
-      specs
+      specs,
+      asset.voiceInfo || null
     );
 
     const row = db
@@ -1452,7 +1527,8 @@ export const createSqliteProvider = (config) => {
              manufacturer = ?,
              previous_tag = ?,
              notes = ?,
-             specs = ?
+             specs = ?,
+             voice_info = ?
        WHERE id = ?
     `).run(
       asset.name,
@@ -1472,6 +1548,7 @@ export const createSqliteProvider = (config) => {
       asset.previousTag || null,
       asset.notes || null,
       specs,
+      asset.voiceInfo || null,
       asset.id
     );
 

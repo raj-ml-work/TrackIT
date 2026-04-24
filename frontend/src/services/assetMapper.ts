@@ -40,6 +40,7 @@ export const mapAssetRecord = (record: any): Asset => {
     purchaseDate: normalizeDateOutput(record.purchaseDate ?? record.purchase_date),
     warrantyExpiry: normalizeDateOutput(record.warrantyExpiry ?? record.warranty_expiry),
     cost: Number(record.cost ?? 0),
-    location: record.location ?? record.location_name ?? record.locationName ?? ''
+    location: record.location ?? record.location_name ?? record.locationName ?? '',
+    voiceInfo: record.voiceInfo ?? record.voice_info ?? ''
   };
 };

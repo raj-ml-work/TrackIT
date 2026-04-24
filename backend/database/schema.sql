@@ -401,6 +401,7 @@ CREATE TABLE IF NOT EXISTS assets (
   location VARCHAR(255), -- Legacy: location name (for backward compatibility)
   notes TEXT,
   specs JSONB, -- Store flexible asset specifications as JSON
+  voice_info TEXT, -- Voice Information
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

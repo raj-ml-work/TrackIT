@@ -94,6 +94,7 @@ export interface Asset {
   warrantyExpiry: string;
   cost: number;
   location: string;
+  voiceInfo?: string;
 }
 
 export type AssetType =
